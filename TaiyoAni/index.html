@@ -2,16 +2,16 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>TaiyoAni UI - Task & Team Hub</title>
   <link rel="icon" type="image/png" href="./Tanomiya.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="device-mode-auto">
 
   <!-- หน้าจอเข้าสู่ระบบ / สมัครสมาชิก (Auth Gate) -->
   <div class="auth-gate-overlay" id="authGate">
@@ -52,14 +52,14 @@
       <div id="registerSection" style="display: none;">
         <form onsubmit="handleRegisterSubmit(event)">
           <div class="form-group">
-            <label>รูปโปรไฟล์ (อัปโหลดจากคอม หรือเลือกสัญลักษณ์)</label>
+            <label>รูปโปรไฟล์ (อัปโหลดจากอุปกรณ์ หรือเลือกสัญลักษณ์)</label>
             <div class="avatar-upload-wrapper">
               <div class="avatar-preview-box" id="avatarPreviewDisplay">
                 <span>👨‍💻</span>
               </div>
               <div class="avatar-upload-controls">
                 <label class="btn-file-upload">
-                  📁 เลือกรูปจากคอมพิวเตอร์
+                  📁 เลือกรูปจากเครื่อง
                   <input type="file" id="avatarFileInput" accept="image/*" onchange="handleAvatarFileSelect(event, 'reg')">
                 </label>
                 <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">หรือเลือก Preset:</div>
@@ -136,14 +136,31 @@
     </div>
   </div>
 
+  <!-- Backdrop ปิด Drawer Sidebar (ไม่ขวางคลิกหากไม่ได้เปิดเมนู) -->
+  <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleMobileSidebar()"></div>
+
   <!-- หน้าต่าง Workspace หลัก -->
   <div class="app-layout" id="mainAppLayout" style="display: none;">
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-icon">
-          <img src="./Tanomiya.png" alt="TaiyoAni Logo" class="brand-img">
+    <aside class="sidebar" id="appSidebar">
+      <div class="sidebar-header-row">
+        <div class="brand">
+          <div class="brand-icon">
+            <img src="./Tanomiya.png" alt="TaiyoAni Logo" class="brand-img">
+          </div>
+          <div class="brand-title">TaiyoAni UI</div>
         </div>
-        <div class="brand-title">TaiyoAni UI</div>
+        <button type="button" class="btn-close-sidebar-mobile" onclick="toggleMobileSidebar()" title="ปิดเมนู">✕</button>
+      </div>
+
+      <!-- แถบสลับโหมดอุปกรณ์ (Device Switcher) -->
+      <div class="device-switcher-box">
+        <div class="device-switcher-title">โหมดการแสดงผล (Device View)</div>
+        <div class="device-switcher-buttons">
+          <button type="button" class="btn-device-opt active" id="devOptAuto" onclick="setDeviceMode('auto')" title="ปรับอัตโนมัติตามขนาดจอ">🔄 Auto</button>
+          <button type="button" class="btn-device-opt" id="devOptDesktop" onclick="setDeviceMode('desktop')" title="โหมด Desktop PC">🖥️ PC</button>
+          <button type="button" class="btn-device-opt" id="devOptTablet" onclick="setDeviceMode('tablet')" title="โหมดแท็บเล็ต iPad">📱 iPad</button>
+          <button type="button" class="btn-device-opt" id="devOptMobile" onclick="setDeviceMode('mobile')" title="โหมดมือถือ Phone">📲 มือถือ</button>
+        </div>
       </div>
 
       <div class="sidebar-section-title">หัวข้อโปรเจกต์ (Projects)</div>
@@ -167,59 +184,143 @@
     <main class="main-window">
       <header class="window-header">
         <div class="header-left">
-          <h1 id="currentProjectTitle">เลือกโปรเจกต์</h1>
-          <p id="currentProjectDesc">จัดการงาน สตอรี่รายละเอียด และลิ้งก์ส่งงาน</p>
+          <button type="button" class="btn-hamburger" onclick="toggleMobileSidebar()" title="เปิดเมนูโปรเจกต์">
+            ☰
+          </button>
+          <div>
+            <h1 id="currentProjectTitle">เลือกโปรเจกต์</h1>
+            <p id="currentProjectDesc">จัดการงาน สตอรี่รายละเอียด และลิ้งก์ส่งงาน</p>
+          </div>
         </div>
         
         <div class="header-actions">
-          <!-- ปุ่มสมุดโน้ตประจำโปรเจกต์ -->
           <button type="button" class="btn-notes-action" onclick="openProjectNotesModal()" id="btnProjectNotes" title="สมุดโน้ตบันทึกข้อมูลประจำโปรเจกต์">
-            <span>📝</span> โน้ตโปรเจกต์
+            <span>📝</span> <span class="action-text">โน้ต</span>
           </button>
 
-          <!-- ปุ่มดูสมาชิกทีมและสถานะ -->
-          <button type="button" class="btn-members-toggle" onclick="toggleMembersPanel()" id="btnMembersToggle" title="ดูสมาชิกและสถานะออนไลน์">
+          <!-- ปุ่มเปิดแถบแชท & สมาชิกทางขวามือ -->
+          <button type="button" class="btn-members-toggle" onclick="toggleChatWindow()" id="btnMembersToggle" title="เปิดแถบแชทและรายชื่อสมาชิกด้านขวา">
             <span>👥</span>
-            <span>สมาชิก</span>
-            <span class="online-indicator-pill" id="onlineIndicatorCounter">0 ออนไลน์</span>
+            <span class="action-text">สมาชิก & แชท</span>
+            <span class="online-indicator-pill" id="onlineIndicatorCounter">0</span>
           </button>
           
-          <button type="button" class="btn-idea-action" onclick="openAddIdeaModal()" id="btnNewIdea">💡 เสนอไอเดีย</button>
-          <button type="button" class="btn-create-task" onclick="openAddTaskModal()" id="btnNewTask">+ มอบหมายงานใหม่</button>
-        </div>
+          <button type="button" class="btn-script-header" onclick="openNewScriptModal()" id="btnNewScript" title="สร้างสคริปต์บทพากย์/เนื้อเรื่องใหม่">
+            <span>📜</span> <span class="action-text">สคริปต์</span>
+          </button>
 
-        <div class="members-presence-panel" id="membersPresencePanel">
-          <div class="members-panel-header">
-            <h4>👥 สมาชิกทีมทั้งหมด (Team Status)</h4>
-            <button type="button" class="btn-close-panel" onclick="toggleMembersPanel()">✕</button>
-          </div>
-          <div class="members-presence-list" id="membersPresenceList"></div>
+          <button type="button" class="btn-idea-action" onclick="openAddIdeaModal()" id="btnNewIdea">
+            <span>💡</span> <span class="action-text">ไอเดีย</span>
+          </button>
+          
+          <button type="button" class="btn-create-task" onclick="openAddTaskModal()" id="btnNewTask">
+            <span>+</span> <span class="action-text">งานใหม่</span>
+          </button>
         </div>
       </header>
+
+      <!-- วิตเจ็ตแสดงรายได้ของแต่ละทีม -->
+      <section class="revenue-widget-section">
+        <div class="revenue-widget-header">
+          <div class="revenue-header-title">
+            <span>💰</span>
+            <span>รายได้และงบประมาณทีม (Team Revenue & Budget)</span>
+            <span class="revenue-updated-badge" id="revenueUpdatedBadge">อัปเดต: ...</span>
+          </div>
+          <button type="button" class="btn-edit-revenue" id="btnAdminEditRevenue" onclick="openRevenueModal()" style="display: none;">
+            ✏️ จัดการรายได้ทีม
+          </button>
+        </div>
+
+        <div class="revenue-cards-grid">
+          <div class="revenue-card card-voice">
+            <div class="revenue-card-header">
+              <span class="revenue-icon">🎙️</span>
+              <span class="revenue-team-name">ทีมพากย์ (Voice)</span>
+            </div>
+            <div class="revenue-amount" id="revenueVoiceDisplay">฿ 0</div>
+            <div class="revenue-card-footer">งานลงเสียง & พากย์</div>
+          </div>
+
+          <div class="revenue-card card-animation">
+            <div class="revenue-card-header">
+              <span class="revenue-icon">🎬</span>
+              <span class="revenue-team-name">ทีมแอนิเมชั่น (3D)</span>
+            </div>
+            <div class="revenue-amount" id="revenueAnimDisplay">฿ 0</div>
+            <div class="revenue-card-footer">ผลิต 3D & Rigging</div>
+          </div>
+
+          <div class="revenue-card card-audio">
+            <div class="revenue-card-header">
+              <span class="revenue-icon">🎵</span>
+              <span class="revenue-team-name">ทีมงานเสียง (SFX)</span>
+            </div>
+            <div class="revenue-amount" id="revenueAudioDisplay">฿ 0</div>
+            <div class="revenue-card-footer">ดนตรี & Sound FX</div>
+          </div>
+
+          <div class="revenue-card card-other">
+            <div class="revenue-card-header">
+              <span class="revenue-icon">✨</span>
+              <span class="revenue-team-name">ทีมอื่นๆ (Support)</span>
+            </div>
+            <div class="revenue-amount" id="revenueOtherDisplay">฿ 0</div>
+            <div class="revenue-card-footer">กราฟิก & ตัดต่อ</div>
+          </div>
+
+          <div class="revenue-card card-total">
+            <div class="revenue-card-header">
+              <span class="revenue-icon">💎</span>
+              <span class="revenue-team-name">ยอดรวมทั้งหมด (Total)</span>
+            </div>
+            <div class="revenue-amount total-val" id="revenueTotalDisplay">฿ 0</div>
+            <div class="revenue-card-footer">งบประมาณทุกทีม</div>
+          </div>
+        </div>
+      </section>
 
       <section class="board-viewport">
         <div class="tasks-grid" id="tasksContainer"></div>
       </section>
     </main>
 
-    <!-- Floating Chat Widget -->
-    <div class="team-chat-widget" id="teamChatWidget">
-      <div class="chat-window" id="chatWindow">
-        <div class="chat-header">
-          <div class="chat-header-title">
+    <!-- แถบควบคุมด้านขวา (Right Dock Panel): สมาชิกครึ่งบน + แชทครึ่งล่าง -->
+    <aside class="right-dock-panel" id="rightDockPanel">
+      <div class="dock-panel-main-header">
+        <div class="dock-panel-title">
+          <span>💬</span>
+          <span>ทีม & การสนทนา</span>
+        </div>
+        <button type="button" class="btn-close-dock" onclick="toggleChatWindow()" title="ปิดแถบด้านขวา">
+          ✕ ปิดแถบ
+        </button>
+      </div>
+
+      <!-- ครึ่งบน: รายชื่อสมาชิก -->
+      <div class="dock-top-half">
+        <div class="dock-section-header">
+          <span>👥 สมาชิกในระบบ (<span id="dockOnlineCountText">0 ออนไลน์</span>)</span>
+        </div>
+        <div class="dock-members-list" id="membersPresenceList"></div>
+      </div>
+
+      <!-- ครึ่งล่าง: แชทรวมและแชทส่วนตัว -->
+      <div class="dock-bottom-half">
+        <div class="dock-chat-header">
+          <div class="dock-chat-title">
             <button type="button" class="btn-chat-back" id="btnChatBackToTeam" onclick="switchToTeamChat()" title="กลับไปห้องแชททีม" style="display: none;">⬅️</button>
             <span class="chat-live-dot" id="chatHeaderLiveDot"></span>
-            <span id="chatHeaderTitleText">💬 ห้องพูดคุยทีม (Team Chat)</span>
+            <span id="chatHeaderTitleText">💬 ห้องแชทรวมทีม</span>
           </div>
           <div class="chat-header-controls">
             <button type="button" class="btn-chat-control" id="btnClearChat" onclick="handleClearChat()" title="ล้างประวัติแชท (เฉพาะแอดมิน)" style="display: none;">🗑️</button>
-            <button type="button" class="btn-chat-control" onclick="toggleChatWindow()" title="ย่อหน้าต่าง">✕</button>
           </div>
         </div>
 
         <div class="dm-status-banner" id="dmStatusBanner" style="display: none;">
-          <span>🔒 กำลังสนทนาส่วนตัวกับ <strong id="dmTargetNameDisplay"></strong></span>
-          <button type="button" class="btn-switch-to-team" onclick="switchToTeamChat()">สลับเป็นห้องรวม</button>
+          <span>🔒 สนทนาส่วนตัวกับ <strong id="dmTargetNameDisplay"></strong></span>
+          <button type="button" class="btn-switch-to-team" onclick="switchToTeamChat()">สลับห้องรวม</button>
         </div>
 
         <div class="chat-messages-body" id="chatMessagesBody"></div>
@@ -229,11 +330,215 @@
           <button type="submit" class="btn-chat-send" title="ส่งข้อความ">🚀</button>
         </form>
       </div>
+    </aside>
 
-      <button type="button" class="btn-chat-toggle" onclick="toggleChatWindow()" id="chatToggleBtn">
-        <span>💬</span>
-        <span class="chat-badge-counter" id="chatBadgeCounter">0</span>
-      </button>
+    <!-- ปุ่มเปิด-ปิดแชททางขวาล่าง -->
+    <button type="button" class="btn-chat-toggle" onclick="toggleChatWindow()" id="chatToggleBtn" title="เปิด/ปิดแถบแชทและสมาชิก">
+      <span>💬</span>
+      <span class="chat-badge-counter" id="chatBadgeCounter">0</span>
+    </button>
+  </div>
+
+  <!-- Modal สร้างสคริปต์ใหม่ -->
+  <div class="modal-overlay" id="newScriptModal">
+    <div class="modal" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">📜 สร้างสคริปต์ใหม่</h3>
+        <button type="button" class="close-btn" onclick="closeModal('newScriptModal')">✕</button>
+      </div>
+      <form onsubmit="handleCreateNewScript(event)">
+        <div class="form-group">
+          <label>ชื่อสคริปต์ / หัวข้อบท *</label>
+          <input type="text" id="newScriptTitleInput" class="form-control" placeholder="เช่น สคริปต์บทพากย์ ตอนที่ 1, บทสนทนาตัวละครหลัก" required>
+        </div>
+        <div class="form-group">
+          <label>คำอธิบายย่อ / แท็กระบุ</label>
+          <input type="text" id="newScriptDescInput" class="form-control" placeholder="เช่น ใช้สำหรับอัดเสียงรอบที่ 1">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('newScriptModal')">ยกเลิก</button>
+          <button type="submit" class="btn-script-create-submit">🚀 เปิดหน้าเขียนสคริปต์</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal เขียนสคริปต์สไตล์ Word หลายหน้า (สูงสุด 50 หน้า) -->
+  <div class="modal-overlay" id="scriptEditorModal">
+    <div class="modal word-editor-modal">
+      <div class="modal-header" style="margin-bottom: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+          <span style="font-size: 1.4rem;">📑</span>
+          <div>
+            <h3 id="scriptEditorTaskTitle" style="font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">สคริปต์บทพากย์</h3>
+            <div id="scriptEditorMetaInfo" style="font-size: 0.72rem; color: var(--text-muted);">เขียนและจัดรูปแบบเอกสารแบบเรียลไทม์</div>
+          </div>
+        </div>
+        <button type="button" class="close-btn" onclick="closeModal('scriptEditorModal')">✕</button>
+      </div>
+
+      <div class="word-pages-nav-bar">
+        <div class="page-nav-controls">
+          <button type="button" class="btn-page-nav" onclick="prevPage()" id="btnPrevPage">⬅️ ก่อนหน้า</button>
+          <div class="page-indicator-box">
+            <span>หน้า</span>
+            <select id="pageSelectDropdown" onchange="jumpToPage(this.value)" class="page-select-dropdown"></select>
+            <span id="pageTotalDisplay">/ 1</span>
+          </div>
+          <button type="button" class="btn-page-nav" onclick="nextPage()" id="btnNextPage">ถัดไป ➡️</button>
+        </div>
+
+        <div class="page-action-controls">
+          <button type="button" class="btn-page-add" onclick="addNewPage()" id="btnAddNewPage">➕ เพิ่มหน้า</button>
+          <button type="button" class="btn-page-delete" onclick="deleteCurrentPage()" id="btnDeleteCurrentPage">🗑️ ลบหน้า</button>
+        </div>
+      </div>
+
+      <div class="word-toolbar">
+        <div class="word-toolbar-group">
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('undo')" title="เลิกทำ">↩️</button>
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('redo')" title="ทำซ้ำ">↪️</button>
+        </div>
+
+        <div class="word-toolbar-divider"></div>
+
+        <div class="word-toolbar-group">
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('formatBlock', '<h1>')"><b>H1</b></button>
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('formatBlock', '<h2>')"><b>H2</b></button>
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('formatBlock', '<p>')">¶</button>
+        </div>
+
+        <div class="word-toolbar-divider"></div>
+
+        <div class="word-toolbar-group">
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('bold')"><b>B</b></button>
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('italic')"><i>I</i></button>
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('underline')"><u>U</u></button>
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('strikeThrough')"><s>S</s></button>
+        </div>
+
+        <div class="word-toolbar-divider"></div>
+
+        <div class="word-toolbar-group">
+          <label class="word-color-picker-label" title="สีตัวอักษร">
+            <span style="font-weight: bold; border-bottom: 3px solid #38bdf8;">A</span>
+            <input type="color" onchange="execWordCmd('foreColor', this.value)" value="#ffffff">
+          </label>
+          <label class="word-color-picker-label" title="สีไฮไลต์">
+            <span style="background: #fbbf24; color: #000; padding: 0 3px; border-radius: 2px;">🖍️</span>
+            <input type="color" onchange="execWordCmd('hiliteColor', this.value)" value="#fbbf24">
+          </label>
+        </div>
+
+        <div class="word-toolbar-divider"></div>
+
+        <div class="word-toolbar-group">
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('justifyLeft')">⇤</button>
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('justifyCenter')">≡</button>
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('justifyRight')">⇥</button>
+        </div>
+
+        <div class="word-toolbar-divider"></div>
+
+        <div class="word-toolbar-group">
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('insertUnorderedList')">• List</button>
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('insertOrderedList')">1. List</button>
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('removeFormat')">🧹</button>
+        </div>
+      </div>
+
+      <div class="word-paper-container">
+        <div class="word-paper-sheet" id="wordPaperEditor" contenteditable="true" spellcheck="false" placeholder="เริ่มพิมพ์สคริปต์งาน บทพากย์ หรือเนื้อเรื่องในหน้านี้..."></div>
+      </div>
+
+      <div class="word-editor-footer">
+        <div class="word-stats" id="wordStatsDisplay">0 คำ | 0 ตัวอักษร</div>
+        <div class="modal-footer" style="margin-top: 0;">
+          <button type="button" class="btn-sm" onclick="closeModal('scriptEditorModal')">ปิด</button>
+          <button type="button" class="btn-create-task" id="btnSaveScriptAction" onclick="handleSaveTaskScript()">💾 บันทึกสคริปต์</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal ส่งงานโดยตรง -->
+  <div class="modal-overlay" id="submitWorkModal">
+    <div class="modal" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">📤 ส่งงาน</h3>
+        <button type="button" class="close-btn" onclick="closeModal('submitWorkModal')">✕</button>
+      </div>
+      <form onsubmit="handleSaveSubmission(event)">
+        <input type="hidden" id="submitTaskIdInput">
+        <div style="background: rgba(0,0,0,0.25); padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--glass-border);">
+          <div style="font-size: 0.78rem; color: var(--text-muted);">ชื่องาน:</div>
+          <div id="submitTaskTitleDisplay" style="font-size: 1rem; font-weight: 600; color: #ffffff; margin-top: 2px;"></div>
+        </div>
+
+        <div class="form-group">
+          <label>🔗 ลิ้งก์ส่งงาน (Google Drive, Figma, Dropbox, YouTube ฯลฯ) *</label>
+          <input type="url" id="submitWorkLinkInput" class="form-control" placeholder="https://drive.google.com/drive/folders/..." required>
+        </div>
+
+        <div class="form-group">
+          <label>สถานะงาน</label>
+          <select id="submitWorkStatusInput" class="form-control">
+            <option value="completed">🟢 เสร็จสิ้น (Completed / ส่งงานแล้ว)</option>
+            <option value="in_progress">🔵 กำลังทำ (In Progress / ดราฟต์งาน)</option>
+            <option value="pending">🟡 รอดำเนินการ (Pending)</option>
+          </select>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('submitWorkModal')">ยกเลิก</button>
+          <button type="submit" class="btn-submit-action">🚀 ยืนยันการส่งงาน</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal จัดการรายได้ทีม -->
+  <div class="modal-overlay" id="revenueModal">
+    <div class="modal" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">👑 จัดการรายได้ทีม (Admin Only)</h3>
+        <button type="button" class="close-btn" onclick="closeModal('revenueModal')">✕</button>
+      </div>
+      <form onsubmit="handleSaveRevenue(event)">
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
+          กรอกจำนวนเงิน (บาท) ของแต่ละทีม ข้อมูลจะถูกส่งไปแสดงผลที่วิตเจ็ตของทุกคนในทีมแบบเรียลไทม์:
+        </p>
+
+        <div class="form-group">
+          <label>🎙️ รายได้ทีมพากย์ (บาท):</label>
+          <input type="number" id="inputRevenueVoice" class="form-control" placeholder="0" min="0" step="any" required>
+        </div>
+
+        <div class="form-group">
+          <label>🎬 รายได้ทีมแอนิเมชั่น (บาท):</label>
+          <input type="number" id="inputRevenueAnim" class="form-control" placeholder="0" min="0" step="any" required>
+        </div>
+
+        <div class="form-group">
+          <label>🎵 รายได้ทีมงานเสียง / SFX (บาท):</label>
+          <input type="number" id="inputRevenueAudio" class="form-control" placeholder="0" min="0" step="any" required>
+        </div>
+
+        <div class="form-group">
+          <label>✨ รายได้ทีมอื่นๆ / ค่าใช้จ่ายกลาง (บาท):</label>
+          <input type="number" id="inputRevenueOther" class="form-control" placeholder="0" min="0" step="any" required>
+        </div>
+
+        <div class="form-group">
+          <label>หมายเหตุ / งวดประจำรอบ:</label>
+          <input type="text" id="inputRevenueNote" class="form-control" placeholder="เช่น ประจำงวดเดือนนี้ / โปรเจกต์หลัก">
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('revenueModal')">ยกเลิก</button>
+          <button type="submit" class="btn-create-task">💾 บันทึกและอัปเดตวิตเจ็ต</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -247,7 +552,7 @@
       <form onsubmit="handleSaveProjectNotes(event)">
         <div class="form-group">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <label style="margin-bottom: 0;">บันทึกข้อมูล, สคริปต์, โทนสี หรือข้อตกลงร่วมกัน:</label>
+            <label style="margin-bottom: 0;">บันทึกข้อมูลประจำโปรเจกต์:</label>
             <span id="notesLastUpdatedInfo" style="font-size: 0.75rem; color: var(--text-muted);"></span>
           </div>
           <textarea id="projectNotesContent" class="form-control" style="min-height: 280px; font-size: 0.95rem; line-height: 1.6;" placeholder="พิมพ์บันทึกรายละเอียดของโปรเจกต์นี้ที่ทุกคนในทีมสามารถอ่านและแก้ไขร่วมกันได้..."></textarea>
@@ -262,7 +567,7 @@
 
   <!-- Modal เสนอไอเดียใหม่ -->
   <div class="modal-overlay" id="ideaModal">
-    <div class="modal">
+    <div class="modal" style="max-width: 480px;">
       <div class="modal-header">
         <h3 style="display: flex; align-items: center; gap: 8px;">💡 เสนอไอเดียใหม่ให้โปรเจกต์</h3>
         <button type="button" class="close-btn" onclick="closeModal('ideaModal')">✕</button>
@@ -297,7 +602,7 @@
       </div>
       <form onsubmit="handleEditProfileSubmit(event)">
         <div class="form-group">
-          <label>รูปโปรไฟล์ (อัปโหลดจากคอม หรือเลือกสัญลักษณ์)</label>
+          <label>รูปโปรไฟล์ (อัปโหลดจากอุปกรณ์ หรือเลือกสัญลักษณ์)</label>
           <div class="avatar-upload-wrapper">
             <div class="avatar-preview-box" id="editAvatarPreviewDisplay">
               <span>👤</span>
@@ -366,7 +671,7 @@
     </div>
   </div>
 
-  <!-- Modal มอบหมายงาน / ส่งงาน (ผ่านลิงก์ Cloud Storage) -->
+  <!-- Modal มอบหมายงานใหม่ -->
   <div class="modal-overlay" id="taskModal">
     <div class="modal">
       <div class="modal-header">
@@ -388,11 +693,7 @@
           <textarea id="taskStoryInput" class="form-control" placeholder="อธิบายขั้นตอนงาน, คอนเซ็ปต์, ขอบเขตที่ต้องการ..."></textarea>
         </div>
         <div class="form-group">
-          <label>🔗 ลิ้งก์ส่งงาน / ไฟล์งานขนาดใหญ่ (เช่น Google Drive, Dropbox, OneDrive, Figma):</label>
-          <input type="url" id="taskSubmissionInput" class="form-control" placeholder="https://drive.google.com/drive/folders/...">
-        </div>
-        <div class="form-group">
-          <label>สถานะงาน</label>
+          <label>สถานะเริ่มต้น</label>
           <select id="taskStatusInput" class="form-control">
             <option value="pending">🟡 รอดำเนินการ (Pending)</option>
             <option value="in_progress">🔵 กำลังทำ (In Progress)</option>
