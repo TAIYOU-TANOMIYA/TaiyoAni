@@ -5,7 +5,6 @@ import {
   onSnapshot, query, orderBy, addDoc, deleteDoc, updateDoc, serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyBsf2pAoaT0OB9cgMBksB2igZGp7y4yWAI",
   authDomain: "taiyoani.firebaseapp.com",
@@ -16,11 +15,36 @@ const firebaseConfig = {
   measurementId: "G-J76JT5GJJY"
 };
 
-// Initialize Firebase & Firestore
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// ================= WEB AUDIO API (ระบบเสียงในตัว) =================
+// ================= EMAIL CONFIGURATION (EmailJS) =================
+const EMAILJS_PUBLIC_KEY = "";
+const EMAILJS_SERVICE_ID = "";
+const EMAILJS_TEMPLATE_ID = "";
+
+if (EMAILJS_PUBLIC_KEY && window.emailjs) {
+  window.emailjs.init(EMAILJS_PUBLIC_KEY);
+}
+
+async function sendOtpEmail(targetEmail, userName, otpCode) {
+  if (EMAILJS_PUBLIC_KEY && EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID && window.emailjs) {
+    try {
+      await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+        to_email: targetEmail,
+        to_name: userName,
+        otp_code: otpCode,
+        system_name: "TaiyoAni UI Hub"
+      });
+    } catch (err) {
+      console.warn("EmailJS sending failed:", err);
+    }
+  } else {
+    alert(`[ระบบจำลองส่งเมลไปยัง: ${targetEmail}]\n\nรหัสยืนยัน OTP 6 หลักของคุณคือ: ${otpCode}`);
+  }
+}
+
+// ================= WEB AUDIO API =================
 const AudioFX = {
   ctx: null,
   init() {
@@ -97,13 +121,25 @@ const AVATAR_PRESETS = ['👨‍💻', '👩‍💻', '🐱', '🦊', '🚀', '�
 let teamUsers = [];
 let projects = [];
 let chatMessages = [];
+let dmChatMessages = [];
 let currentUserId = localStorage.getItem('taiyoani_active_user_id') || null;
 let activeProjectId = null;
 let isChatOpen = false;
+let isMembersPanelOpen = false;
 let initialChatLoadDone = false;
+let pendingVerificationUser = null;
+
+let activeChatMode = 'team';
+let activeDmTargetUser = null;
+let dmUnsubscribe = null;
 
 function getCurrentUser() {
   return teamUsers.find(u => u && u.id === currentUserId) || null;
+}
+
+function isAdmin(user = getCurrentUser()) {
+  if (!user || !user.name) return false;
+  return user.name.trim().toLowerCase() === 'taiyoani';
 }
 
 function renderAvatarHtml(avatarData, customClass = '') {
@@ -116,18 +152,50 @@ function renderAvatarHtml(avatarData, customClass = '') {
   return `<span class="avatar-chip ${customClass}">${escapeHtml(avatarData)}</span>`;
 }
 
+// ================= PRESENCE & HEARTBEAT SYSTEM =================
+function startHeartbeat() {
+  if (!currentUserId) return;
+  updateDoc(doc(db, "users", currentUserId), { lastActive: serverTimestamp() }).catch(() => {});
+
+  setInterval(() => {
+    if (currentUserId) {
+      updateDoc(doc(db, "users", currentUserId), { lastActive: serverTimestamp() }).catch(() => {});
+    }
+  }, 45000);
+}
+
+function getPresenceStatus(lastActive) {
+  if (!lastActive) {
+    return { isOnline: false, text: 'ออฟไลน์นานแล้ว' };
+  }
+  const lastTime = lastActive.toDate ? lastActive.toDate().getTime() : (typeof lastActive === 'number' ? lastActive : new Date(lastActive).getTime());
+  const diffMs = Date.now() - lastTime;
+  const diffMin = Math.floor(diffMs / 60000);
+
+  if (diffMin < 2) {
+    return { isOnline: true, text: '🟢 กำลังออนไลน์' };
+  } else if (diffMin < 60) {
+    return { isOnline: false, text: `ออฟไลน์เมื่อ ${diffMin} นาทีที่แล้ว` };
+  } else if (diffMin < 1440) {
+    const diffHr = Math.floor(diffMin / 60);
+    return { isOnline: false, text: `ออฟไลน์เมื่อ ${diffHr} ชม. ที่แล้ว` };
+  } else {
+    const diffDay = Math.floor(diffMin / 1440);
+    return { isOnline: false, text: `ออฟไลน์เมื่อ ${diffDay} วันที่แล้ว` };
+  }
+}
+
 // ================= REAL-TIME FIRESTORE LISTENERS =================
 function startRealtimeSync() {
-  // ซิงค์รายชื่อสมาชิก
   onSnapshot(collection(db, "users"), (snapshot) => {
     teamUsers = [];
     snapshot.forEach(doc => teamUsers.push(doc.data()));
     populateLoginUserSelect();
     populateAssigneeDropdown();
     updateCurrentUserDisplay();
+    renderMembersPresenceList();
   });
 
-  // ซิงค์โปรเจกต์และงาน
   onSnapshot(collection(db, "projects"), (snapshot) => {
     projects = [];
     snapshot.forEach(doc => projects.push(doc.data()));
@@ -140,13 +208,12 @@ function startRealtimeSync() {
     renderProjects();
   });
 
-  // ซิงค์แชททีม
   const chatQuery = query(collection(db, "chats"), orderBy("timestamp", "asc"));
   onSnapshot(chatQuery, (snapshot) => {
     const newChats = [];
     snapshot.forEach(doc => newChats.push({ id: doc.id, ...doc.data() }));
 
-    if (initialChatLoadDone && newChats.length > chatMessages.length) {
+    if (initialChatLoadDone && activeChatMode === 'team' && newChats.length > chatMessages.length) {
       const lastMsg = newChats[newChats.length - 1];
       if (lastMsg && lastMsg.senderId !== currentUserId) {
         AudioFX.newIncomingMsg();
@@ -154,12 +221,14 @@ function startRealtimeSync() {
     }
     initialChatLoadDone = true;
     chatMessages = newChats;
-    renderChatMessages();
-    scrollChatToBottom();
+    if (activeChatMode === 'team') {
+      renderChatMessages();
+      scrollChatToBottom();
+    }
   });
 }
 
-// ================= AUTH GATEKEEPER =================
+// ================= AUTH GATEKEEPER & OTP VERIFICATION =================
 function initAuth() {
   startRealtimeSync();
   
@@ -167,6 +236,7 @@ function initAuth() {
     document.getElementById('authGate').style.display = 'none';
     document.getElementById('mainAppLayout').style.display = 'flex';
     updateCurrentUserDisplay();
+    startHeartbeat();
   } else {
     document.getElementById('authGate').style.display = 'flex';
     document.getElementById('mainAppLayout').style.display = 'none';
@@ -199,6 +269,25 @@ function renderAuthAvatarPicker() {
       div.classList.add('active');
       document.getElementById('authAvatarDataInput').value = emoji;
       document.getElementById('avatarPreviewDisplay').innerHTML = `<span>${emoji}</span>`;
+    };
+    container.appendChild(div);
+  });
+}
+
+function renderEditAvatarPicker(selectedAvatar) {
+  const container = document.getElementById('editAvatarPicker');
+  if (!container) return;
+  container.innerHTML = '';
+
+  AVATAR_PRESETS.forEach(emoji => {
+    const div = document.createElement('div');
+    div.className = `avatar-opt ${emoji === selectedAvatar ? 'active' : ''}`;
+    div.innerText = emoji;
+    div.onclick = () => {
+      document.querySelectorAll('#editAvatarPicker .avatar-opt').forEach(el => el.classList.remove('active'));
+      div.classList.add('active');
+      document.getElementById('editAvatarDataInput').value = emoji;
+      document.getElementById('editAvatarPreviewDisplay').innerHTML = `<span>${emoji}</span>`;
     };
     container.appendChild(div);
   });
@@ -259,7 +348,9 @@ function populateLoginUserSelect() {
   teamUsers.forEach(u => {
     const opt = document.createElement('option');
     opt.value = u.id;
-    opt.innerText = `${u.name} (${u.role || 'Member'})`;
+    const adminTag = (u.name.trim().toLowerCase() === 'taiyoani') ? ' 👑 (Admin)' : '';
+    const verifyStatus = u.isVerified ? '' : ' [⚠️ ยังไม่ยืนยันอีเมล]';
+    opt.innerText = `${u.name}${adminTag}${verifyStatus} (${u.role || 'Member'})`;
     select.appendChild(opt);
   });
 }
@@ -269,7 +360,7 @@ window.handleLoginSelectChange = function() {
   document.getElementById('loginErrorMsg').style.display = 'none';
 };
 
-window.handleLoginSubmit = function(e) {
+window.handleLoginSubmit = async function(e) {
   e.preventDefault();
   const userId = document.getElementById('loginUserSelect').value;
   const password = document.getElementById('loginPasswordInput').value;
@@ -279,6 +370,13 @@ window.handleLoginSubmit = function(e) {
   if (!targetUser) return;
 
   if (targetUser.password === password) {
+    if (!targetUser.isVerified) {
+      AudioFX.click();
+      pendingVerificationUser = targetUser;
+      openOtpVerificationModal(targetUser);
+      return;
+    }
+
     AudioFX.success();
     currentUserId = targetUser.id;
     localStorage.setItem('taiyoani_active_user_id', currentUserId);
@@ -287,6 +385,7 @@ window.handleLoginSubmit = function(e) {
     document.getElementById('loginPasswordInput').value = '';
     updateCurrentUserDisplay();
     renderProjects();
+    startHeartbeat();
   } else {
     AudioFX.delete();
     errorMsg.innerText = 'รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง';
@@ -297,11 +396,32 @@ window.handleLoginSubmit = function(e) {
 window.handleRegisterSubmit = async function(e) {
   e.preventDefault();
   const name = document.getElementById('regNameInput').value.trim();
-  const role = document.getElementById('regRoleInput').value.trim();
+  const email = document.getElementById('regEmailInput').value.trim().toLowerCase();
+  let role = document.getElementById('regRoleInput').value.trim();
   const password = document.getElementById('regPasswordInput').value;
   const confirmPassword = document.getElementById('regConfirmPasswordInput').value;
   const avatarData = document.getElementById('authAvatarDataInput').value || '👨‍💻';
   const errorMsg = document.getElementById('regErrorMsg');
+
+  const nameLower = name.toLowerCase();
+  if (nameLower === 'taiyoani') {
+    const existingAdmin = teamUsers.find(u => u.name.trim().toLowerCase() === 'taiyoani');
+    if (existingAdmin) {
+      AudioFX.delete();
+      errorMsg.innerText = 'ชื่อผู้ใช้ "TaiyoAni" สงวนสิทธิ์สำหรับแอดมิน (Creator) เท่านั้น';
+      errorMsg.style.display = 'block';
+      return;
+    }
+    role = 'Creator (Admin)';
+  }
+
+  const emailExists = teamUsers.find(u => u.email && u.email.toLowerCase() === email);
+  if (emailExists) {
+    AudioFX.delete();
+    errorMsg.innerText = 'อีเมลนี้ถูกใช้งานในระบบแล้ว กรุณาใช้อีเมลอื่น';
+    errorMsg.style.display = 'block';
+    return;
+  }
 
   if (password !== confirmPassword) {
     AudioFX.delete();
@@ -310,25 +430,118 @@ window.handleRegisterSubmit = async function(e) {
     return;
   }
 
+  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
   const userId = 'user-' + Date.now();
+
   const newUser = {
     id: userId,
     name,
+    email,
     role: role || 'ลูกทีม',
     avatar: avatarData,
-    password: password
+    password: password,
+    isVerified: false,
+    otpCode: otpCode,
+    lastActive: serverTimestamp()
   };
 
   await setDoc(doc(db, "users", userId), newUser);
+  await sendOtpEmail(email, name, otpCode);
 
-  AudioFX.success();
-  currentUserId = userId;
-  localStorage.setItem('taiyoani_active_user_id', currentUserId);
+  pendingVerificationUser = newUser;
+  openOtpVerificationModal(newUser);
+};
 
-  document.getElementById('authGate').style.display = 'none';
-  document.getElementById('mainAppLayout').style.display = 'flex';
-  updateCurrentUserDisplay();
-  renderProjects();
+function openOtpVerificationModal(user) {
+  document.getElementById('otpCodeInput').value = '';
+  document.getElementById('otpErrorMsg').style.display = 'none';
+
+  if (user.email) {
+    document.getElementById('otpTargetEmailDisplay').innerText = user.email;
+    document.getElementById('otpEmailInputGroup').style.display = 'none';
+  } else {
+    document.getElementById('otpTargetEmailDisplay').innerText = 'ยังไม่ได้ระบุอีเมล';
+    document.getElementById('otpEmailInputGroup').style.display = 'block';
+  }
+
+  document.getElementById('otpModal').style.display = 'flex';
+}
+
+window.closeOtpModal = function() {
+  document.getElementById('otpModal').style.display = 'none';
+  pendingVerificationUser = null;
+};
+
+window.handleSendOtpToExistingUser = async function() {
+  if (!pendingVerificationUser) return;
+  const email = document.getElementById('unverifiedAccountEmailInput').value.trim().toLowerCase();
+  
+  if (!email || !email.includes('@')) {
+    alert('กรุณากรอกอีเมลที่ถูกต้อง');
+    return;
+  }
+
+  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+  pendingVerificationUser.email = email;
+  pendingVerificationUser.otpCode = otpCode;
+
+  await updateDoc(doc(db, "users", pendingVerificationUser.id), {
+    email: email,
+    otpCode: otpCode
+  });
+
+  await sendOtpEmail(email, pendingVerificationUser.name, otpCode);
+  document.getElementById('otpTargetEmailDisplay').innerText = email;
+  document.getElementById('otpEmailInputGroup').style.display = 'none';
+};
+
+window.handleVerifyOtpSubmit = async function(e) {
+  e.preventDefault();
+  const enteredOtp = document.getElementById('otpCodeInput').value.trim();
+  const errorMsg = document.getElementById('otpErrorMsg');
+
+  if (!pendingVerificationUser) return;
+
+  if (enteredOtp === pendingVerificationUser.otpCode) {
+    AudioFX.success();
+    await updateDoc(doc(db, "users", pendingVerificationUser.id), {
+      isVerified: true,
+      otpCode: null
+    });
+
+    currentUserId = pendingVerificationUser.id;
+    localStorage.setItem('taiyoani_active_user_id', currentUserId);
+
+    closeOtpModal();
+    document.getElementById('authGate').style.display = 'none';
+    document.getElementById('mainAppLayout').style.display = 'flex';
+    document.getElementById('loginPasswordInput').value = '';
+    updateCurrentUserDisplay();
+    renderProjects();
+    startHeartbeat();
+    alert('🎉 ยืนยันตัวตนผ่านอีเมลสำเร็จ ยินดีต้อนรับเข้าสู่ระบบ!');
+  } else {
+    AudioFX.delete();
+    errorMsg.innerText = 'รหัส OTP ไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง';
+    errorMsg.style.display = 'block';
+  }
+};
+
+window.handleResendOtp = async function() {
+  if (!pendingVerificationUser || !pendingVerificationUser.email) {
+    alert('กรุณาระบุอีเมลก่อนขอรับรหัส');
+    return;
+  }
+
+  const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
+  pendingVerificationUser.otpCode = newOtp;
+
+  await updateDoc(doc(db, "users", pendingVerificationUser.id), {
+    otpCode: newOtp
+  });
+
+  await sendOtpEmail(pendingVerificationUser.email, pendingVerificationUser.name, newOtp);
+  AudioFX.click();
 };
 
 window.handleForgetSelectedAccount = async function() {
@@ -336,16 +549,33 @@ window.handleForgetSelectedAccount = async function() {
   const userId = select.value;
   if (!userId) return;
 
-  const user = teamUsers.find(u => u.id === userId);
-  if (!user) return;
+  const targetUser = teamUsers.find(u => u.id === userId);
+  if (!targetUser) return;
 
-  if (confirm(`คุณต้องการลบข้อมูลบัญชี "${user.name}" ออกจากระบบใช่หรือไม่?`)) {
+  const adminUser = teamUsers.find(u => u.name.trim().toLowerCase() === 'taiyoani');
+  if (!adminUser) {
+    alert('ยังไม่มีบัญชีแอดมิน TaiyoAni ในระบบ');
+    return;
+  }
+
+  const adminPass = prompt(`[สิทธิ์แอดมินเท่านั้น]\nกรุณากรอกรหัสผ่านของ TaiyoAni (Admin) เพื่อยืนยันการลบบัญชี "${targetUser.name}" ออกจากระบบ:`);
+  if (!adminPass) return;
+
+  if (adminUser.password !== adminPass) {
+    AudioFX.delete();
+    alert('รหัสผ่านแอดมินไม่ถูกต้อง ไม่อนุญาตให้ลบบัญชี');
+    return;
+  }
+
+  if (confirm(`ยืนยันการลบบัญชี "${targetUser.name}" ออกจากระบบอย่างถาวร?`)) {
     AudioFX.delete();
     await deleteDoc(doc(db, "users", userId));
     if (currentUserId === userId) {
       currentUserId = null;
       localStorage.removeItem('taiyoani_active_user_id');
     }
+    AudioFX.success();
+    alert(`ลบบัญชี "${targetUser.name}" สำเร็จ`);
   }
 };
 
@@ -357,6 +587,258 @@ window.handleLogout = function() {
     document.getElementById('loginPasswordInput').value = '';
     initAuth();
   }
+};
+
+// ================= MEMBERS PRESENCE PANEL =================
+window.toggleMembersPanel = function() {
+  AudioFX.click();
+  isMembersPanelOpen = !isMembersPanelOpen;
+  const panel = document.getElementById('membersPresencePanel');
+  if (panel) {
+    panel.classList.toggle('open', isMembersPanelOpen);
+    if (isMembersPanelOpen) renderMembersPresenceList();
+  }
+};
+
+document.addEventListener('click', (e) => {
+  const panel = document.getElementById('membersPresencePanel');
+  const btn = document.getElementById('btnMembersToggle');
+  if (panel && isMembersPanelOpen && !panel.contains(e.target) && !btn.contains(e.target)) {
+    isMembersPanelOpen = false;
+    panel.classList.remove('open');
+  }
+});
+
+function renderMembersPresenceList() {
+  const container = document.getElementById('membersPresenceList');
+  const counterPill = document.getElementById('onlineIndicatorCounter');
+  if (!container) return;
+  container.innerHTML = '';
+
+  let onlineCount = 0;
+  const currentUser = getCurrentUser();
+
+  teamUsers.forEach(user => {
+    const presence = getPresenceStatus(user.lastActive);
+    if (presence.isOnline) onlineCount++;
+
+    const isSelf = currentUser && user.id === currentUser.id;
+    const adminTag = isAdmin(user) ? ' 👑' : '';
+
+    const item = document.createElement('div');
+    item.className = 'member-presence-item';
+    item.innerHTML = `
+      <div class="member-presence-left">
+        <div class="member-avatar-wrapper">
+          ${renderAvatarHtml(user.avatar)}
+          <span class="status-badge-dot ${presence.isOnline ? 'online' : 'offline'}"></span>
+        </div>
+        <div class="member-presence-info">
+          <div class="member-presence-name">
+            ${escapeHtml(user.name)}${adminTag} ${isSelf ? '<span style="color:var(--text-muted); font-size:0.75rem;">(คุณ)</span>' : ''}
+          </div>
+          <div class="member-presence-status ${presence.isOnline ? 'online' : ''}">
+            ${escapeHtml(presence.text)}
+          </div>
+        </div>
+      </div>
+      <div>
+        ${!isSelf ? `
+          <button type="button" class="btn-dm-start" onclick="startDirectChat('${user.id}')" title="เปิดแชทส่วนตัวกับ ${escapeHtml(user.name)}">
+            💬 ทักแชท
+          </button>
+        ` : ''}
+      </div>
+    `;
+    container.appendChild(item);
+  });
+
+  if (counterPill) {
+    counterPill.innerText = `${onlineCount} ออนไลน์`;
+  }
+}
+
+// ================= DIRECT MESSAGING =================
+window.startDirectChat = function(targetUserId) {
+  const targetUser = teamUsers.find(u => u.id === targetUserId);
+  if (!targetUser) return;
+
+  activeChatMode = 'dm';
+  activeDmTargetUser = targetUser;
+
+  isMembersPanelOpen = false;
+  const panel = document.getElementById('membersPresencePanel');
+  if (panel) panel.classList.remove('open');
+
+  isChatOpen = true;
+  const chatWin = document.getElementById('chatWindow');
+  if (chatWin) chatWin.classList.add('open');
+
+  document.getElementById('btnChatBackToTeam').style.display = 'inline-block';
+  document.getElementById('chatHeaderTitleText').innerText = `🔒 แชทส่วนตัว: ${targetUser.name}`;
+  document.getElementById('dmStatusBanner').style.display = 'flex';
+  document.getElementById('dmTargetNameDisplay').innerText = targetUser.name;
+  document.getElementById('btnClearChat').style.display = 'none';
+
+  const currentUid = currentUserId || 'guest';
+  const roomId = [currentUid, targetUser.id].sort().join('_');
+
+  if (dmUnsubscribe) dmUnsubscribe();
+
+  const dmQuery = query(collection(db, "direct_chats", roomId, "messages"), orderBy("timestamp", "asc"));
+  dmUnsubscribe = onSnapshot(dmQuery, (snapshot) => {
+    dmChatMessages = [];
+    snapshot.forEach(doc => dmChatMessages.push({ id: doc.id, ...doc.data() }));
+    if (activeChatMode === 'dm') {
+      renderChatMessages();
+      scrollChatToBottom();
+    }
+  });
+
+  document.getElementById('chatTextInput').focus();
+};
+
+window.switchToTeamChat = function() {
+  AudioFX.click();
+  activeChatMode = 'team';
+  activeDmTargetUser = null;
+
+  if (dmUnsubscribe) {
+    dmUnsubscribe();
+    dmUnsubscribe = null;
+  }
+
+  document.getElementById('btnChatBackToTeam').style.display = 'none';
+  document.getElementById('chatHeaderTitleText').innerText = '💬 ห้องพูดคุยทีม (Team Chat)';
+  document.getElementById('dmStatusBanner').style.display = 'none';
+  
+  const clearChatBtn = document.getElementById('btnClearChat');
+  if (clearChatBtn) {
+    clearChatBtn.style.display = isAdmin() ? 'inline-block' : 'none';
+  }
+
+  renderChatMessages();
+  scrollChatToBottom();
+};
+
+// ================= PROJECT NOTES =================
+window.openProjectNotesModal = function() {
+  const currentProj = projects.find(p => p.id === activeProjectId);
+  if (!currentProj) {
+    alert('กรุณาเลือกโปรเจกต์ก่อน');
+    return;
+  }
+  AudioFX.click();
+  document.getElementById('projectNotesContent').value = currentProj.notes || '';
+  
+  const infoSpan = document.getElementById('notesLastUpdatedInfo');
+  if (currentProj.notesUpdatedBy) {
+    infoSpan.innerText = `✏️ แก้ไขล่าสุดโดย ${currentProj.notesUpdatedBy.name} (${currentProj.notesUpdatedBy.time})`;
+  } else {
+    infoSpan.innerText = '';
+  }
+
+  document.getElementById('projectNotesModal').style.display = 'flex';
+};
+
+window.handleSaveProjectNotes = async function(e) {
+  e.preventDefault();
+  const currentProj = projects.find(p => p.id === activeProjectId);
+  if (!currentProj) return;
+
+  const notesText = document.getElementById('projectNotesContent').value;
+  const currentUser = getCurrentUser();
+  const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  AudioFX.success();
+  await updateDoc(doc(db, "projects", activeProjectId), {
+    notes: notesText,
+    notesUpdatedBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar, time: nowStr } : null
+  });
+
+  closeModal('projectNotesModal');
+};
+
+// ================= EDIT PROFILE MODAL =================
+window.openEditProfileModal = function() {
+  const user = getCurrentUser();
+  if (!user) return;
+
+  document.getElementById('editNameInput').value = user.name;
+  document.getElementById('editEmailInput').value = user.email || '';
+  document.getElementById('editRoleInput').value = user.role || '';
+  document.getElementById('editPasswordInput').value = '';
+  document.getElementById('editAvatarDataInput').value = user.avatar || '👤';
+
+  const preview = document.getElementById('editAvatarPreviewDisplay');
+  if (user.avatar && (user.avatar.startsWith('data:image') || user.avatar.startsWith('http'))) {
+    preview.innerHTML = `<img src="${user.avatar}" alt="Avatar">`;
+  } else {
+    preview.innerHTML = `<span>${user.avatar || '👤'}</span>`;
+  }
+
+  renderEditAvatarPicker(user.avatar);
+  document.getElementById('editProfileModal').style.display = 'flex';
+};
+
+window.handleEditProfileSubmit = async function(e) {
+  e.preventDefault();
+  const user = getCurrentUser();
+  if (!user) return;
+
+  const newName = document.getElementById('editNameInput').value.trim();
+  const newEmail = document.getElementById('editEmailInput').value.trim().toLowerCase();
+  const newRole = document.getElementById('editRoleInput').value.trim();
+  const newPassword = document.getElementById('editPasswordInput').value;
+  const newAvatar = document.getElementById('editAvatarDataInput').value;
+
+  if (!newName) return;
+
+  if (newName.toLowerCase() === 'taiyoani' && !isAdmin(user)) {
+    AudioFX.delete();
+    alert('ไม่สามารถเปลี่ยนชื่อเป็น "TaiyoAni" ได้ เนื่องจากสงวนสิทธิ์สำหรับแอดมินเท่านั้น');
+    return;
+  }
+
+  AudioFX.success();
+  const oldName = user.name;
+  const updatedFields = {
+    name: newName,
+    email: newEmail,
+    role: newRole || (isAdmin(user) ? 'Creator (Admin)' : 'ลูกทีม'),
+    avatar: newAvatar || user.avatar
+  };
+
+  if (newPassword && newPassword.trim() !== '') {
+    updatedFields.password = newPassword;
+  }
+
+  await updateDoc(doc(db, "users", user.id), updatedFields);
+
+  if (oldName !== newName) {
+    projects.forEach(async (p) => {
+      let isChanged = false;
+      let pData = { ...p };
+      if (pData.createdBy && pData.createdBy.name === oldName) {
+        pData.createdBy.name = newName;
+        pData.createdBy.avatar = updatedFields.avatar;
+        isChanged = true;
+      }
+      pData.tasks = (pData.tasks || []).map(t => {
+        let taskUpdated = { ...t };
+        if (t.assignee === oldName) { taskUpdated.assignee = newName; isChanged = true; }
+        if (t.createdBy && t.createdBy.name === oldName) { taskUpdated.createdBy.name = newName; taskUpdated.createdBy.avatar = updatedFields.avatar; isChanged = true; }
+        if (t.updatedBy && t.updatedBy.name === oldName) { taskUpdated.updatedBy.name = newName; taskUpdated.updatedBy.avatar = updatedFields.avatar; isChanged = true; }
+        return taskUpdated;
+      });
+      if (isChanged) {
+        await updateDoc(doc(db, "projects", p.id), pData);
+      }
+    });
+  }
+
+  closeModal('editProfileModal');
+  updateCurrentUserDisplay();
 };
 
 // ================= WORKSPACE ACTIONS (PROJECT & TASKS) =================
@@ -380,6 +862,7 @@ window.handleCreateProject = async function(e) {
     id: projId,
     name,
     desc,
+    notes: '',
     createdBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar } : null,
     tasks: []
   };
@@ -395,7 +878,13 @@ window.selectProject = function(id) {
 };
 
 window.deleteProject = async function(id) {
-  if (confirm('คุณต้องการลบโปรเจกต์นี้และงานทั้งหมดหรือไม่?')) {
+  if (!isAdmin()) {
+    AudioFX.delete();
+    alert('เฉพาะแอดมิน (TaiyoAni) เท่านั้นที่มีสิทธิ์ลบโปรเจกต์');
+    return;
+  }
+
+  if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบโปรเจกต์นี้และงานทั้งหมด?')) {
     AudioFX.delete();
     await deleteDoc(doc(db, "projects", id));
     if (activeProjectId === id) activeProjectId = null;
@@ -543,18 +1032,16 @@ window.handleLikeTask = async function(taskId) {
   await updateDoc(doc(db, "projects", activeProjectId), { tasks: updatedTasks });
 };
 
-// ================= TEAM CHAT LOGIC (FIRESTORE) =================
+// ================= TEAM CHAT LOGIC =================
 window.toggleChatWindow = function() {
   AudioFX.click();
   isChatOpen = !isChatOpen;
   const chatWin = document.getElementById('chatWindow');
   if (chatWin) {
+    chatWin.classList.toggle('open', isChatOpen);
     if (isChatOpen) {
-      chatWin.classList.add('open');
       scrollChatToBottom();
       document.getElementById('chatTextInput').focus();
-    } else {
-      chatWin.classList.remove('open');
     }
   }
 };
@@ -573,18 +1060,37 @@ window.handleSendChatMessage = async function(e) {
 
   const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  await addDoc(collection(db, "chats"), {
-    senderId: currentUser.id,
-    senderName: currentUser.name,
-    senderAvatar: currentUser.avatar,
-    text: text,
-    time: nowStr,
-    timestamp: serverTimestamp()
-  });
+  if (activeChatMode === 'team') {
+    await addDoc(collection(db, "chats"), {
+      senderId: currentUser.id,
+      senderName: currentUser.name,
+      senderAvatar: currentUser.avatar,
+      text: text,
+      time: nowStr,
+      timestamp: serverTimestamp()
+    });
+  } else if (activeChatMode === 'dm' && activeDmTargetUser) {
+    const roomId = [currentUser.id, activeDmTargetUser.id].sort().join('_');
+    await addDoc(collection(db, "direct_chats", roomId, "messages"), {
+      senderId: currentUser.id,
+      senderName: currentUser.name,
+      senderAvatar: currentUser.avatar,
+      receiverId: activeDmTargetUser.id,
+      text: text,
+      time: nowStr,
+      timestamp: serverTimestamp()
+    });
+  }
 };
 
 window.handleClearChat = async function() {
-  if (confirm('คุณต้องการล้างประวัติแชททั้งหมดหรือไม่?')) {
+  if (!isAdmin()) {
+    AudioFX.delete();
+    alert('เฉพาะแอดมิน (TaiyoAni) เท่านั้นที่มีสิทธิ์ล้างประวัติแชท');
+    return;
+  }
+
+  if (confirm('คุณแน่ใจหรือไม่ว่าต้องการล้างประวัติแชทห้องทีมทั้งหมด?')) {
     AudioFX.delete();
     const snap = await getDocs(collection(db, "chats"));
     snap.forEach(async (d) => await deleteDoc(doc(db, "chats", d.id)));
@@ -599,8 +1105,18 @@ function renderChatMessages() {
 
   body.innerHTML = '';
   const currentUser = getCurrentUser();
+  const msgsToRender = activeChatMode === 'dm' ? dmChatMessages : chatMessages;
 
-  chatMessages.forEach(msg => {
+  if (msgsToRender.length === 0) {
+    body.innerHTML = `
+      <div style="text-align: center; color: var(--text-muted); font-size: 0.82rem; margin-top: 40px;">
+        ${activeChatMode === 'dm' ? '🔒 ยังไม่มีข้อความคุยส่วนตัว เริ่มทักทายได้เลย!' : '💬 ยังไม่มีข้อความในห้องทีม'}
+      </div>
+    `;
+    return;
+  }
+
+  msgsToRender.forEach(msg => {
     const isMine = currentUser && msg.senderId === currentUser.id;
     const row = document.createElement('div');
     row.className = `chat-message-row ${isMine ? 'is-mine' : ''}`;
@@ -628,9 +1144,15 @@ function scrollChatToBottom() {
 function updateCurrentUserDisplay() {
   const user = getCurrentUser();
   if (user) {
+    const adminTag = isAdmin(user) ? ' 👑' : '';
     document.getElementById('currentAvatarDisplay').innerHTML = renderAvatarHtml(user.avatar);
-    document.getElementById('currentUserNameDisplay').innerText = user.name;
-    document.getElementById('currentUserRoleDisplay').innerText = user.role || 'สมาชิกทีม';
+    document.getElementById('currentUserNameDisplay').innerText = `${user.name}${adminTag}`;
+    document.getElementById('currentUserRoleDisplay').innerText = user.role || (isAdmin(user) ? 'Creator (Admin)' : 'สมาชิกทีม');
+    
+    const clearChatBtn = document.getElementById('btnClearChat');
+    if (clearChatBtn && activeChatMode === 'team') {
+      clearChatBtn.style.display = isAdmin(user) ? 'inline-block' : 'none';
+    }
   }
 }
 
@@ -641,7 +1163,8 @@ function populateAssigneeDropdown() {
   teamUsers.forEach(user => {
     const opt = document.createElement('option');
     opt.value = user.name;
-    opt.innerText = `${user.name} (${user.role || 'Member'})`;
+    const adminTag = (user.name.trim().toLowerCase() === 'taiyoani') ? ' 👑' : '';
+    opt.innerText = `${user.name}${adminTag} (${user.role || 'Member'})`;
     select.appendChild(opt);
   });
 }
@@ -657,12 +1180,14 @@ function renderProjects() {
     document.getElementById('currentProjectDesc').innerText = 'กดปุ่มด้านล่างเพื่อเพิ่มโปรเจกต์ใหม่';
     document.getElementById('btnNewTask').style.display = 'none';
     document.getElementById('btnNewIdea').style.display = 'none';
+    document.getElementById('btnProjectNotes').style.display = 'none';
     renderTasks();
     return;
   }
 
   document.getElementById('btnNewTask').style.display = 'inline-flex';
   document.getElementById('btnNewIdea').style.display = 'inline-flex';
+  document.getElementById('btnProjectNotes').style.display = 'inline-flex';
 
   projects.forEach(p => {
     const li = document.createElement('li');
@@ -672,6 +1197,10 @@ function renderProjects() {
     const creatorAvatar = p.createdBy ? renderAvatarHtml(p.createdBy.avatar) : '';
     const creatorName = p.createdBy ? p.createdBy.name : '';
 
+    const deleteBtnHtml = isAdmin() 
+      ? `<button type="button" class="btn-delete-proj" title="ลบโปรเจกต์ (เฉพาะแอดมิน)" onclick="event.stopPropagation(); deleteProject('${p.id}')">🗑</button>`
+      : '';
+
     li.innerHTML = `
       <div style="overflow:hidden;">
         <div class="project-name" title="${p.name}">📁 ${escapeHtml(p.name)}</div>
@@ -680,7 +1209,7 @@ function renderProjects() {
             สร้างโดย ${creatorAvatar} <span>${escapeHtml(creatorName)}</span>
           </div>` : ''}
       </div>
-      <button type="button" class="btn-delete-proj" title="ลบโปรเจกต์" onclick="event.stopPropagation(); deleteProject('${p.id}')">🗑</button>
+      ${deleteBtnHtml}
     `;
     list.appendChild(li);
   });
@@ -725,6 +1254,7 @@ function renderTasks() {
 
     const card = document.createElement('div');
     card.className = `task-card ${isIdea ? 'is-idea' : ''}`;
+
     card.innerHTML = `
       <div class="task-header-row">
         <span class="task-badge ${badge.class}">${badge.text}</span>
@@ -759,10 +1289,11 @@ function renderTasks() {
         ` : ''}
       </div>
 
+      <!-- ลิ้งก์ Drive / Cloud Storage / Reference -->
       ${task.submissionLink ? `
         <div class="drive-link-box">
           <a href="${escapeHtml(task.submissionLink)}" target="_blank" rel="noopener noreferrer">
-            <span>${isIdea ? '🔗 ลิ้งก์ตัวอย่าง / Reference' : '📁 ลิ้งก์ส่งงาน (Google Drive)'}</span> ↗
+            <span>${isIdea ? '🔗 ลิ้งก์ตัวอย่าง / Reference' : '📁 ลิ้งก์ส่งงาน (Google Drive / Cloud Link)'}</span> ↗
           </a>
         </div>
       ` : ''}
@@ -795,5 +1326,4 @@ function escapeHtml(text) {
     .replace(/'/g, "&#039;");
 }
 
-// เริ่มต้นระบบ
 initAuth();

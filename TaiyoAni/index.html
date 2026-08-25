@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -34,7 +35,7 @@
           <div class="form-group">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
               <label style="margin-bottom: 0;">เลือกบัญชีผู้ใช้ *</label>
-              <button type="button" class="btn-forget-link" onclick="handleForgetSelectedAccount()" title="ลบบัญชีนี้ออกจากเครื่อง">🗑️ ลืมบัญชีนี้</button>
+              <button type="button" class="btn-forget-link" onclick="handleForgetSelectedAccount()" title="ลบบัญชีออกจากระบบ (เฉพาะแอดมิน)">🗑️ ลบบัญชีนี้</button>
             </div>
             <select id="loginUserSelect" class="form-control" required onchange="handleLoginSelectChange()"></select>
           </div>
@@ -74,6 +75,11 @@
           </div>
 
           <div class="form-group">
+            <label>อีเมลส่วนตัว (ใช้รับรหัสยืนยัน OTP) *</label>
+            <input type="email" id="regEmailInput" class="form-control" placeholder="example@gmail.com" required>
+          </div>
+
+          <div class="form-group">
             <label>ตำแหน่ง / หน้าที่ในทีม</label>
             <input type="text" id="regRoleInput" class="form-control" placeholder="เช่น 3D Animator, Graphic Designer, Lead">
           </div>
@@ -89,9 +95,44 @@
           </div>
 
           <div id="regErrorMsg" class="auth-error-msg" style="display: none;"></div>
-          <button type="submit" class="btn-primary-auth">สมัครสมาชิกและเข้าสู่ระบบ</button>
+          <button type="submit" class="btn-primary-auth">สมัครสมาชิกและรับรหัส OTP</button>
         </form>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal กล่องยืนยันรหัส OTP ทางอีเมล -->
+  <div class="modal-overlay" id="otpModal">
+    <div class="modal" style="max-width: 420px; text-align: center;">
+      <div style="font-size: 2.8rem; margin-bottom: 8px;">📩</div>
+      <h3 style="color: #fff; margin-bottom: 6px;">ยืนยันตัวตนผ่านอีเมล</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
+        ระบบได้ส่งรหัสยืนยัน 6 หลักไปที่อีเมล<br>
+        <strong id="otpTargetEmailDisplay" style="color: var(--accent);"></strong>
+      </p>
+
+      <form onsubmit="handleVerifyOtpSubmit(event)">
+        <div class="form-group" id="otpEmailInputGroup" style="display: none; text-align: left;">
+          <label>ระบุอีเมลส่วนตัวของคุณ:</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="email" id="unverifiedAccountEmailInput" class="form-control" placeholder="example@gmail.com">
+            <button type="button" class="btn-sm" onclick="handleSendOtpToExistingUser()" style="white-space: nowrap;">ส่งรหัส</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label style="display: block; text-align: left;">กรอกรหัส OTP (6 หลัก):</label>
+          <input type="text" id="otpCodeInput" class="form-control otp-input-box" placeholder="••••••" maxlength="6" required autocomplete="one-time-code">
+        </div>
+
+        <div id="otpErrorMsg" class="auth-error-msg" style="display: none; margin-bottom: 12px;"></div>
+
+        <button type="submit" class="btn-primary-auth" style="margin-top: 6px;">ยืนยันรหัส OTP</button>
+        <div style="margin-top: 14px; display: flex; justify-content: space-between; align-items: center;">
+          <button type="button" class="btn-forget-link" onclick="handleResendOtp()">🔄 ส่งรหัส OTP อีกครั้ง</button>
+          <button type="button" class="btn-sm" onclick="closeOtpModal()">ยกเลิก</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -129,9 +170,30 @@
           <h1 id="currentProjectTitle">เลือกโปรเจกต์</h1>
           <p id="currentProjectDesc">จัดการงาน สตอรี่รายละเอียด และลิ้งก์ส่งงาน</p>
         </div>
+        
         <div class="header-actions">
+          <!-- ปุ่มสมุดโน้ตประจำโปรเจกต์ -->
+          <button type="button" class="btn-notes-action" onclick="openProjectNotesModal()" id="btnProjectNotes" title="สมุดโน้ตบันทึกข้อมูลประจำโปรเจกต์">
+            <span>📝</span> โน้ตโปรเจกต์
+          </button>
+
+          <!-- ปุ่มดูสมาชิกทีมและสถานะ -->
+          <button type="button" class="btn-members-toggle" onclick="toggleMembersPanel()" id="btnMembersToggle" title="ดูสมาชิกและสถานะออนไลน์">
+            <span>👥</span>
+            <span>สมาชิก</span>
+            <span class="online-indicator-pill" id="onlineIndicatorCounter">0 ออนไลน์</span>
+          </button>
+          
           <button type="button" class="btn-idea-action" onclick="openAddIdeaModal()" id="btnNewIdea">💡 เสนอไอเดีย</button>
           <button type="button" class="btn-create-task" onclick="openAddTaskModal()" id="btnNewTask">+ มอบหมายงานใหม่</button>
+        </div>
+
+        <div class="members-presence-panel" id="membersPresencePanel">
+          <div class="members-panel-header">
+            <h4>👥 สมาชิกทีมทั้งหมด (Team Status)</h4>
+            <button type="button" class="btn-close-panel" onclick="toggleMembersPanel()">✕</button>
+          </div>
+          <div class="members-presence-list" id="membersPresenceList"></div>
         </div>
       </header>
 
@@ -140,34 +202,61 @@
       </section>
     </main>
 
-    <!-- Floating Chat Widget (ห้องแชททีม) -->
+    <!-- Floating Chat Widget -->
     <div class="team-chat-widget" id="teamChatWidget">
-      <!-- กล่องหน้าต่างแชท -->
       <div class="chat-window" id="chatWindow">
         <div class="chat-header">
           <div class="chat-header-title">
-            <span class="chat-live-dot"></span>
-            <span>💬 ห้องพูดคุยทีม (Team Chat)</span>
+            <button type="button" class="btn-chat-back" id="btnChatBackToTeam" onclick="switchToTeamChat()" title="กลับไปห้องแชททีม" style="display: none;">⬅️</button>
+            <span class="chat-live-dot" id="chatHeaderLiveDot"></span>
+            <span id="chatHeaderTitleText">💬 ห้องพูดคุยทีม (Team Chat)</span>
           </div>
           <div class="chat-header-controls">
-            <button type="button" class="btn-chat-control" onclick="handleClearChat()" title="ล้างประวัติแชท">🗑️</button>
+            <button type="button" class="btn-chat-control" id="btnClearChat" onclick="handleClearChat()" title="ล้างประวัติแชท (เฉพาะแอดมิน)" style="display: none;">🗑️</button>
             <button type="button" class="btn-chat-control" onclick="toggleChatWindow()" title="ย่อหน้าต่าง">✕</button>
           </div>
+        </div>
+
+        <div class="dm-status-banner" id="dmStatusBanner" style="display: none;">
+          <span>🔒 กำลังสนทนาส่วนตัวกับ <strong id="dmTargetNameDisplay"></strong></span>
+          <button type="button" class="btn-switch-to-team" onclick="switchToTeamChat()">สลับเป็นห้องรวม</button>
         </div>
 
         <div class="chat-messages-body" id="chatMessagesBody"></div>
 
         <form class="chat-input-row" onsubmit="handleSendChatMessage(event)">
-          <input type="text" id="chatTextInput" class="chat-input" placeholder="พิมพ์ข้อความคุยกับทีม... (กด Enter เพื่อส่ง)" autocomplete="off" required>
+          <input type="text" id="chatTextInput" class="chat-input" placeholder="พิมพ์ข้อความ... (กด Enter เพื่อส่ง)" autocomplete="off" required>
           <button type="submit" class="btn-chat-send" title="ส่งข้อความ">🚀</button>
         </form>
       </div>
 
-      <!-- ปุ่มกดเปิด-ปิดแชท -->
       <button type="button" class="btn-chat-toggle" onclick="toggleChatWindow()" id="chatToggleBtn">
         <span>💬</span>
         <span class="chat-badge-counter" id="chatBadgeCounter">0</span>
       </button>
+    </div>
+  </div>
+
+  <!-- Modal สมุดโน้ตโปรเจกต์ -->
+  <div class="modal-overlay" id="projectNotesModal">
+    <div class="modal" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">📝 สมุดโน้ตโปรเจกต์</h3>
+        <button type="button" class="close-btn" onclick="closeModal('projectNotesModal')">✕</button>
+      </div>
+      <form onsubmit="handleSaveProjectNotes(event)">
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label style="margin-bottom: 0;">บันทึกข้อมูล, สคริปต์, โทนสี หรือข้อตกลงร่วมกัน:</label>
+            <span id="notesLastUpdatedInfo" style="font-size: 0.75rem; color: var(--text-muted);"></span>
+          </div>
+          <textarea id="projectNotesContent" class="form-control" style="min-height: 280px; font-size: 0.95rem; line-height: 1.6;" placeholder="พิมพ์บันทึกรายละเอียดของโปรเจกต์นี้ที่ทุกคนในทีมสามารถอ่านและแก้ไขร่วมกันได้..."></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('projectNotesModal')">ปิด</button>
+          <button type="submit" class="btn-create-task">💾 บันทึกโน้ต</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -188,7 +277,7 @@
           <textarea id="ideaStoryInput" class="form-control" placeholder="อธิบายแนวคิด ข้อดี หรือจุดเด่นของไอเดียนี้..." required></textarea>
         </div>
         <div class="form-group">
-          <label>ลิ้งก์ตัวอย่างอ้างอิง / Moodboard (เช่น Pinterest, YouTube, Drive)</label>
+          <label>ลิ้งก์ตัวอย่างอ้างอิง / Moodboard (เช่น Pinterest, YouTube, Google Drive)</label>
           <input type="url" id="ideaLinkInput" class="form-control" placeholder="https://...">
         </div>
         <div class="modal-footer">
@@ -228,6 +317,11 @@
         <div class="form-group">
           <label>ชื่อผู้ใช้งาน / ฉายา *</label>
           <input type="text" id="editNameInput" class="form-control" required>
+        </div>
+
+        <div class="form-group">
+          <label>อีเมลส่วนตัว</label>
+          <input type="email" id="editEmailInput" class="form-control" placeholder="example@gmail.com" required>
         </div>
 
         <div class="form-group">
@@ -272,7 +366,7 @@
     </div>
   </div>
 
-  <!-- Modal มอบหมายงาน -->
+  <!-- Modal มอบหมายงาน / ส่งงาน (ผ่านลิงก์ Cloud Storage) -->
   <div class="modal-overlay" id="taskModal">
     <div class="modal">
       <div class="modal-header">
@@ -294,7 +388,7 @@
           <textarea id="taskStoryInput" class="form-control" placeholder="อธิบายขั้นตอนงาน, คอนเซ็ปต์, ขอบเขตที่ต้องการ..."></textarea>
         </div>
         <div class="form-group">
-          <label>ช่องทางการส่งงาน (เช่น ลิ้งค์ Google Drive / Figma)</label>
+          <label>🔗 ลิ้งก์ส่งงาน / ไฟล์งานขนาดใหญ่ (เช่น Google Drive, Dropbox, OneDrive, Figma):</label>
           <input type="url" id="taskSubmissionInput" class="form-control" placeholder="https://drive.google.com/drive/folders/...">
         </div>
         <div class="form-group">
