@@ -78,6 +78,8 @@ const AudioFX = {
   click() { this.playTone(700, 350, 'sine', 0.04, 0.06); },
   sendChat() { this.playTone(380, 920, 'sine', 0.08, 0.12); },
   newIncomingMsg() { this.playTone(600, 1200, 'sine', 0.1, 0.14); },
+  submitWork() { this.playTone(400, 1000, 'sine', 0.15, 0.12); },
+  pageFlip() { this.playTone(550, 750, 'triangle', 0.08, 0.08); },
   like() {
     try {
       this.init();
@@ -111,27 +113,43 @@ const AudioFX = {
 };
 
 document.addEventListener('click', (e) => {
-  if (e.target.closest('button') || e.target.closest('.avatar-opt') || e.target.closest('.project-item')) {
+  if (e.target.closest('button') || e.target.closest('.avatar-opt') || e.target.closest('.project-item') || e.target.closest('.word-tool-btn')) {
     AudioFX.click();
   }
 });
 
 // ================= APP STATES =================
 const AVATAR_PRESETS = ['👨‍💻', '👩‍💻', '🐱', '🦊', '🚀', '🎨', '🎬', '⚡', '🐉', '✨'];
+const MAX_PAGES = 50;
+
 let teamUsers = [];
 let projects = [];
 let chatMessages = [];
 let dmChatMessages = [];
 let currentUserId = localStorage.getItem('taiyoani_active_user_id') || null;
 let activeProjectId = null;
-let isChatOpen = false;
-let isMembersPanelOpen = false;
+let isRightDockOpen = false;
+let isMobileSidebarOpen = false;
 let initialChatLoadDone = false;
 let pendingVerificationUser = null;
 
 let activeChatMode = 'team';
 let activeDmTargetUser = null;
 let dmUnsubscribe = null;
+
+let activeScriptTaskId = null;
+let currentScriptPages = [''];
+let activePageIndex = 0;
+
+let revenueData = {
+  voice: 0,
+  animation: 0,
+  audio: 0,
+  other: 0,
+  note: '',
+  updatedBy: '',
+  updatedTime: ''
+};
 
 function getCurrentUser() {
   return teamUsers.find(u => u && u.id === currentUserId) || null;
@@ -151,6 +169,60 @@ function renderAvatarHtml(avatarData, customClass = '') {
   }
   return `<span class="avatar-chip ${customClass}">${escapeHtml(avatarData)}</span>`;
 }
+
+function formatCurrency(amount) {
+  const num = Number(amount) || 0;
+  return '฿ ' + num.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+// ================= DEVICE MODE SWITCHER =================
+window.setDeviceMode = function(mode) {
+  AudioFX.click();
+  const body = document.body;
+  body.classList.remove('device-mode-auto', 'device-mode-desktop', 'device-mode-tablet', 'device-mode-mobile');
+  body.classList.add(`device-mode-${mode}`);
+
+  localStorage.setItem('taiyoani_device_mode', mode);
+
+  document.querySelectorAll('.btn-device-opt').forEach(btn => btn.classList.remove('active'));
+  const targetBtn = document.getElementById(`devOpt${mode.charAt(0).toUpperCase() + mode.slice(1)}`);
+  if (targetBtn) targetBtn.classList.add('active');
+
+  // ปิด Drawer และรีเซ็ต Backdrop
+  isMobileSidebarOpen = false;
+  const sidebar = document.getElementById('appSidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  if (sidebar) sidebar.classList.remove('mobile-open');
+  if (backdrop) backdrop.classList.remove('active');
+};
+
+function initDeviceMode() {
+  const savedMode = localStorage.getItem('taiyoani_device_mode') || 'auto';
+  window.setDeviceMode(savedMode);
+}
+
+window.toggleMobileSidebar = function() {
+  AudioFX.click();
+  isMobileSidebarOpen = !isMobileSidebarOpen;
+  const sidebar = document.getElementById('appSidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  if (sidebar) sidebar.classList.toggle('mobile-open', isMobileSidebarOpen);
+  if (backdrop) backdrop.classList.toggle('active', isMobileSidebarOpen);
+};
+
+// ================= RIGHT DOCK PANEL TOGGLE =================
+window.toggleChatWindow = function() {
+  AudioFX.click();
+  isRightDockOpen = !isRightDockOpen;
+  const panel = document.getElementById('rightDockPanel');
+  if (panel) {
+    panel.classList.toggle('open', isRightDockOpen);
+    if (isRightDockOpen) {
+      scrollChatToBottom();
+      document.getElementById('chatTextInput').focus();
+    }
+  }
+};
 
 // ================= PRESENCE & HEARTBEAT SYSTEM =================
 function startHeartbeat() {
@@ -173,15 +245,15 @@ function getPresenceStatus(lastActive) {
   const diffMin = Math.floor(diffMs / 60000);
 
   if (diffMin < 2) {
-    return { isOnline: true, text: '🟢 กำลังออนไลน์' };
+    return { isOnline: true, text: '🟢 ออนไลน์' };
   } else if (diffMin < 60) {
-    return { isOnline: false, text: `ออฟไลน์เมื่อ ${diffMin} นาทีที่แล้ว` };
+    return { isOnline: false, text: `${diffMin} น. ที่แล้ว` };
   } else if (diffMin < 1440) {
     const diffHr = Math.floor(diffMin / 60);
-    return { isOnline: false, text: `ออฟไลน์เมื่อ ${diffHr} ชม. ที่แล้ว` };
+    return { isOnline: false, text: `${diffHr} ชม. ที่แล้ว` };
   } else {
     const diffDay = Math.floor(diffMin / 1440);
-    return { isOnline: false, text: `ออฟไลน์เมื่อ ${diffDay} วันที่แล้ว` };
+    return { isOnline: false, text: `${diffDay} วันที่แล้ว` };
   }
 }
 
@@ -208,6 +280,15 @@ function startRealtimeSync() {
     renderProjects();
   });
 
+  onSnapshot(doc(db, "finances", "revenue_stats"), (docSnap) => {
+    if (docSnap.exists()) {
+      revenueData = docSnap.data();
+    } else {
+      revenueData = { voice: 0, animation: 0, audio: 0, other: 0, note: '', updatedBy: 'แอดมิน', updatedTime: 'เริ่มต้น' };
+    }
+    renderRevenueWidget();
+  });
+
   const chatQuery = query(collection(db, "chats"), orderBy("timestamp", "asc"));
   onSnapshot(chatQuery, (snapshot) => {
     const newChats = [];
@@ -228,8 +309,317 @@ function startRealtimeSync() {
   });
 }
 
-// ================= AUTH GATEKEEPER & OTP VERIFICATION =================
+// ================= REVENUE WIDGET LOGIC =================
+function renderRevenueWidget() {
+  const voice = Number(revenueData.voice) || 0;
+  const anim = Number(revenueData.animation) || 0;
+  const audio = Number(revenueData.audio) || 0;
+  const other = Number(revenueData.other) || 0;
+  const total = voice + anim + audio + other;
+
+  document.getElementById('revenueVoiceDisplay').innerText = formatCurrency(voice);
+  document.getElementById('revenueAnimDisplay').innerText = formatCurrency(anim);
+  document.getElementById('revenueAudioDisplay').innerText = formatCurrency(audio);
+  document.getElementById('revenueOtherDisplay').innerText = formatCurrency(other);
+  document.getElementById('revenueTotalDisplay').innerText = formatCurrency(total);
+
+  const badge = document.getElementById('revenueUpdatedBadge');
+  if (badge) {
+    if (revenueData.updatedTime) {
+      const noteTxt = revenueData.note ? ` (${revenueData.note})` : '';
+      badge.innerText = `อัปเดต: ${revenueData.updatedTime}${noteTxt}`;
+    } else {
+      badge.innerText = `อัปเดต: พร้อมใช้งาน`;
+    }
+  }
+}
+
+window.openRevenueModal = function() {
+  if (!isAdmin()) {
+    AudioFX.delete();
+    alert('เฉพาะแอดมิน (TaiyoAni) เท่านั้นที่มีสิทธิ์จัดการรายได้');
+    return;
+  }
+  AudioFX.click();
+  document.getElementById('inputRevenueVoice').value = revenueData.voice || 0;
+  document.getElementById('inputRevenueAnim').value = revenueData.animation || 0;
+  document.getElementById('inputRevenueAudio').value = revenueData.audio || 0;
+  document.getElementById('inputRevenueOther').value = revenueData.other || 0;
+  document.getElementById('inputRevenueNote').value = revenueData.note || '';
+  document.getElementById('revenueModal').style.display = 'flex';
+};
+
+window.handleSaveRevenue = async function(e) {
+  e.preventDefault();
+  if (!isAdmin()) {
+    alert('เฉพาะแอดมินเท่านั้นที่มีสิทธิ์บันทึกรายได้');
+    return;
+  }
+
+  const voice = parseFloat(document.getElementById('inputRevenueVoice').value) || 0;
+  const animation = parseFloat(document.getElementById('inputRevenueAnim').value) || 0;
+  const audio = parseFloat(document.getElementById('inputRevenueAudio').value) || 0;
+  const other = parseFloat(document.getElementById('inputRevenueOther').value) || 0;
+  const note = document.getElementById('inputRevenueNote').value.trim();
+
+  const currentUser = getCurrentUser();
+  const nowStr = new Date().toLocaleDateString('th-TH') + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  AudioFX.success();
+  await setDoc(doc(db, "finances", "revenue_stats"), {
+    voice,
+    animation,
+    audio,
+    other,
+    note,
+    updatedBy: currentUser ? currentUser.name : 'TaiyoAni',
+    updatedTime: nowStr,
+    timestamp: serverTimestamp()
+  });
+
+  closeModal('revenueModal');
+};
+
+// ================= NEW SCRIPT CREATION =================
+window.openNewScriptModal = function() {
+  if (!activeProjectId) {
+    alert('กรุณาสร้างหรือเลือกโปรเจกต์ก่อนสร้างสคริปต์');
+    return;
+  }
+  AudioFX.click();
+  document.getElementById('newScriptTitleInput').value = '';
+  document.getElementById('newScriptDescInput').value = '';
+  document.getElementById('newScriptModal').style.display = 'flex';
+};
+
+window.handleCreateNewScript = async function(e) {
+  e.preventDefault();
+  const currentProj = projects.find(p => p.id === activeProjectId);
+  if (!currentProj) return;
+
+  const title = document.getElementById('newScriptTitleInput').value.trim();
+  const desc = document.getElementById('newScriptDescInput').value.trim();
+  if (!title) return;
+
+  const currentUser = getCurrentUser();
+  const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const scriptId = 'script-' + Date.now();
+
+  const newScriptTask = {
+    id: scriptId,
+    title,
+    assignee: 'ทีมพากย์ / ผลิตบท',
+    story: desc || 'เอกสารสคริปต์บทพากย์และเนื้อเรื่องประจำโปรเจกต์',
+    status: 'script',
+    pages: [''],
+    likes: 0,
+    createdBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar } : null,
+    updatedBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar, time: nowStr } : null
+  };
+
+  const updatedTasks = [newScriptTask, ...(currentProj.tasks || [])];
+  AudioFX.success();
+  await updateDoc(doc(db, "projects", activeProjectId), { tasks: updatedTasks });
+  
+  closeModal('newScriptModal');
+  openScriptEditor(scriptId);
+};
+
+// ================= MULTI-PAGE WORD SCRIPT EDITOR =================
+window.execWordCmd = function(command, value = null) {
+  document.getElementById('wordPaperEditor').focus();
+  document.execCommand(command, false, value);
+  saveCurrentPageBuffer();
+  updateWordStats();
+};
+
+function saveCurrentPageBuffer() {
+  const editor = document.getElementById('wordPaperEditor');
+  if (editor && currentScriptPages[activePageIndex] !== undefined) {
+    currentScriptPages[activePageIndex] = editor.innerHTML;
+  }
+}
+
+function updateWordStats() {
+  const editor = document.getElementById('wordPaperEditor');
+  if (!editor) return;
+  const text = editor.innerText || '';
+  const charCount = text.length;
+  const wordCount = text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
+  document.getElementById('wordStatsDisplay').innerText = `หน้า ${activePageIndex + 1}: ${wordCount} คำ | ${charCount} ตัวอักษร (รวม ${currentScriptPages.length} หน้า)`;
+}
+
+function updatePageControlsUI() {
+  const total = currentScriptPages.length;
+  const dropdown = document.getElementById('pageSelectDropdown');
+  dropdown.innerHTML = '';
+
+  for (let i = 0; i < total; i++) {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.innerText = `${i + 1}`;
+    if (i === activePageIndex) opt.selected = true;
+    dropdown.appendChild(opt);
+  }
+
+  document.getElementById('pageTotalDisplay').innerText = `/ ${total}`;
+  document.getElementById('btnPrevPage').disabled = (activePageIndex === 0);
+  document.getElementById('btnNextPage').disabled = (activePageIndex === total - 1);
+  document.getElementById('btnAddNewPage').disabled = (total >= MAX_PAGES);
+  document.getElementById('btnDeleteCurrentPage').disabled = (total <= 1);
+}
+
+window.jumpToPage = function(pageIndex) {
+  saveCurrentPageBuffer();
+  activePageIndex = parseInt(pageIndex, 10) || 0;
+  loadPageContent();
+};
+
+window.prevPage = function() {
+  if (activePageIndex > 0) {
+    AudioFX.pageFlip();
+    saveCurrentPageBuffer();
+    activePageIndex--;
+    loadPageContent();
+  }
+};
+
+window.nextPage = function() {
+  if (activePageIndex < currentScriptPages.length - 1) {
+    AudioFX.pageFlip();
+    saveCurrentPageBuffer();
+    activePageIndex++;
+    loadPageContent();
+  }
+};
+
+window.addNewPage = function() {
+  if (currentScriptPages.length >= MAX_PAGES) {
+    alert(`ไม่สามารถเพิ่มหน้าได้เกิน ${MAX_PAGES} หน้า`);
+    return;
+  }
+  AudioFX.pageFlip();
+  saveCurrentPageBuffer();
+  currentScriptPages.push('');
+  activePageIndex = currentScriptPages.length - 1;
+  loadPageContent();
+};
+
+window.deleteCurrentPage = function() {
+  if (currentScriptPages.length <= 1) {
+    alert('ต้องมีสคริปต์อย่างน้อย 1 หน้า');
+    return;
+  }
+  if (confirm(`คุณต้องการลบ "หน้าที่ ${activePageIndex + 1}" ใช่หรือไม่?`)) {
+    AudioFX.delete();
+    currentScriptPages.splice(activePageIndex, 1);
+    if (activePageIndex >= currentScriptPages.length) {
+      activePageIndex = currentScriptPages.length - 1;
+    }
+    loadPageContent();
+  }
+};
+
+function loadPageContent() {
+  const paper = document.getElementById('wordPaperEditor');
+  paper.innerHTML = currentScriptPages[activePageIndex] || '';
+  updatePageControlsUI();
+  updateWordStats();
+}
+
+const paperEditorEl = document.getElementById('wordPaperEditor');
+if (paperEditorEl) {
+  paperEditorEl.addEventListener('input', () => {
+    saveCurrentPageBuffer();
+    updateWordStats();
+  });
+}
+
+window.openScriptEditor = function(taskId) {
+  const currentProj = projects.find(p => p.id === activeProjectId);
+  if (!currentProj) return;
+
+  const task = currentProj.tasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  activeScriptTaskId = taskId;
+  AudioFX.click();
+
+  document.getElementById('scriptEditorTaskTitle').innerText = `📜 สคริปต์: ${task.title}`;
+  
+  const currentUser = getCurrentUser();
+  const isCreator = currentUser && task.createdBy && task.createdBy.name === currentUser.name;
+  const canEdit = isAdmin(currentUser) || isCreator;
+
+  if (Array.isArray(task.pages) && task.pages.length > 0) {
+    currentScriptPages = [...task.pages];
+  } else if (task.scriptContent) {
+    currentScriptPages = [task.scriptContent];
+  } else {
+    currentScriptPages = [''];
+  }
+
+  activePageIndex = 0;
+
+  const paper = document.getElementById('wordPaperEditor');
+  paper.contentEditable = canEdit ? 'true' : 'false';
+
+  const saveBtn = document.getElementById('btnSaveScriptAction');
+  const addPageBtn = document.getElementById('btnAddNewPage');
+  const delPageBtn = document.getElementById('btnDeleteCurrentPage');
+  if (saveBtn) saveBtn.style.display = canEdit ? 'inline-flex' : 'none';
+  if (addPageBtn) addPageBtn.style.display = canEdit ? 'inline-flex' : 'none';
+  if (delPageBtn) delPageBtn.style.display = canEdit ? 'inline-flex' : 'none';
+
+  const metaInfo = document.getElementById('scriptEditorMetaInfo');
+  if (task.scriptUpdatedBy) {
+    metaInfo.innerText = `✏️ แก้ไขล่าสุดโดย ${task.scriptUpdatedBy.name} (${task.scriptUpdatedBy.time}) ${!canEdit ? '• [โหมดอ่าน]' : ''}`;
+  } else {
+    metaInfo.innerText = canEdit ? 'เขียนและจัดรูปแบบเอกสารแบบเรียลไทม์' : 'โหมดอ่านอย่างเดียว';
+  }
+
+  loadPageContent();
+  document.getElementById('scriptEditorModal').style.display = 'flex';
+};
+
+window.handleSaveTaskScript = async function() {
+  const currentProj = projects.find(p => p.id === activeProjectId);
+  if (!currentProj || !activeScriptTaskId) return;
+
+  const task = currentProj.tasks.find(t => t.id === activeScriptTaskId);
+  if (!task) return;
+
+  const currentUser = getCurrentUser();
+  const isCreator = currentUser && task.createdBy && task.createdBy.name === currentUser.name;
+  if (!isAdmin() && !isCreator) {
+    alert('คุณไม่มีสิทธิ์แก้ไขสคริปต์นี้');
+    return;
+  }
+
+  saveCurrentPageBuffer();
+  const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const updatedTasks = currentProj.tasks.map(t => {
+    if (t.id === activeScriptTaskId) {
+      return {
+        ...t,
+        pages: currentScriptPages,
+        scriptContent: currentScriptPages[0] || '',
+        scriptUpdatedBy: currentUser ? { name: currentUser.name, time: nowStr } : null
+      };
+    }
+    return t;
+  });
+
+  AudioFX.success();
+  await updateDoc(doc(db, "projects", activeProjectId), { tasks: updatedTasks });
+  closeModal('scriptEditorModal');
+  alert(`💾 บันทึกสคริปต์สำเร็จ (${currentScriptPages.length} หน้า)!`);
+};
+
+// ================= AUTH GATEKEEPER =================
 function initAuth() {
+  initDeviceMode();
   startRealtimeSync();
   
   if (currentUserId) {
@@ -589,29 +979,11 @@ window.handleLogout = function() {
   }
 };
 
-// ================= MEMBERS PRESENCE PANEL =================
-window.toggleMembersPanel = function() {
-  AudioFX.click();
-  isMembersPanelOpen = !isMembersPanelOpen;
-  const panel = document.getElementById('membersPresencePanel');
-  if (panel) {
-    panel.classList.toggle('open', isMembersPanelOpen);
-    if (isMembersPanelOpen) renderMembersPresenceList();
-  }
-};
-
-document.addEventListener('click', (e) => {
-  const panel = document.getElementById('membersPresencePanel');
-  const btn = document.getElementById('btnMembersToggle');
-  if (panel && isMembersPanelOpen && !panel.contains(e.target) && !btn.contains(e.target)) {
-    isMembersPanelOpen = false;
-    panel.classList.remove('open');
-  }
-});
-
+// ================= MEMBERS PRESENCE RENDERING =================
 function renderMembersPresenceList() {
   const container = document.getElementById('membersPresenceList');
   const counterPill = document.getElementById('onlineIndicatorCounter');
+  const dockOnlineCount = document.getElementById('dockOnlineCountText');
   if (!container) return;
   container.innerHTML = '';
 
@@ -653,9 +1025,8 @@ function renderMembersPresenceList() {
     container.appendChild(item);
   });
 
-  if (counterPill) {
-    counterPill.innerText = `${onlineCount} ออนไลน์`;
-  }
+  if (counterPill) counterPill.innerText = `${onlineCount}`;
+  if (dockOnlineCount) dockOnlineCount.innerText = `${onlineCount} ออนไลน์`;
 }
 
 // ================= DIRECT MESSAGING =================
@@ -666,16 +1037,12 @@ window.startDirectChat = function(targetUserId) {
   activeChatMode = 'dm';
   activeDmTargetUser = targetUser;
 
-  isMembersPanelOpen = false;
-  const panel = document.getElementById('membersPresencePanel');
-  if (panel) panel.classList.remove('open');
-
-  isChatOpen = true;
-  const chatWin = document.getElementById('chatWindow');
-  if (chatWin) chatWin.classList.add('open');
+  isRightDockOpen = true;
+  const panel = document.getElementById('rightDockPanel');
+  if (panel) panel.classList.add('open');
 
   document.getElementById('btnChatBackToTeam').style.display = 'inline-block';
-  document.getElementById('chatHeaderTitleText').innerText = `🔒 แชทส่วนตัว: ${targetUser.name}`;
+  document.getElementById('chatHeaderTitleText').innerText = `🔒 ${targetUser.name}`;
   document.getElementById('dmStatusBanner').style.display = 'flex';
   document.getElementById('dmTargetNameDisplay').innerText = targetUser.name;
   document.getElementById('btnClearChat').style.display = 'none';
@@ -709,7 +1076,7 @@ window.switchToTeamChat = function() {
   }
 
   document.getElementById('btnChatBackToTeam').style.display = 'none';
-  document.getElementById('chatHeaderTitleText').innerText = '💬 ห้องพูดคุยทีม (Team Chat)';
+  document.getElementById('chatHeaderTitleText').innerText = '💬 ห้องแชทรวมทีม';
   document.getElementById('dmStatusBanner').style.display = 'none';
   
   const clearChatBtn = document.getElementById('btnClearChat');
@@ -733,7 +1100,7 @@ window.openProjectNotesModal = function() {
   
   const infoSpan = document.getElementById('notesLastUpdatedInfo');
   if (currentProj.notesUpdatedBy) {
-    infoSpan.innerText = `✏️ แก้ไขล่าสุดโดย ${currentProj.notesUpdatedBy.name} (${currentProj.notesUpdatedBy.time})`;
+    infoSpan.innerText = `✏️ ${currentProj.notesUpdatedBy.name} (${currentProj.notesUpdatedBy.time})`;
   } else {
     infoSpan.innerText = '';
   }
@@ -875,6 +1242,7 @@ window.handleCreateProject = async function(e) {
 window.selectProject = function(id) {
   activeProjectId = id;
   renderProjects();
+  if (isMobileSidebarOpen) toggleMobileSidebar();
 };
 
 window.deleteProject = async function(id) {
@@ -900,7 +1268,6 @@ window.openAddTaskModal = function() {
   document.getElementById('taskIdInput').value = '';
   document.getElementById('taskTitleInput').value = '';
   document.getElementById('taskStoryInput').value = '';
-  document.getElementById('taskSubmissionInput').value = '';
   document.getElementById('taskStatusInput').value = 'pending';
   document.getElementById('taskModalTitle').innerText = 'มอบหมายงานใหม่';
   document.getElementById('taskModal').style.display = 'flex';
@@ -912,14 +1279,21 @@ window.editTask = function(taskId) {
   const task = currentProj.tasks.find(t => t.id === taskId);
   if (!task) return;
 
+  const currentUser = getCurrentUser();
+  const isCreator = currentUser && task.createdBy && task.createdBy.name === currentUser.name;
+  if (!isAdmin() && !isCreator) {
+    AudioFX.delete();
+    alert('เฉพาะผู้ที่มอบหมายงานนี้ หรือ แอดมิน (TaiyoAni) เท่านั้นที่มีสิทธิ์แก้ไขงาน');
+    return;
+  }
+
   populateAssigneeDropdown();
   document.getElementById('taskIdInput').value = task.id;
   document.getElementById('taskTitleInput').value = task.title;
   document.getElementById('taskAssigneeInput').value = task.assignee;
   document.getElementById('taskStoryInput').value = task.story || '';
-  document.getElementById('taskSubmissionInput').value = task.submissionLink || '';
   document.getElementById('taskStatusInput').value = task.status || 'pending';
-  document.getElementById('taskModalTitle').innerText = 'แก้ไขข้อมูลงาน / ไอเดีย';
+  document.getElementById('taskModalTitle').innerText = 'แก้ไขข้อมูลการมอบหมายงาน';
   document.getElementById('taskModal').style.display = 'flex';
 };
 
@@ -932,10 +1306,8 @@ window.handleSaveTask = async function(e) {
   const title = document.getElementById('taskTitleInput').value.trim();
   const assignee = document.getElementById('taskAssigneeInput').value;
   const story = document.getElementById('taskStoryInput').value.trim();
-  const submissionLink = document.getElementById('taskSubmissionInput').value.trim();
   const status = document.getElementById('taskStatusInput').value;
 
-  AudioFX.success();
   const currentUser = getCurrentUser();
   const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -944,21 +1316,38 @@ window.handleSaveTask = async function(e) {
   if (taskId) {
     const taskIndex = updatedTasks.findIndex(t => t.id === taskId);
     if (taskIndex > -1) {
+      const existingTask = updatedTasks[taskIndex];
+      const isCreator = currentUser && existingTask.createdBy && existingTask.createdBy.name === currentUser.name;
+      if (!isAdmin() && !isCreator) {
+        alert('คุณไม่มีสิทธิ์แก้ไขงานนี้');
+        return;
+      }
+
       updatedTasks[taskIndex] = {
-        ...updatedTasks[taskIndex],
-        title, assignee, story, submissionLink, status,
+        ...existingTask,
+        title, 
+        assignee, 
+        story, 
+        status,
         updatedBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar, time: nowStr } : null
       };
     }
   } else {
     updatedTasks.push({
       id: 'task-' + Date.now(),
-      title, assignee, story, submissionLink, status, likes: 0,
+      title, 
+      assignee, 
+      story, 
+      submissionLink: '',
+      scriptContent: '',
+      status, 
+      likes: 0,
       createdBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar } : null,
       updatedBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar, time: nowStr } : null
     });
   }
 
+  AudioFX.success();
   await updateDoc(doc(db, "projects", activeProjectId), { tasks: updatedTasks });
   closeModal('taskModal');
 };
@@ -967,11 +1356,70 @@ window.deleteTask = async function(taskId) {
   const currentProj = projects.find(p => p.id === activeProjectId);
   if (!currentProj) return;
 
+  const task = currentProj.tasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  const currentUser = getCurrentUser();
+  const isCreator = currentUser && task.createdBy && task.createdBy.name === currentUser.name;
+  if (!isAdmin() && !isCreator) {
+    AudioFX.delete();
+    alert('เฉพาะผู้ที่สร้างรายการนี้ หรือ แอดมิน (TaiyoAni) เท่านั้นที่มีสิทธิ์ลบ');
+    return;
+  }
+
   if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบรายการนี้?')) {
     AudioFX.delete();
     const updatedTasks = currentProj.tasks.filter(t => t.id !== taskId);
     await updateDoc(doc(db, "projects", activeProjectId), { tasks: updatedTasks });
   }
+};
+
+// ================= SUBMIT WORK HANDLER =================
+window.openSubmitWorkModal = function(taskId) {
+  const currentProj = projects.find(p => p.id === activeProjectId);
+  if (!currentProj) return;
+
+  const task = currentProj.tasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  AudioFX.click();
+  document.getElementById('submitTaskIdInput').value = task.id;
+  document.getElementById('submitTaskTitleDisplay').innerText = task.title;
+  document.getElementById('submitWorkLinkInput').value = task.submissionLink || '';
+  document.getElementById('submitWorkStatusInput').value = 'completed';
+  document.getElementById('submitWorkModal').style.display = 'flex';
+};
+
+window.handleSaveSubmission = async function(e) {
+  e.preventDefault();
+  const currentProj = projects.find(p => p.id === activeProjectId);
+  if (!currentProj) return;
+
+  const taskId = document.getElementById('submitTaskIdInput').value;
+  const submissionLink = document.getElementById('submitWorkLinkInput').value.trim();
+  const status = document.getElementById('submitWorkStatusInput').value;
+
+  if (!submissionLink) return;
+
+  const currentUser = getCurrentUser();
+  const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const updatedTasks = currentProj.tasks.map(t => {
+    if (t.id === taskId) {
+      return {
+        ...t,
+        submissionLink: submissionLink,
+        status: status,
+        updatedBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar, time: nowStr } : null
+      };
+    }
+    return t;
+  });
+
+  AudioFX.submitWork();
+  await updateDoc(doc(db, "projects", activeProjectId), { tasks: updatedTasks });
+  closeModal('submitWorkModal');
+  alert('🎉 บันทึกการส่งงานเรียบร้อยแล้ว!');
 };
 
 window.openAddIdeaModal = function() {
@@ -1005,6 +1453,7 @@ window.handleSaveIdea = async function(e) {
       assignee: 'ทีม (ระดมความคิด)',
       story,
       submissionLink,
+      scriptContent: '',
       status: 'idea',
       likes: 1,
       createdBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar } : null,
@@ -1033,19 +1482,6 @@ window.handleLikeTask = async function(taskId) {
 };
 
 // ================= TEAM CHAT LOGIC =================
-window.toggleChatWindow = function() {
-  AudioFX.click();
-  isChatOpen = !isChatOpen;
-  const chatWin = document.getElementById('chatWindow');
-  if (chatWin) {
-    chatWin.classList.toggle('open', isChatOpen);
-    if (isChatOpen) {
-      scrollChatToBottom();
-      document.getElementById('chatTextInput').focus();
-    }
-  }
-};
-
 window.handleSendChatMessage = async function(e) {
   e.preventDefault();
   const input = document.getElementById('chatTextInput');
@@ -1109,7 +1545,7 @@ function renderChatMessages() {
 
   if (msgsToRender.length === 0) {
     body.innerHTML = `
-      <div style="text-align: center; color: var(--text-muted); font-size: 0.82rem; margin-top: 40px;">
+      <div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; margin-top: 30px;">
         ${activeChatMode === 'dm' ? '🔒 ยังไม่มีข้อความคุยส่วนตัว เริ่มทักทายได้เลย!' : '💬 ยังไม่มีข้อความในห้องทีม'}
       </div>
     `;
@@ -1153,6 +1589,11 @@ function updateCurrentUserDisplay() {
     if (clearChatBtn && activeChatMode === 'team') {
       clearChatBtn.style.display = isAdmin(user) ? 'inline-block' : 'none';
     }
+
+    const editRevenueBtn = document.getElementById('btnAdminEditRevenue');
+    if (editRevenueBtn) {
+      editRevenueBtn.style.display = isAdmin(user) ? 'inline-flex' : 'none';
+    }
   }
 }
 
@@ -1175,11 +1616,12 @@ function renderProjects() {
   list.innerHTML = '';
 
   if (projects.length === 0) {
-    list.innerHTML = '<li style="padding:12px; color:#94a3b8; font-size:0.85rem;">ยังไม่มีโปรเจกต์</li>';
+    list.innerHTML = '<li style="padding:10px; color:#94a3b8; font-size:0.82rem;">ยังไม่มีโปรเจกต์</li>';
     document.getElementById('currentProjectTitle').innerText = 'ไม่มีโปรเจกต์ที่เลือก';
     document.getElementById('currentProjectDesc').innerText = 'กดปุ่มด้านล่างเพื่อเพิ่มโปรเจกต์ใหม่';
     document.getElementById('btnNewTask').style.display = 'none';
     document.getElementById('btnNewIdea').style.display = 'none';
+    document.getElementById('btnNewScript').style.display = 'none';
     document.getElementById('btnProjectNotes').style.display = 'none';
     renderTasks();
     return;
@@ -1187,6 +1629,7 @@ function renderProjects() {
 
   document.getElementById('btnNewTask').style.display = 'inline-flex';
   document.getElementById('btnNewIdea').style.display = 'inline-flex';
+  document.getElementById('btnNewScript').style.display = 'inline-flex';
   document.getElementById('btnProjectNotes').style.display = 'inline-flex';
 
   projects.forEach(p => {
@@ -1205,7 +1648,7 @@ function renderProjects() {
       <div style="overflow:hidden;">
         <div class="project-name" title="${p.name}">📁 ${escapeHtml(p.name)}</div>
         ${creatorName ? `
-          <div style="font-size:0.72rem; color:#94a3b8; margin-top:3px; display:flex; align-items:center; gap:4px;">
+          <div style="font-size:0.7rem; color:#94a3b8; margin-top:2px; display:flex; align-items:center; gap:3px;">
             สร้างโดย ${creatorAvatar} <span>${escapeHtml(creatorName)}</span>
           </div>` : ''}
       </div>
@@ -1232,16 +1675,23 @@ function renderTasks() {
     container.innerHTML = `
       <div class="empty-state" style="grid-column: 1 / -1;">
         <div class="empty-icon">💡</div>
-        <h3 style="color:#ffffff;">ยังไม่มีงานหรือไอเดียในโปรเจกต์นี้</h3>
-        <p style="margin-top: 6px;">คลิกปุ่ม "💡 เสนอไอเดีย" หรือ "+ มอบหมายงานใหม่" ด้านบนเพื่อเริ่มแชร์ความคิดเห็น</p>
+        <h3 style="color:#ffffff;">ยังไม่มีงาน ไอเดีย หรือสคริปต์ในโปรเจกต์นี้</h3>
+        <p style="margin-top: 6px;">คลิกปุ่ม "📜 สร้างสคริปต์", "💡 เสนอไอเดีย" หรือ "+ มอบหมายงานใหม่" ด้านบนเพื่อเริ่มต้น</p>
       </div>
     `;
     return;
   }
 
+  const currentUser = getCurrentUser();
+
   currentProj.tasks.forEach(task => {
     const isIdea = task.status === 'idea';
+    const isScript = task.status === 'script';
+
+    const pageCount = Array.isArray(task.pages) ? task.pages.length : (task.scriptContent ? 1 : 1);
+
     const badgeMap = {
+      script: { text: `📜 สคริปต์ (${pageCount} หน้า)`, class: 'badge-script' },
       idea: { text: '💡 ไอเดีย / Concept', class: 'badge-idea' },
       pending: { text: '🟡 รอดำเนินการ', class: 'badge-pending' },
       in_progress: { text: '🔵 กำลังทำ', class: 'badge-in_progress' },
@@ -1252,16 +1702,23 @@ function renderTasks() {
     const assigneeUser = teamUsers.find(u => u.name === task.assignee);
     const assigneeAvatar = assigneeUser ? renderAvatarHtml(assigneeUser.avatar) : '👤';
 
+    const isCreator = currentUser && task.createdBy && task.createdBy.name === currentUser.name;
+    const canManage = isAdmin(currentUser) || isCreator;
+
     const card = document.createElement('div');
-    card.className = `task-card ${isIdea ? 'is-idea' : ''}`;
+    card.className = `task-card ${isIdea ? 'is-idea' : ''} ${isScript ? 'is-script' : ''}`;
+
+    let labelName = '📖 รายละเอียด & สตอรี่:';
+    if (isIdea) labelName = '💡 แนวคิด & รายละเอียด:';
+    if (isScript) labelName = '📑 รายละเอียดสคริปต์:';
 
     card.innerHTML = `
       <div class="task-header-row">
         <span class="task-badge ${badge.class}">${badge.text}</span>
         ${task.createdBy ? `
-          <div class="attribution-box" title="ผู้เสนอไอเดีย/มอบหมายงานนี้">
+          <div class="attribution-box" title="ผู้สร้างรายการนี้">
             ${renderAvatarHtml(task.createdBy.avatar)}
-            <span>เสนอโดย <strong>${escapeHtml(task.createdBy.name)}</strong></span>
+            <span>สร้างโดย <strong>${escapeHtml(task.createdBy.name)}</strong></span>
           </div>
         ` : ''}
       </div>
@@ -1269,19 +1726,19 @@ function renderTasks() {
       <h3 class="task-title">${escapeHtml(task.title)}</h3>
       
       <div class="task-story">
-        <strong style="color:${isIdea ? '#fef08a' : '#cbd5e1'};">${isIdea ? '💡 แนวคิด & รายละเอียด:' : '📖 รายละเอียด & สตอรี่:'}</strong><br>${escapeHtml(task.story || 'ไม่มีรายละเอียดเพิ่มเติม')}
+        <strong style="color:${isIdea ? '#fef08a' : (isScript ? '#e9d5ff' : '#cbd5e1')};">${labelName}</strong><br>${escapeHtml(task.story || 'ไม่มีรายละเอียดเพิ่มเติม')}
       </div>
 
       <div class="task-meta">
         <div class="meta-row">
-          <span class="meta-label">👤 ผู้รับผิดชอบ:</span>
+          <span class="meta-label">👤 ผู้เกี่ยวข้อง:</span>
           <div style="display:flex; align-items:center; gap:6px;">
             ${assigneeAvatar}
             <strong style="color:#f8fafc;">${escapeHtml(task.assignee)}</strong>
           </div>
         </div>
         ${task.updatedBy ? `
-          <div class="meta-row" style="font-size: 0.75rem; color: #94a3b8; gap:4px;">
+          <div class="meta-row" style="font-size: 0.72rem; color: #94a3b8; gap:4px;">
             <span>✏️ อัปเดตล่าสุด:</span>
             ${renderAvatarHtml(task.updatedBy.avatar)}
             <span>${escapeHtml(task.updatedBy.name)} (${task.updatedBy.time})</span>
@@ -1289,7 +1746,7 @@ function renderTasks() {
         ` : ''}
       </div>
 
-      <!-- ลิ้งก์ Drive / Cloud Storage / Reference -->
+      <!-- ลิ้งก์ส่งงาน (ถ้ามี) -->
       ${task.submissionLink ? `
         <div class="drive-link-box">
           <a href="${escapeHtml(task.submissionLink)}" target="_blank" rel="noopener noreferrer">
@@ -1299,12 +1756,32 @@ function renderTasks() {
       ` : ''}
 
       <div class="card-actions">
-        <button type="button" class="btn-like" onclick="handleLikeTask('${task.id}')" title="กดถูกใจ / สนับสนุนไอเดียนี้">
-          👍 <span>${task.likes || 0}</span>
-        </button>
+        <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+          <button type="button" class="btn-like" onclick="handleLikeTask('${task.id}')" title="กดถูกใจ">
+            👍 <span>${task.likes || 0}</span>
+          </button>
+
+          <!-- ปุ่มเปิดสคริปต์ Word หลายหน้า -->
+          ${isScript ? `
+            <button type="button" class="btn-open-script-card" onclick="openScriptEditor('${task.id}')" title="เปิดโปรแกรมเขียนสคริปต์">
+              <span>📖</span> เปิดสคริปต์ (${pageCount} หน้า)
+            </button>
+          ` : ''}
+          
+          <!-- ปุ่มส่งงานโดยตรง -->
+          ${(!isIdea && !isScript) ? `
+            <button type="button" class="btn-submit-work" onclick="openSubmitWorkModal('${task.id}')" title="เปิดหน้าต่างส่งงาน">
+              📤 ส่งงาน
+            </button>
+          ` : ''}
+        </div>
+
+        <!-- ปุ่มแก้ไขและลบ (เฉพาะผู้สร้าง หรือ แอดมิน) -->
         <div class="card-action-group">
-          <button type="button" class="btn-sm" onclick="editTask('${task.id}')">✏️ แก้ไข</button>
-          <button type="button" class="btn-sm delete" onclick="deleteTask('${task.id}')">ลบ</button>
+          ${canManage ? `
+            ${!isScript ? `<button type="button" class="btn-sm" onclick="editTask('${task.id}')">✏️ แก้ไข</button>` : ''}
+            <button type="button" class="btn-sm delete" onclick="deleteTask('${task.id}')">ลบ</button>
+          ` : ''}
         </div>
       </div>
     `;
