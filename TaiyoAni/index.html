@@ -13,6 +13,7 @@
 </head>
 <body class="device-mode-auto">
 
+  <!-- ================= AUTH GATE OVERLAY ================= -->
   <div class="auth-gate-overlay" id="authGate">
     <div class="auth-card">
       <div class="auth-header">
@@ -28,6 +29,7 @@
         <button type="button" class="auth-tab-btn" id="tabBtnRegister" onclick="switchAuthTab('register')">สมัครสมาชิกใหม่</button>
       </div>
 
+      <!-- ส่วนเข้าสู่ระบบ -->
       <div id="loginSection">
         <form onsubmit="handleLoginSubmit(event)">
           <div class="form-group">
@@ -46,6 +48,7 @@
         </form>
       </div>
 
+      <!-- ส่วนสมัครสมาชิกใหม่ -->
       <div id="registerSection" style="display: none;">
         <form onsubmit="handleRegisterSubmit(event)">
           <div class="form-group">
@@ -103,6 +106,7 @@
     </div>
   </div>
 
+  <!-- Modal กล่องยืนยันรหัส OTP ทางอีเมล -->
   <div class="modal-overlay" id="otpModal">
     <div class="modal" style="max-width: 420px; text-align: center;">
       <div style="font-size: 2.8rem; margin-bottom: 8px;">📩</div>
@@ -139,110 +143,147 @@
 
   <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleMobileSidebar()"></div>
 
+  <!-- ================= APP MAIN CONTAINER ================= -->
   <div class="app-layout" id="mainAppLayout" style="display: none;">
-    <aside class="sidebar" id="appSidebar">
-      <div class="sidebar-header-row">
-        <div class="brand">
-          <div class="brand-icon">
-            <img src="./Tanomiya.png" alt="TaiyoAni Logo" class="brand-img">
+
+    <!-- 1. หน้าโฮม (HOME VIEW) -->
+    <section class="app-view-section active" id="viewHome">
+      <!-- การ์ดโปรไฟล์มุมบนซ้าย -->
+      <div class="home-top-left-profile clickable-profile" onclick="openCurrentUserProfile()" title="คลิกเพื่อดูโปรไฟล์ของคุณ">
+        <div class="home-profile-avatar" id="homeUserAvatarDisplay"></div>
+        <div class="home-profile-info">
+          <div class="home-profile-name" id="homeUserNameDisplay">กำลังโหลด...</div>
+          <div class="home-profile-role" id="homeUserRoleDisplay">สมาชิกทีม</div>
+        </div>
+      </div>
+
+      <!-- สลับโหมดจอฝั่งบนขวาของหน้า Home -->
+      <div class="home-top-right-actions">
+        <button type="button" class="btn-glass-action-pill" onclick="openEditProfileModal()" title="แก้ไขโปรไฟล์ส่วนตัว">
+          ✏️ แก้ไขโปรไฟล์
+        </button>
+      </div>
+
+      <!-- ศูนย์กลาง: นาฬิกาแก้ว 3D + รายชื่อสมาชิก -->
+      <div class="home-center-stage">
+        <div class="home-glass-clock-card">
+          <div class="home-clock-time" id="homeClockTimeDisplay">00:00:00</div>
+          <div class="home-clock-date" id="homeClockDateDisplay">วัน... ที่ ...</div>
+        </div>
+
+        <!-- ปุ่มเปิดรายชื่อสมาชิกในทีม -->
+        <button type="button" class="btn-home-members-trigger" onclick="openTeamMembersModal()">
+          <span>👥</span>
+          <span>สมาชิกในทีม</span>
+          <span class="online-indicator-pill" id="homeOnlineIndicator">0</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- 2. หน้าโปรเจกต์ (PROJECTS VIEW) -->
+    <section class="app-view-section" id="viewProjects">
+      <aside class="sidebar" id="appSidebar">
+        <div class="sidebar-header-row">
+          <div class="brand">
+            <div class="brand-icon">
+              <img src="./Tanomiya.png" alt="TaiyoAni Logo" class="brand-img">
+            </div>
+            <div class="brand-title">TaiyoAni UI</div>
           </div>
-          <div class="brand-title">TaiyoAni UI</div>
+          <button type="button" class="btn-close-sidebar-mobile" onclick="toggleMobileSidebar()" title="ปิดเมนู">✕</button>
         </div>
-        <button type="button" class="btn-close-sidebar-mobile" onclick="toggleMobileSidebar()" title="ปิดเมนู">✕</button>
-      </div>
 
-      <div class="device-switcher-box">
-        <div class="device-switcher-title">โหมดการแสดงผล (Device View)</div>
-        <div class="device-switcher-buttons">
-          <button type="button" class="btn-device-opt active" id="devOptAuto" onclick="setDeviceMode('auto')" title="ปรับอัตโนมัติตามขนาดจอ">🔄 Auto</button>
-          <button type="button" class="btn-device-opt" id="devOptDesktop" onclick="setDeviceMode('desktop')" title="โหมด Desktop PC">🖥️ PC</button>
-          <button type="button" class="btn-device-opt" id="devOptTablet" onclick="setDeviceMode('tablet')" title="โหมดแท็บเล็ต iPad">📱 iPad</button>
-          <button type="button" class="btn-device-opt" id="devOptMobile" onclick="setDeviceMode('mobile')" title="โหมดมือถือ Phone">📲 มือถือ</button>
-        </div>
-      </div>
-
-      <div class="sidebar-section-title">หัวข้อโปรเจกต์ (Projects)</div>
-      <ul class="project-list" id="projectList"></ul>
-
-      <button type="button" class="btn-glass-action" onclick="openAddProjectModal()">+ สร้างโปรเจกต์ใหม่</button>
-
-      <div class="user-profile-card">
-        <div class="user-avatar clickable-profile" id="currentAvatarDisplay" onclick="openCurrentUserProfile()" title="คลิกเพื่อดูโปรไฟล์ของคุณ"></div>
-        <div class="user-info clickable-profile" onclick="openCurrentUserProfile()" title="คลิกเพื่อดูโปรไฟล์ของคุณ">
-          <div class="user-name" id="currentUserNameDisplay">กำลังโหลด...</div>
-          <div class="user-role" id="currentUserRoleDisplay">ลูกทีม</div>
-        </div>
-        <div class="user-profile-actions">
-          <button type="button" class="btn-action-icon" onclick="openEditProfileModal()" title="แก้ไขข้อมูลโปรไฟล์">✏️</button>
-          <button type="button" class="btn-action-icon btn-logout-icon" onclick="handleLogout()" title="ออกจากระบบ / สลับบัญชี">🚪</button>
-        </div>
-      </div>
-    </aside>
-
-    <main class="main-window">
-      <header class="window-header">
-        <div class="header-left">
-          <button type="button" class="btn-hamburger" onclick="toggleMobileSidebar()" title="เปิดเมนูโปรเจกต์">
-            ☰
-          </button>
-          <div>
-            <h1 id="currentProjectTitle">เลือกโปรเจกต์</h1>
-            <p id="currentProjectDesc">จัดการงาน สตอรี่รายละเอียด และลิ้งก์ส่งงาน</p>
+        <div class="device-switcher-box">
+          <div class="device-switcher-title">โหมดการแสดงผล (Device View)</div>
+          <div class="device-switcher-buttons">
+            <button type="button" class="btn-device-opt active" id="devOptAuto" onclick="setDeviceMode('auto')">🔄 Auto</button>
+            <button type="button" class="btn-device-opt" id="devOptDesktop" onclick="setDeviceMode('desktop')">🖥️ PC</button>
+            <button type="button" class="btn-device-opt" id="devOptTablet" onclick="setDeviceMode('tablet')">📱 iPad</button>
+            <button type="button" class="btn-device-opt" id="devOptMobile" onclick="setDeviceMode('mobile')">📲 มือถือ</button>
           </div>
         </div>
-        
-        <div class="header-actions">
-          <button type="button" class="btn-notes-action" onclick="openProjectNotesModal()" id="btnProjectNotes" title="สมุดโน้ตบันทึกข้อมูลประจำโปรเจกต์">
-            <span>📝</span> <span class="action-text">โน้ต</span>
-          </button>
 
-          <button type="button" class="btn-members-toggle" onclick="toggleChatWindow()" id="btnMembersToggle" title="เปิดแถบแชทและรายชื่อสมาชิกด้านขวา">
-            <span>👥</span>
-            <span class="action-text">สมาชิก & แชท</span>
-            <span class="online-indicator-pill" id="onlineIndicatorCounter">0</span>
-          </button>
+        <div class="sidebar-section-title">หัวข้อโปรเจกต์ (Projects)</div>
+        <ul class="project-list" id="projectList"></ul>
+
+        <button type="button" class="btn-glass-action" onclick="openAddProjectModal()">+ สร้างโปรเจกต์ใหม่</button>
+
+        <div class="user-profile-card">
+          <div class="user-avatar clickable-profile" id="currentAvatarDisplay" onclick="openCurrentUserProfile()" title="คลิกเพื่อดูโปรไฟล์"></div>
+          <div class="user-info clickable-profile" onclick="openCurrentUserProfile()" title="คลิกเพื่อดูโปรไฟล์">
+            <div class="user-name" id="currentUserNameDisplay">กำลังโหลด...</div>
+            <div class="user-role" id="currentUserRoleDisplay">ลูกทีม</div>
+          </div>
+          <div class="user-profile-actions">
+            <button type="button" class="btn-action-icon" onclick="openEditProfileModal()" title="แก้ไขข้อมูลโปรไฟล์">✏️</button>
+            <button type="button" class="btn-action-icon btn-logout-icon" onclick="handleLogout()" title="ออกจากระบบ / สลับบัญชี">🚪</button>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main-window">
+        <header class="window-header">
+          <div class="header-left">
+            <button type="button" class="btn-hamburger" onclick="toggleMobileSidebar()" title="เปิดเมนูโปรเจกต์">
+              ☰
+            </button>
+            <div>
+              <h1 id="currentProjectTitle">เลือกโปรเจกต์</h1>
+              <p id="currentProjectDesc">จัดการงาน สตอรี่รายละเอียด และลิ้งก์ส่งงาน</p>
+            </div>
+          </div>
           
-          <button type="button" class="btn-script-header" onclick="openNewScriptModal()" id="btnNewScript" title="สร้างสคริปต์บทพากย์/เนื้อเรื่องใหม่">
-            <span>📜</span> <span class="action-text">สคริปต์</span>
-          </button>
-
-          <button type="button" class="btn-idea-action" onclick="openAddIdeaModal()" id="btnNewIdea">
-            <span>💡</span> <span class="action-text">ไอเดีย</span>
-          </button>
-          
-          <button type="button" class="btn-create-task" onclick="openAddTaskModal()" id="btnNewTask">
-            <span>+</span> <span class="action-text">งานใหม่</span>
-          </button>
-        </div>
-      </header>
-
-      <section class="revenue-widget-section" id="revenueWidgetSection">
-        <div class="revenue-widget-header">
-          <div class="revenue-header-title">
-            <span>💰</span>
-            <span>รายได้และงบประมาณทีม (Team Revenue & Budget)</span>
-            <span class="revenue-updated-badge" id="revenueUpdatedBadge">อัปเดต: ...</span>
-          </div>
-          <div style="display: flex; gap: 6px; align-items: center;">
-            <button type="button" class="btn-toggle-revenue" id="btnToggleRevenue" onclick="toggleRevenueWidget()" title="ซ่อน/แสดงแถบรายได้">
-              <span id="revenueToggleIcon">👁️</span>
-              <span id="revenueToggleText">ซ่อน</span>
+          <div class="header-actions">
+            <button type="button" class="btn-notes-action" onclick="openProjectNotesModal()" id="btnProjectNotes" title="สมุดโน้ตบันทึกข้อมูลประจำโปรเจกต์">
+              <span>📝</span> <span class="action-text">โน้ต</span>
+            </button>
+            
+            <button type="button" class="btn-script-header" onclick="openNewScriptModal()" id="btnNewScript" title="สร้างสคริปต์บทพากย์/เนื้อเรื่องใหม่">
+              <span>📜</span> <span class="action-text">สคริปต์</span>
             </button>
 
+            <button type="button" class="btn-idea-action" onclick="openAddIdeaModal()" id="btnNewIdea">
+              <span>💡</span> <span class="action-text">ไอเดีย</span>
+            </button>
+            
+            <button type="button" class="btn-create-task" onclick="openAddTaskModal()" id="btnNewTask">
+              <span>+</span> <span class="action-text">งานใหม่</span>
+            </button>
+          </div>
+        </header>
+
+        <section class="board-viewport">
+          <div class="tasks-grid" id="tasksContainer"></div>
+        </section>
+      </main>
+    </section>
+
+    <!-- 3. หน้ารายได้ (REVENUE VIEW) -->
+    <section class="app-view-section" id="viewRevenue">
+      <div class="revenue-fullscreen-card">
+        <div class="revenue-widget-header">
+          <div class="revenue-header-title">
+            <span style="font-size: 1.4rem;">💰</span>
+            <div>
+              <h2 style="font-size: 1.25rem; color:#fff;">รายได้และงบประมาณทีม (Team Revenue & Budget)</h2>
+              <span class="revenue-updated-badge" id="revenueUpdatedBadge">อัปเดต: ...</span>
+            </div>
+          </div>
+          <div style="display: flex; gap: 6px; align-items: center;">
             <button type="button" class="btn-edit-revenue" id="btnAdminEditRevenue" onclick="openRevenueModal()" style="display: none;">
               ✏️ จัดการรายได้ทีม
             </button>
           </div>
         </div>
 
-        <div class="revenue-cards-grid">
+        <div class="revenue-cards-grid revenue-grid-large">
           <div class="revenue-card card-voice">
             <div class="revenue-card-header">
               <span class="revenue-icon">🎙️</span>
               <span class="revenue-team-name">ทีมพากย์ (Voice)</span>
             </div>
             <div class="revenue-amount" id="revenueVoiceDisplay">฿ 0</div>
-            <div class="revenue-card-footer">งานลงเสียง & พากย์</div>
+            <div class="revenue-card-footer">งานลงเสียง & พากย์บทบาท</div>
           </div>
 
           <div class="revenue-card card-animation">
@@ -251,7 +292,7 @@
               <span class="revenue-team-name">ทีมแอนิเมชั่น (3D)</span>
             </div>
             <div class="revenue-amount" id="revenueAnimDisplay">฿ 0</div>
-            <div class="revenue-card-footer">ผลิต 3D & Rigging</div>
+            <div class="revenue-card-footer">ผลิต 3D Model, Animation & Rigging</div>
           </div>
 
           <div class="revenue-card card-audio">
@@ -260,7 +301,7 @@
               <span class="revenue-team-name">ทีมงานเสียง (SFX)</span>
             </div>
             <div class="revenue-amount" id="revenueAudioDisplay">฿ 0</div>
-            <div class="revenue-card-footer">ดนตรี & Sound FX</div>
+            <div class="revenue-card-footer">ดนตรีประกอบ & Sound Effects</div>
           </div>
 
           <div class="revenue-card card-other">
@@ -269,48 +310,28 @@
               <span class="revenue-team-name">ทีมอื่นๆ (Support)</span>
             </div>
             <div class="revenue-amount" id="revenueOtherDisplay">฿ 0</div>
-            <div class="revenue-card-footer">กราฟิก & ตัดต่อ</div>
+            <div class="revenue-card-footer">กราฟิก, ตัดต่อ & ค่าใช้จ่ายกลาง</div>
           </div>
 
           <div class="revenue-card card-total">
             <div class="revenue-card-header">
               <span class="revenue-icon">💎</span>
-              <span class="revenue-team-name">ยอดรวมทั้งหมด (Total)</span>
+              <span class="revenue-team-name">ยอดรวมทั้งหมด (Total Budget)</span>
             </div>
             <div class="revenue-amount total-val" id="revenueTotalDisplay">฿ 0</div>
-            <div class="revenue-card-footer">งบประมาณทุกทีม</div>
+            <div class="revenue-card-footer">งบประมาณและผลตอบแทนรวมทุกทีม</div>
           </div>
         </div>
-      </section>
-
-      <section class="board-viewport">
-        <div class="tasks-grid" id="tasksContainer"></div>
-      </section>
-    </main>
-
-    <aside class="right-dock-panel" id="rightDockPanel">
-      <div class="dock-panel-main-header">
-        <div class="dock-panel-title">
-          <span>💬</span>
-          <span>ทีม & การสนทนา</span>
-        </div>
-        <button type="button" class="btn-close-dock" onclick="toggleChatWindow()" title="ปิดแถบด้านขวา">
-          ✕ ปิดแถบ
-        </button>
       </div>
+    </section>
 
-      <div class="dock-top-half">
-        <div class="dock-section-header">
-          <span>👥 สมาชิกในระบบ (<span id="dockOnlineCountText">0 ออนไลน์</span>)</span>
-        </div>
-        <div class="dock-members-list" id="membersPresenceList"></div>
-      </div>
-
-      <div class="dock-bottom-half">
+    <!-- 4. หน้าแชท (CHAT VIEW) -->
+    <section class="app-view-section" id="viewChat">
+      <div class="chat-fullscreen-layout">
         <div class="dock-chat-header">
           <div class="dock-chat-title">
             <button type="button" class="btn-chat-back" id="btnChatBackToTeam" onclick="switchToTeamChat()" title="กลับไปห้องแชททีม" style="display: none;">⬅️</button>
-            <span class="chat-live-dot" id="chatHeaderLiveDot"></span>
+            <span class="chat-live-dot"></span>
             <span id="chatHeaderTitleText">💬 ห้องแชทรวมทีม</span>
           </div>
           <div class="chat-header-controls">
@@ -330,12 +351,46 @@
           <button type="submit" class="btn-chat-send" title="ส่งข้อความ">🚀</button>
         </form>
       </div>
-    </aside>
+    </section>
 
-    <button type="button" class="btn-chat-toggle" onclick="toggleChatWindow()" id="chatToggleBtn" title="เปิด/ปิดแถบแชทและสมาชิก">
-      <span>💬</span>
-      <span class="chat-badge-counter" id="chatBadgeCounter">0</span>
-    </button>
+    <!-- ================= BOTTOM CURVED FLOATING DOCK NAV ================= -->
+    <nav class="bottom-dock-nav">
+      <button type="button" class="bottom-nav-item active" id="navBtnHome" onclick="switchAppView('home')">
+        <span class="bottom-nav-icon">🏠</span>
+        <span class="bottom-nav-text">โฮม</span>
+      </button>
+
+      <button type="button" class="bottom-nav-item" id="navBtnProjects" onclick="switchAppView('projects')">
+        <span class="bottom-nav-icon">📁</span>
+        <span class="bottom-nav-text">โปรเจกต์</span>
+      </button>
+
+      <button type="button" class="bottom-nav-item" id="navBtnRevenue" onclick="switchAppView('revenue')">
+        <span class="bottom-nav-icon">💰</span>
+        <span class="bottom-nav-text">รายได้</span>
+      </button>
+
+      <button type="button" class="bottom-nav-item" id="navBtnChat" onclick="switchAppView('chat')">
+        <span class="bottom-nav-icon" style="position: relative;">
+          💬
+          <span class="chat-badge-counter" id="chatBadgeCounter">0</span>
+        </span>
+        <span class="bottom-nav-text">แชท</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- ================= MODALS ================= -->
+
+  <!-- MODAL รายชื่อสมาชิกทีม (TEAM MEMBERS MODAL) -->
+  <div class="modal-overlay" id="teamMembersModal">
+    <div class="modal" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">👥 รายชื่อสมาชิกในระบบ (<span id="modalOnlineCountText">0 ออนไลน์</span>)</h3>
+        <button type="button" class="close-btn" onclick="closeModal('teamMembersModal')">✕</button>
+      </div>
+      <div class="dock-members-list" id="membersPresenceList" style="max-height: 60vh;"></div>
+    </div>
   </div>
 
   <!-- VIEW PROFILE MODAL -->
@@ -581,6 +636,7 @@
     </div>
   </div>
 
+  <!-- SUBMIT WORK MODAL -->
   <div class="modal-overlay" id="submitWorkModal">
     <div class="modal" style="max-width: 480px;">
       <div class="modal-header">
@@ -616,6 +672,7 @@
     </div>
   </div>
 
+  <!-- REVENUE MODAL -->
   <div class="modal-overlay" id="revenueModal">
     <div class="modal" style="max-width: 520px;">
       <div class="modal-header">
@@ -660,6 +717,7 @@
     </div>
   </div>
 
+  <!-- PROJECT NOTES MODAL -->
   <div class="modal-overlay" id="projectNotesModal">
     <div class="modal" style="max-width: 650px;">
       <div class="modal-header">
@@ -682,6 +740,7 @@
     </div>
   </div>
 
+  <!-- IDEA MODAL -->
   <div class="modal-overlay" id="ideaModal">
     <div class="modal" style="max-width: 480px;">
       <div class="modal-header">
@@ -709,6 +768,7 @@
     </div>
   </div>
 
+  <!-- PROJECT MODAL -->
   <div class="modal-overlay" id="projectModal">
     <div class="modal">
       <div class="modal-header">
@@ -732,6 +792,7 @@
     </div>
   </div>
 
+  <!-- TASK MODAL -->
   <div class="modal-overlay" id="taskModal">
     <div class="modal">
       <div class="modal-header">
