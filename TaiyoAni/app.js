@@ -175,6 +175,56 @@ function formatCurrency(amount) {
   return '฿ ' + num.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
+// ================= VIEW PROFILE & BIO SYSTEM =================
+window.openUserProfile = function(userId) {
+  const user = teamUsers.find(u => u.id === userId);
+  if (!user) return;
+
+  AudioFX.click();
+  const isSelf = currentUserId && user.id === currentUserId;
+  const adminTag = isAdmin(user) ? ' 👑 (Admin)' : '';
+  const presence = getPresenceStatus(user.lastActive);
+
+  const bannerContainer = document.getElementById('viewProfileBannerDisplay');
+  if (bannerContainer) {
+    if (user.banner) {
+      bannerContainer.innerHTML = `<img src="${escapeHtml(user.banner)}" alt="Cover Banner">`;
+    } else {
+      bannerContainer.innerHTML = '';
+    }
+  }
+
+  document.getElementById('viewProfileAvatarDisplay').innerHTML = renderAvatarHtml(user.avatar);
+  document.getElementById('viewProfileNameDisplay').innerText = `${user.name}${adminTag}`;
+  document.getElementById('viewProfileRoleDisplay').innerText = user.role || 'สมาชิกทีม';
+  document.getElementById('viewProfileStatusDisplay').innerHTML = `<span style="color: ${presence.isOnline ? '#6ee7b7' : '#94a3b8'}">${presence.text}</span>`;
+  document.getElementById('viewProfileEmailDisplay').innerText = user.email || 'ไม่ได้ระบุ';
+  document.getElementById('viewProfileBioDisplay').innerText = user.bio && user.bio.trim() !== '' ? user.bio : 'ผู้ใช้นี้ยังไม่ได้ระบุคำแนะนำตัว';
+
+  const actionsContainer = document.getElementById('viewProfileActionsContainer');
+  if (isSelf) {
+    actionsContainer.innerHTML = `
+      <button type="button" class="btn-create-task" onclick="closeModal('viewProfileModal'); openEditProfileModal();">
+        ✏️ แก้ไขข้อมูลโปรไฟล์ของคุณ
+      </button>
+    `;
+  } else {
+    actionsContainer.innerHTML = `
+      <button type="button" class="btn-dm-start" style="padding: 8px 18px; font-size: 0.85rem;" onclick="closeModal('viewProfileModal'); startDirectChat('${user.id}');">
+        💬 ส่งข้อความส่วนตัว (DM)
+      </button>
+    `;
+  }
+
+  document.getElementById('viewProfileModal').style.display = 'flex';
+};
+
+window.openCurrentUserProfile = function() {
+  if (currentUserId) {
+    window.openUserProfile(currentUserId);
+  }
+};
+
 // ================= REVENUE WIDGET TOGGLE =================
 window.toggleRevenueWidget = function() {
   AudioFX.click();
@@ -204,6 +254,50 @@ function initRevenueWidgetState() {
   }
 }
 
+// ================= SAVE LOADING MODAL CONTROLLERS =================
+function showSaveLoadingModal(title, desc) {
+  const modal = document.getElementById('loadingModal');
+  const titleEl = document.getElementById('saveLoadingTitle');
+  const descEl = document.getElementById('saveLoadingDesc');
+  const iconEl = document.getElementById('saveLoadingIcon');
+  const fillEl = document.getElementById('saveProgressBarFill');
+  if (!modal) return;
+  
+  if (titleEl) titleEl.innerText = title;
+  if (descEl) descEl.innerText = desc;
+  if (iconEl) iconEl.innerText = '⏳';
+  if (fillEl) {
+    fillEl.classList.remove('success');
+    fillEl.style.width = '12%';
+  }
+  modal.style.display = 'flex';
+}
+
+function setSaveProgress(percent) {
+  const fillEl = document.getElementById('saveProgressBarFill');
+  if (fillEl) fillEl.style.width = `${percent}%`;
+}
+
+function showSaveSuccessModal(title, desc) {
+  const titleEl = document.getElementById('saveLoadingTitle');
+  const descEl = document.getElementById('saveLoadingDesc');
+  const iconEl = document.getElementById('saveLoadingIcon');
+  const fillEl = document.getElementById('saveProgressBarFill');
+  
+  if (titleEl) titleEl.innerText = title;
+  if (descEl) descEl.innerText = desc;
+  if (iconEl) iconEl.innerText = '✅';
+  if (fillEl) {
+    fillEl.classList.add('success');
+    fillEl.style.width = '100%';
+  }
+}
+
+function hideSaveLoadingModal() {
+  const modal = document.getElementById('loadingModal');
+  if (modal) modal.style.display = 'none';
+}
+
 // ================= DEVICE MODE SWITCHER =================
 window.setDeviceMode = function(mode) {
   AudioFX.click();
@@ -217,7 +311,6 @@ window.setDeviceMode = function(mode) {
   const targetBtn = document.getElementById(`devOpt${mode.charAt(0).toUpperCase() + mode.slice(1)}`);
   if (targetBtn) targetBtn.classList.add('active');
 
-  // ปิด Drawer และรีเซ็ต Backdrop
   isMobileSidebarOpen = false;
   const sidebar = document.getElementById('appSidebar');
   const backdrop = document.getElementById('sidebarBackdrop');
@@ -755,6 +848,25 @@ window.handleAvatarFileSelect = function(event, mode) {
   reader.readAsDataURL(file);
 };
 
+window.handleBannerFileSelect = function(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const base64 = e.target.result;
+    document.getElementById('editBannerDataInput').value = base64;
+    document.getElementById('editBannerPreviewDisplay').innerHTML = `<img src="${base64}" alt="Banner">`;
+  };
+  reader.readAsDataURL(file);
+};
+
+window.handleRemoveBanner = function() {
+  document.getElementById('editBannerDataInput').value = '';
+  document.getElementById('editBannerPreviewDisplay').innerHTML = `<span style="font-size: 0.85rem; color: var(--text-muted);">ไม่มีภาพหน้าปก</span>`;
+  document.getElementById('editBannerFileInput').value = '';
+};
+
 function populateLoginUserSelect() {
   const select = document.getElementById('loginUserSelect');
   if (!select) return;
@@ -818,6 +930,7 @@ window.handleRegisterSubmit = async function(e) {
   const name = document.getElementById('regNameInput').value.trim();
   const email = document.getElementById('regEmailInput').value.trim().toLowerCase();
   let role = document.getElementById('regRoleInput').value.trim();
+  const bio = document.getElementById('regBioInput').value.trim();
   const password = document.getElementById('regPasswordInput').value;
   const confirmPassword = document.getElementById('regConfirmPasswordInput').value;
   const avatarData = document.getElementById('authAvatarDataInput').value || '👨‍💻';
@@ -858,7 +971,9 @@ window.handleRegisterSubmit = async function(e) {
     name,
     email,
     role: role || 'ลูกทีม',
+    bio: bio || '',
     avatar: avatarData,
+    banner: '',
     password: password,
     isVerified: false,
     otpCode: otpCode,
@@ -1030,7 +1145,7 @@ function renderMembersPresenceList() {
     const item = document.createElement('div');
     item.className = 'member-presence-item';
     item.innerHTML = `
-      <div class="member-presence-left">
+      <div class="member-presence-left clickable-profile" onclick="openUserProfile('${user.id}')" title="คลิกเพื่อดูโปรไฟล์">
         <div class="member-avatar-wrapper">
           ${renderAvatarHtml(user.avatar)}
           <span class="status-badge-dot ${presence.isOnline ? 'online' : 'offline'}"></span>
@@ -1156,7 +1271,7 @@ window.handleSaveProjectNotes = async function(e) {
   closeModal('projectNotesModal');
 };
 
-// ================= EDIT PROFILE MODAL =================
+// ================= EDIT PROFILE MODAL (WITH LOADING POPUP) =================
 window.openEditProfileModal = function() {
   const user = getCurrentUser();
   if (!user) return;
@@ -1164,14 +1279,23 @@ window.openEditProfileModal = function() {
   document.getElementById('editNameInput').value = user.name;
   document.getElementById('editEmailInput').value = user.email || '';
   document.getElementById('editRoleInput').value = user.role || '';
+  document.getElementById('editBioInput').value = user.bio || '';
   document.getElementById('editPasswordInput').value = '';
   document.getElementById('editAvatarDataInput').value = user.avatar || '👤';
+  document.getElementById('editBannerDataInput').value = user.banner || '';
 
   const preview = document.getElementById('editAvatarPreviewDisplay');
   if (user.avatar && (user.avatar.startsWith('data:image') || user.avatar.startsWith('http'))) {
     preview.innerHTML = `<img src="${user.avatar}" alt="Avatar">`;
   } else {
     preview.innerHTML = `<span>${user.avatar || '👤'}</span>`;
+  }
+
+  const bannerPreview = document.getElementById('editBannerPreviewDisplay');
+  if (user.banner) {
+    bannerPreview.innerHTML = `<img src="${user.banner}" alt="Cover Banner">`;
+  } else {
+    bannerPreview.innerHTML = `<span style="font-size: 0.85rem; color: var(--text-muted);">ไม่มีภาพหน้าปก</span>`;
   }
 
   renderEditAvatarPicker(user.avatar);
@@ -1186,8 +1310,10 @@ window.handleEditProfileSubmit = async function(e) {
   const newName = document.getElementById('editNameInput').value.trim();
   const newEmail = document.getElementById('editEmailInput').value.trim().toLowerCase();
   const newRole = document.getElementById('editRoleInput').value.trim();
+  const newBio = document.getElementById('editBioInput').value.trim();
   const newPassword = document.getElementById('editPasswordInput').value;
   const newAvatar = document.getElementById('editAvatarDataInput').value;
+  const newBanner = document.getElementById('editBannerDataInput').value;
 
   if (!newName) return;
 
@@ -1197,45 +1323,67 @@ window.handleEditProfileSubmit = async function(e) {
     return;
   }
 
-  AudioFX.success();
-  const oldName = user.name;
-  const updatedFields = {
-    name: newName,
-    email: newEmail,
-    role: newRole || (isAdmin(user) ? 'Creator (Admin)' : 'ลูกทีม'),
-    avatar: newAvatar || user.avatar
-  };
+  // แสดงป๊อปอัปหลอดโหลด
+  showSaveLoadingModal("กำลังบันทึกข้อมูลโปรไฟล์...", "กรุณารอสักครู่ ระบบกำลังอัปเดตข้อมูลขึ้นระบบคลาวด์");
+  setSaveProgress(30);
 
-  if (newPassword && newPassword.trim() !== '') {
-    updatedFields.password = newPassword;
-  }
+  try {
+    const oldName = user.name;
+    const updatedFields = {
+      name: newName,
+      email: newEmail,
+      role: newRole || (isAdmin(user) ? 'Creator (Admin)' : 'ลูกทีม'),
+      bio: newBio || '',
+      avatar: newAvatar || user.avatar,
+      banner: newBanner || ''
+    };
 
-  await updateDoc(doc(db, "users", user.id), updatedFields);
+    if (newPassword && newPassword.trim() !== '') {
+      updatedFields.password = newPassword;
+    }
 
-  if (oldName !== newName) {
-    projects.forEach(async (p) => {
-      let isChanged = false;
-      let pData = { ...p };
-      if (pData.createdBy && pData.createdBy.name === oldName) {
-        pData.createdBy.name = newName;
-        pData.createdBy.avatar = updatedFields.avatar;
-        isChanged = true;
+    setSaveProgress(60);
+    await updateDoc(doc(db, "users", user.id), updatedFields);
+
+    if (oldName !== newName) {
+      setSaveProgress(80);
+      for (const p of projects) {
+        let isChanged = false;
+        let pData = { ...p };
+        if (pData.createdBy && pData.createdBy.name === oldName) {
+          pData.createdBy.name = newName;
+          pData.createdBy.avatar = updatedFields.avatar;
+          isChanged = true;
+        }
+        pData.tasks = (pData.tasks || []).map(t => {
+          let taskUpdated = { ...t };
+          if (t.assignee === oldName) { taskUpdated.assignee = newName; isChanged = true; }
+          if (t.createdBy && t.createdBy.name === oldName) { taskUpdated.createdBy.name = newName; taskUpdated.createdBy.avatar = updatedFields.avatar; isChanged = true; }
+          if (t.updatedBy && t.updatedBy.name === oldName) { taskUpdated.updatedBy.name = newName; taskUpdated.updatedBy.avatar = updatedFields.avatar; isChanged = true; }
+          return taskUpdated;
+        });
+        if (isChanged) {
+          await updateDoc(doc(db, "projects", p.id), pData);
+        }
       }
-      pData.tasks = (pData.tasks || []).map(t => {
-        let taskUpdated = { ...t };
-        if (t.assignee === oldName) { taskUpdated.assignee = newName; isChanged = true; }
-        if (t.createdBy && t.createdBy.name === oldName) { taskUpdated.createdBy.name = newName; taskUpdated.createdBy.avatar = updatedFields.avatar; isChanged = true; }
-        if (t.updatedBy && t.updatedBy.name === oldName) { taskUpdated.updatedBy.name = newName; taskUpdated.updatedBy.avatar = updatedFields.avatar; isChanged = true; }
-        return taskUpdated;
-      });
-      if (isChanged) {
-        await updateDoc(doc(db, "projects", p.id), pData);
-      }
-    });
-  }
+    }
 
-  closeModal('editProfileModal');
-  updateCurrentUserDisplay();
+    setSaveProgress(100);
+    showSaveSuccessModal("บันทึกข้อมูลสำเร็จแล้ว!", "อัปเดตโปรไฟล์ของคุณเรียบร้อย");
+    AudioFX.success();
+
+    setTimeout(() => {
+      hideSaveLoadingModal();
+      closeModal('editProfileModal');
+      updateCurrentUserDisplay();
+    }, 900);
+
+  } catch (err) {
+    console.error("Save profile error:", err);
+    hideSaveLoadingModal();
+    AudioFX.delete();
+    alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล กรุณาลองใหม่อีกครั้ง");
+  }
 };
 
 // ================= WORKSPACE ACTIONS (PROJECT & TASKS) =================
@@ -1588,9 +1736,9 @@ function renderChatMessages() {
     row.className = `chat-message-row ${isMine ? 'is-mine' : ''}`;
 
     row.innerHTML = `
-      <div class="chat-msg-avatar">${renderAvatarHtml(msg.senderAvatar)}</div>
+      <div class="chat-msg-avatar clickable-profile" onclick="openUserProfile('${msg.senderId}')" title="คลิกเพื่อดูโปรไฟล์">${renderAvatarHtml(msg.senderAvatar)}</div>
       <div class="chat-msg-content">
-        <div class="chat-msg-author">${escapeHtml(msg.senderName)}</div>
+        <div class="chat-msg-author clickable-profile" onclick="openUserProfile('${msg.senderId}')">${escapeHtml(msg.senderName)}</div>
         <div class="chat-msg-bubble">${escapeHtml(msg.text)}</div>
         <div class="chat-msg-time">${escapeHtml(msg.time || '')}</div>
       </div>
@@ -1731,6 +1879,10 @@ function renderTasks() {
     const badge = badgeMap[task.status] || badgeMap.pending;
     const assigneeUser = teamUsers.find(u => u.name === task.assignee);
     const assigneeAvatar = assigneeUser ? renderAvatarHtml(assigneeUser.avatar) : '👤';
+    const assigneeId = assigneeUser ? assigneeUser.id : null;
+
+    const creatorUser = task.createdBy ? teamUsers.find(u => u.name === task.createdBy.name) : null;
+    const creatorId = creatorUser ? creatorUser.id : null;
 
     const isCreator = currentUser && task.createdBy && task.createdBy.name === currentUser.name;
     const canManage = isAdmin(currentUser) || isCreator;
@@ -1746,7 +1898,7 @@ function renderTasks() {
       <div class="task-header-row">
         <span class="task-badge ${badge.class}">${badge.text}</span>
         ${task.createdBy ? `
-          <div class="attribution-box" title="ผู้สร้างรายการนี้">
+          <div class="attribution-box ${creatorId ? 'clickable-profile' : ''}" ${creatorId ? `onclick="openUserProfile('${creatorId}')"` : ''} title="คลิกเพื่อดูโปรไฟล์">
             ${renderAvatarHtml(task.createdBy.avatar)}
             <span>สร้างโดย <strong>${escapeHtml(task.createdBy.name)}</strong></span>
           </div>
@@ -1762,7 +1914,7 @@ function renderTasks() {
       <div class="task-meta">
         <div class="meta-row">
           <span class="meta-label">👤 ผู้เกี่ยวข้อง:</span>
-          <div style="display:flex; align-items:center; gap:6px;">
+          <div class="clickable-profile" ${assigneeId ? `onclick="openUserProfile('${assigneeId}')"` : ''} style="display:flex; align-items:center; gap:6px;" title="คลิกเพื่อดูโปรไฟล์">
             ${assigneeAvatar}
             <strong style="color:#f8fafc;">${escapeHtml(task.assignee)}</strong>
           </div>
@@ -1776,7 +1928,6 @@ function renderTasks() {
         ` : ''}
       </div>
 
-      <!-- ลิ้งก์ส่งงาน (ถ้ามี) -->
       ${task.submissionLink ? `
         <div class="drive-link-box">
           <a href="${escapeHtml(task.submissionLink)}" target="_blank" rel="noopener noreferrer">
@@ -1791,14 +1942,12 @@ function renderTasks() {
             👍 <span>${task.likes || 0}</span>
           </button>
 
-          <!-- ปุ่มเปิดสคริปต์ Word หลายหน้า -->
           ${isScript ? `
             <button type="button" class="btn-open-script-card" onclick="openScriptEditor('${task.id}')" title="เปิดโปรแกรมเขียนสคริปต์">
               <span>📖</span> เปิดสคริปต์ (${pageCount} หน้า)
             </button>
           ` : ''}
           
-          <!-- ปุ่มส่งงานโดยตรง -->
           ${(!isIdea && !isScript) ? `
             <button type="button" class="btn-submit-work" onclick="openSubmitWorkModal('${task.id}')" title="เปิดหน้าต่างส่งงาน">
               📤 ส่งงาน
@@ -1806,7 +1955,6 @@ function renderTasks() {
           ` : ''}
         </div>
 
-        <!-- ปุ่มแก้ไขและลบ (เฉพาะผู้สร้าง หรือ แอดมิน) -->
         <div class="card-action-group">
           ${canManage ? `
             ${!isScript ? `<button type="button" class="btn-sm" onclick="editTask('${task.id}')">✏️ แก้ไข</button>` : ''}
