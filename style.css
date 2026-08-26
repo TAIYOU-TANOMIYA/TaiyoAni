@@ -10,7 +10,7 @@
   --rose: #f43f5e;
   --indigo: #818cf8;
   
-  /* 🧊 Ultra-Clear Frosted Glass Theme */
+  /* 🧊 Ultra-Clear Frosted Glass Theme (ลดสีน้ำเงินทึบ เน้นโปร่งใสและเบลอ) */
   --glass-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 100%), rgba(15, 23, 42, 0.38);
   --glass-bg-card: linear-gradient(145deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.02) 100%), rgba(15, 23, 42, 0.22);
   --glass-bg-hover: linear-gradient(145deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.06) 100%), rgba(15, 23, 42, 0.32);
@@ -674,7 +674,9 @@ body {
   border: 1px solid var(--glass-border-light);
 }
 
-/* Revenue Widget */
+/* ========================================================
+   REVENUE WIDGET & COLLAPSIBLE STYLES
+======================================================== */
 .revenue-widget-section {
   padding: 12px 18px;
   background: rgba(0, 0, 0, 0.18);
@@ -682,6 +684,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  transition: all 0.3s var(--anim-spring);
 }
 
 .revenue-widget-header {
@@ -708,6 +711,39 @@ body {
   padding: 3px 8px;
   border-radius: 6px;
   border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-specular);
+}
+
+/* ปุ่ม Toggle ซ่อน/แสดง รายได้ */
+.btn-toggle-revenue {
+  background: var(--glass-bg-card);
+  border: 1px solid var(--glass-border);
+  color: var(--text-muted);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: var(--glass-specular);
+  transition: all 0.2s var(--anim-spring);
+}
+
+.btn-toggle-revenue:hover {
+  background: var(--glass-bg-hover);
+  color: #ffffff;
+  border-color: var(--accent);
+}
+
+/* สถานะเมื่อพับเก็บแถบรายได้ */
+.revenue-widget-section.is-collapsed {
+  padding-bottom: 10px;
+}
+
+.revenue-widget-section.is-collapsed .revenue-cards-grid {
+  display: none !important;
 }
 
 .btn-edit-revenue {
