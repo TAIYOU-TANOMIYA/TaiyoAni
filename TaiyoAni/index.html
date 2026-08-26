@@ -13,7 +13,6 @@
 </head>
 <body class="device-mode-auto">
 
-  <!-- หน้าจอเข้าสู่ระบบ / สมัครสมาชิก (Auth Gate) -->
   <div class="auth-gate-overlay" id="authGate">
     <div class="auth-card">
       <div class="auth-header">
@@ -29,7 +28,6 @@
         <button type="button" class="auth-tab-btn" id="tabBtnRegister" onclick="switchAuthTab('register')">สมัครสมาชิกใหม่</button>
       </div>
 
-      <!-- ส่วนเข้าสู่ระบบ -->
       <div id="loginSection">
         <form onsubmit="handleLoginSubmit(event)">
           <div class="form-group">
@@ -48,11 +46,10 @@
         </form>
       </div>
 
-      <!-- ส่วนสมัครสมาชิกใหม่ -->
       <div id="registerSection" style="display: none;">
         <form onsubmit="handleRegisterSubmit(event)">
           <div class="form-group">
-            <label>รูปโปรไฟล์ (อัปโหลดจากอุปกรณ์ หรือเลือกสัญลักษณ์)</label>
+            <label>รูปโปรไฟล์ (อัปโหลดจากเครื่อง หรือเลือกสัญลักษณ์ / รองรับ GIF)</label>
             <div class="avatar-upload-wrapper">
               <div class="avatar-preview-box" id="avatarPreviewDisplay">
                 <span>👨‍💻</span>
@@ -85,6 +82,11 @@
           </div>
 
           <div class="form-group">
+            <label>คำแนะนำตัว / Bio (แนะนำตัวสั้นๆ)</label>
+            <textarea id="regBioInput" class="form-control" placeholder="เขียนแนะนำตัว สไตล์งาน หรือสิ่งที่สนใจ..."></textarea>
+          </div>
+
+          <div class="form-group">
             <label>ตั้งรหัสผ่าน (อย่างน้อย 4 ตัวอักษร) *</label>
             <input type="password" id="regPasswordInput" class="form-control" placeholder="ตั้งรหัสผ่าน" required minlength="4">
           </div>
@@ -101,7 +103,6 @@
     </div>
   </div>
 
-  <!-- Modal กล่องยืนยันรหัส OTP ทางอีเมล -->
   <div class="modal-overlay" id="otpModal">
     <div class="modal" style="max-width: 420px; text-align: center;">
       <div style="font-size: 2.8rem; margin-bottom: 8px;">📩</div>
@@ -136,10 +137,8 @@
     </div>
   </div>
 
-  <!-- Backdrop ปิด Drawer Sidebar บนมือถือ -->
   <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleMobileSidebar()"></div>
 
-  <!-- หน้าต่าง Workspace หลัก -->
   <div class="app-layout" id="mainAppLayout" style="display: none;">
     <aside class="sidebar" id="appSidebar">
       <div class="sidebar-header-row">
@@ -152,7 +151,6 @@
         <button type="button" class="btn-close-sidebar-mobile" onclick="toggleMobileSidebar()" title="ปิดเมนู">✕</button>
       </div>
 
-      <!-- แถบสลับโหมดอุปกรณ์ (Device Switcher) -->
       <div class="device-switcher-box">
         <div class="device-switcher-title">โหมดการแสดงผล (Device View)</div>
         <div class="device-switcher-buttons">
@@ -169,8 +167,8 @@
       <button type="button" class="btn-glass-action" onclick="openAddProjectModal()">+ สร้างโปรเจกต์ใหม่</button>
 
       <div class="user-profile-card">
-        <div class="user-avatar" id="currentAvatarDisplay" onclick="openEditProfileModal()" title="คลิกเพื่อแก้ไขโปรไฟล์" style="cursor: pointer;"></div>
-        <div class="user-info" onclick="openEditProfileModal()" title="คลิกเพื่อแก้ไขโปรไฟล์" style="cursor: pointer;">
+        <div class="user-avatar clickable-profile" id="currentAvatarDisplay" onclick="openCurrentUserProfile()" title="คลิกเพื่อดูโปรไฟล์ของคุณ"></div>
+        <div class="user-info clickable-profile" onclick="openCurrentUserProfile()" title="คลิกเพื่อดูโปรไฟล์ของคุณ">
           <div class="user-name" id="currentUserNameDisplay">กำลังโหลด...</div>
           <div class="user-role" id="currentUserRoleDisplay">ลูกทีม</div>
         </div>
@@ -218,7 +216,6 @@
         </div>
       </header>
 
-      <!-- วิตเจ็ตแสดงรายได้ของแต่ละทีม (รองรับการซ่อน/แสดง) -->
       <section class="revenue-widget-section" id="revenueWidgetSection">
         <div class="revenue-widget-header">
           <div class="revenue-header-title">
@@ -227,7 +224,6 @@
             <span class="revenue-updated-badge" id="revenueUpdatedBadge">อัปเดต: ...</span>
           </div>
           <div style="display: flex; gap: 6px; align-items: center;">
-            <!-- ปุ่มซ่อน/แสดงแถบรายได้ -->
             <button type="button" class="btn-toggle-revenue" id="btnToggleRevenue" onclick="toggleRevenueWidget()" title="ซ่อน/แสดงแถบรายได้">
               <span id="revenueToggleIcon">👁️</span>
               <span id="revenueToggleText">ซ่อน</span>
@@ -292,7 +288,6 @@
       </section>
     </main>
 
-    <!-- แถบควบคุมด้านขวา (Right Dock Panel): สมาชิกครึ่งบน + แชทครึ่งล่าง -->
     <aside class="right-dock-panel" id="rightDockPanel">
       <div class="dock-panel-main-header">
         <div class="dock-panel-title">
@@ -304,7 +299,6 @@
         </button>
       </div>
 
-      <!-- ครึ่งบน: รายชื่อสมาชิก -->
       <div class="dock-top-half">
         <div class="dock-section-header">
           <span>👥 สมาชิกในระบบ (<span id="dockOnlineCountText">0 ออนไลน์</span>)</span>
@@ -312,7 +306,6 @@
         <div class="dock-members-list" id="membersPresenceList"></div>
       </div>
 
-      <!-- ครึ่งล่าง: แชทรวมและแชทส่วนตัว -->
       <div class="dock-bottom-half">
         <div class="dock-chat-header">
           <div class="dock-chat-title">
@@ -339,14 +332,134 @@
       </div>
     </aside>
 
-    <!-- ปุ่มเปิด-ปิดแชททางขวาล่าง -->
     <button type="button" class="btn-chat-toggle" onclick="toggleChatWindow()" id="chatToggleBtn" title="เปิด/ปิดแถบแชทและสมาชิก">
       <span>💬</span>
       <span class="chat-badge-counter" id="chatBadgeCounter">0</span>
     </button>
   </div>
 
-  <!-- Modal สร้างสคริปต์ใหม่ -->
+  <!-- VIEW PROFILE MODAL -->
+  <div class="modal-overlay" id="viewProfileModal">
+    <div class="modal profile-modal-container">
+      <div class="profile-view-card">
+        <div class="profile-view-banner-wrapper">
+          <div class="profile-view-banner" id="viewProfileBannerDisplay"></div>
+          <button type="button" class="close-btn profile-close-floating" onclick="closeModal('viewProfileModal')">✕</button>
+        </div>
+
+        <div class="profile-view-header-content">
+          <div class="profile-view-avatar-box" id="viewProfileAvatarDisplay"></div>
+          <h3 class="profile-view-name" id="viewProfileNameDisplay"></h3>
+          <div class="profile-view-role-tag" id="viewProfileRoleDisplay"></div>
+          <div class="profile-view-status" id="viewProfileStatusDisplay"></div>
+        </div>
+
+        <div class="profile-view-body">
+          <div class="profile-view-section">
+            <label class="profile-view-label">📧 อีเมลติดต่อ:</label>
+            <div class="profile-view-val" id="viewProfileEmailDisplay">-</div>
+          </div>
+
+          <div class="profile-view-section">
+            <label class="profile-view-label">📝 คำแนะนำตัว / Bio:</label>
+            <div class="profile-view-bio-box" id="viewProfileBioDisplay">ยังไม่มีคำแนะนำตัว</div>
+          </div>
+
+          <div class="profile-view-actions" id="viewProfileActionsContainer"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDIT PROFILE MODAL -->
+  <div class="modal-overlay" id="editProfileModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>แก้ไขข้อมูลส่วนตัว / โปรไฟล์</h3>
+        <button type="button" class="close-btn" onclick="closeModal('editProfileModal')">✕</button>
+      </div>
+      <form onsubmit="handleEditProfileSubmit(event)">
+        <div class="form-group">
+          <label>ภาพหน้าปกโปรไฟล์ (Cover Banner / รองรับ GIF):</label>
+          <div class="banner-upload-wrapper">
+            <div class="banner-preview-box" id="editBannerPreviewDisplay">
+              <span style="font-size: 0.85rem; color: var(--text-muted);">ไม่มีภาพหน้าปก</span>
+            </div>
+            <div class="banner-upload-controls">
+              <label class="btn-file-upload">
+                🖼️ เปลี่ยนภาพหน้าปก
+                <input type="file" id="editBannerFileInput" accept="image/*" onchange="handleBannerFileSelect(event)">
+              </label>
+              <button type="button" class="btn-sm delete" style="margin-left: 6px;" onclick="handleRemoveBanner()" title="ลบภาพหน้าปก">ลบหน้าปก</button>
+            </div>
+          </div>
+          <input type="hidden" id="editBannerDataInput">
+        </div>
+
+        <div class="form-group">
+          <label>รูปโปรไฟล์ (อัปโหลดจากเครื่อง หรือเลือกสัญลักษณ์ / รองรับ GIF):</label>
+          <div class="avatar-upload-wrapper">
+            <div class="avatar-preview-box" id="editAvatarPreviewDisplay">
+              <span>👤</span>
+            </div>
+            <div class="avatar-upload-controls">
+              <label class="btn-file-upload">
+                📁 เปลี่ยนรูปโปรไฟล์
+                <input type="file" id="editAvatarFileInput" accept="image/*" onchange="handleAvatarFileSelect(event, 'edit')">
+              </label>
+              <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">หรือเลือก Preset:</div>
+            </div>
+          </div>
+          <div class="avatar-picker" id="editAvatarPicker"></div>
+          <input type="hidden" id="editAvatarDataInput">
+        </div>
+
+        <div class="form-group">
+          <label>ชื่อผู้ใช้งาน / ฉายา *</label>
+          <input type="text" id="editNameInput" class="form-control" required>
+        </div>
+
+        <div class="form-group">
+          <label>อีเมลส่วนตัว</label>
+          <input type="email" id="editEmailInput" class="form-control" placeholder="example@gmail.com" required>
+        </div>
+
+        <div class="form-group">
+          <label>ตำแหน่ง / หน้าที่ในทีม</label>
+          <input type="text" id="editRoleInput" class="form-control" placeholder="เช่น 3D Animator, Editor">
+        </div>
+
+        <div class="form-group">
+          <label>คำแนะนำตัว / Bio (แสดงให้ทุกคนในทีมอ่าน)</label>
+          <textarea id="editBioInput" class="form-control" placeholder="เขียนแนะนำตัว สไตล์งาน หรือสิ่งที่คุณรับผิดชอบ..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>เปลี่ยนรหัสผ่านใหม่ (หากไม่ต้องการเปลี่ยนให้เว้นว่างไว้)</label>
+          <input type="password" id="editPasswordInput" class="form-control" placeholder="กรอกรหัสผ่านใหม่" minlength="4">
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('editProfileModal')">ยกเลิก</button>
+          <button type="submit" class="btn-create-task">บันทึกข้อมูลโปรไฟล์</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- POPUP หลอดโหลดบันทึกข้อมูล (LOADING PROGRESS MODAL) -->
+  <div class="modal-overlay" id="loadingModal" style="z-index: 1200;">
+    <div class="modal save-loading-card">
+      <div class="save-loading-icon" id="saveLoadingIcon">⏳</div>
+      <h3 class="save-loading-title" id="saveLoadingTitle">กำลังบันทึกข้อมูลโปรไฟล์...</h3>
+      <p class="save-loading-desc" id="saveLoadingDesc">กรุณารอสักครู่ ระบบกำลังอัปเดตข้อมูล</p>
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="saveProgressBarFill"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NEW SCRIPT MODAL -->
   <div class="modal-overlay" id="newScriptModal">
     <div class="modal" style="max-width: 480px;">
       <div class="modal-header">
@@ -370,7 +483,7 @@
     </div>
   </div>
 
-  <!-- Modal เขียนสคริปต์สไตล์ Word หลายหน้า (สูงสุด 50 หน้า) -->
+  <!-- SCRIPT EDITOR MODAL -->
   <div class="modal-overlay" id="scriptEditorModal">
     <div class="modal word-editor-modal">
       <div class="modal-header" style="margin-bottom: 8px;">
@@ -468,7 +581,6 @@
     </div>
   </div>
 
-  <!-- Modal ส่งงานโดยตรง -->
   <div class="modal-overlay" id="submitWorkModal">
     <div class="modal" style="max-width: 480px;">
       <div class="modal-header">
@@ -504,7 +616,6 @@
     </div>
   </div>
 
-  <!-- Modal จัดการรายได้ทีม -->
   <div class="modal-overlay" id="revenueModal">
     <div class="modal" style="max-width: 520px;">
       <div class="modal-header">
@@ -549,7 +660,6 @@
     </div>
   </div>
 
-  <!-- Modal สมุดโน้ตโปรเจกต์ -->
   <div class="modal-overlay" id="projectNotesModal">
     <div class="modal" style="max-width: 650px;">
       <div class="modal-header">
@@ -572,7 +682,6 @@
     </div>
   </div>
 
-  <!-- Modal เสนอไอเดียใหม่ -->
   <div class="modal-overlay" id="ideaModal">
     <div class="modal" style="max-width: 480px;">
       <div class="modal-header">
@@ -600,61 +709,6 @@
     </div>
   </div>
 
-  <!-- Modal แก้ไขโปรไฟล์ -->
-  <div class="modal-overlay" id="editProfileModal">
-    <div class="modal">
-      <div class="modal-header">
-        <h3>แก้ไขข้อมูลส่วนตัว / โปรไฟล์</h3>
-        <button type="button" class="close-btn" onclick="closeModal('editProfileModal')">✕</button>
-      </div>
-      <form onsubmit="handleEditProfileSubmit(event)">
-        <div class="form-group">
-          <label>รูปโปรไฟล์ (อัปโหลดจากอุปกรณ์ หรือเลือกสัญลักษณ์)</label>
-          <div class="avatar-upload-wrapper">
-            <div class="avatar-preview-box" id="editAvatarPreviewDisplay">
-              <span>👤</span>
-            </div>
-            <div class="avatar-upload-controls">
-              <label class="btn-file-upload">
-                📁 เปลี่ยนรูปจากเครื่อง
-                <input type="file" id="editAvatarFileInput" accept="image/*" onchange="handleAvatarFileSelect(event, 'edit')">
-              </label>
-              <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">หรือเลือก Preset:</div>
-            </div>
-          </div>
-          <div class="avatar-picker" id="editAvatarPicker"></div>
-          <input type="hidden" id="editAvatarDataInput">
-        </div>
-
-        <div class="form-group">
-          <label>ชื่อผู้ใช้งาน / ฉายา *</label>
-          <input type="text" id="editNameInput" class="form-control" required>
-        </div>
-
-        <div class="form-group">
-          <label>อีเมลส่วนตัว</label>
-          <input type="email" id="editEmailInput" class="form-control" placeholder="example@gmail.com" required>
-        </div>
-
-        <div class="form-group">
-          <label>ตำแหน่ง / หน้าที่ในทีม</label>
-          <input type="text" id="editRoleInput" class="form-control" placeholder="เช่น 3D Animator, Editor">
-        </div>
-
-        <div class="form-group">
-          <label>เปลี่ยนรหัสผ่านใหม่ (หากไม่ต้องการเปลี่ยนให้เว้นว่างไว้)</label>
-          <input type="password" id="editPasswordInput" class="form-control" placeholder="กรอกรหัสผ่านใหม่" minlength="4">
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn-sm" onclick="closeModal('editProfileModal')">ยกเลิก</button>
-          <button type="submit" class="btn-create-task">บันทึกข้อมูลโปรไฟล์</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Modal สร้างโปรเจกต์ -->
   <div class="modal-overlay" id="projectModal">
     <div class="modal">
       <div class="modal-header">
@@ -678,7 +732,6 @@
     </div>
   </div>
 
-  <!-- Modal มอบหมายงานใหม่ -->
   <div class="modal-overlay" id="taskModal">
     <div class="modal">
       <div class="modal-header">
