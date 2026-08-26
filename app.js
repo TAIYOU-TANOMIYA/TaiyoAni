@@ -128,7 +128,6 @@ let chatMessages = [];
 let dmChatMessages = [];
 let currentUserId = localStorage.getItem('taiyoani_active_user_id') || null;
 let activeProjectId = null;
-let isRightDockOpen = false;
 let isMobileSidebarOpen = false;
 let initialChatLoadDone = false;
 let pendingVerificationUser = null;
@@ -174,6 +173,56 @@ function formatCurrency(amount) {
   const num = Number(amount) || 0;
   return '฿ ' + num.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
+
+// ================= SECTION VIEW ROUTER =================
+window.switchAppView = function(viewName) {
+  AudioFX.click();
+  document.querySelectorAll('.app-view-section').forEach(sec => sec.classList.remove('active'));
+  document.querySelectorAll('.bottom-nav-item').forEach(btn => btn.classList.remove('active'));
+
+  const targetSection = document.getElementById(`view${viewName.charAt(0).toUpperCase() + viewName.slice(1)}`);
+  const targetBtn = document.getElementById(`navBtn${viewName.charAt(0).toUpperCase() + viewName.slice(1)}`);
+
+  if (targetSection) targetSection.classList.add('active');
+  if (targetBtn) targetBtn.classList.add('active');
+
+  localStorage.setItem('taiyoani_active_view', viewName);
+
+  if (viewName === 'chat') {
+    scrollChatToBottom();
+  }
+};
+
+function initAppView() {
+  const savedView = localStorage.getItem('taiyoani_active_view') || 'home';
+  window.switchAppView(savedView);
+}
+
+// ================= LIVE CLOCK SYSTEM FOR HOME =================
+function startLiveClock() {
+  function updateClock() {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('th-TH', { hour12: false });
+    const dateStr = now.toLocaleDateString('th-TH', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+
+    const timeEl = document.getElementById('homeClockTimeDisplay');
+    const dateEl = document.getElementById('homeClockDateDisplay');
+    if (timeEl) timeEl.innerText = timeStr;
+    if (dateEl) dateEl.innerText = dateStr;
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+}
+
+window.openTeamMembersModal = function() {
+  AudioFX.click();
+  document.getElementById('teamMembersModal').style.display = 'flex';
+};
 
 // ================= VIEW PROFILE & BIO SYSTEM =================
 window.openUserProfile = function(userId) {
@@ -224,35 +273,6 @@ window.openCurrentUserProfile = function() {
     window.openUserProfile(currentUserId);
   }
 };
-
-// ================= REVENUE WIDGET TOGGLE =================
-window.toggleRevenueWidget = function() {
-  AudioFX.click();
-  const widget = document.getElementById('revenueWidgetSection');
-  if (!widget) return;
-  
-  const isCollapsed = widget.classList.toggle('is-collapsed');
-  updateRevenueToggleUI(isCollapsed);
-  localStorage.setItem('taiyoani_revenue_collapsed', isCollapsed ? 'true' : 'false');
-};
-
-function updateRevenueToggleUI(isCollapsed) {
-  const textEl = document.getElementById('revenueToggleText');
-  const iconEl = document.getElementById('revenueToggleIcon');
-  if (textEl && iconEl) {
-    textEl.innerText = isCollapsed ? 'แสดง' : 'ซ่อน';
-    iconEl.innerText = isCollapsed ? '🙈' : '👁️';
-  }
-}
-
-function initRevenueWidgetState() {
-  const savedState = localStorage.getItem('taiyoani_revenue_collapsed') === 'true';
-  const widget = document.getElementById('revenueWidgetSection');
-  if (widget && savedState) {
-    widget.classList.add('is-collapsed');
-    updateRevenueToggleUI(true);
-  }
-}
 
 // ================= SAVE LOADING MODAL CONTROLLERS =================
 function showSaveLoadingModal(title, desc) {
@@ -330,20 +350,6 @@ window.toggleMobileSidebar = function() {
   const backdrop = document.getElementById('sidebarBackdrop');
   if (sidebar) sidebar.classList.toggle('mobile-open', isMobileSidebarOpen);
   if (backdrop) backdrop.classList.toggle('active', isMobileSidebarOpen);
-};
-
-// ================= RIGHT DOCK PANEL TOGGLE =================
-window.toggleChatWindow = function() {
-  AudioFX.click();
-  isRightDockOpen = !isRightDockOpen;
-  const panel = document.getElementById('rightDockPanel');
-  if (panel) {
-    panel.classList.toggle('open', isRightDockOpen);
-    if (isRightDockOpen) {
-      scrollChatToBottom();
-      document.getElementById('chatTextInput').focus();
-    }
-  }
 };
 
 // ================= PRESENCE & HEARTBEAT SYSTEM =================
@@ -742,7 +748,8 @@ window.handleSaveTaskScript = async function() {
 // ================= AUTH GATEKEEPER =================
 function initAuth() {
   initDeviceMode();
-  initRevenueWidgetState();
+  initAppView();
+  startLiveClock();
   startRealtimeSync();
   
   if (currentUserId) {
@@ -1128,7 +1135,8 @@ window.handleLogout = function() {
 function renderMembersPresenceList() {
   const container = document.getElementById('membersPresenceList');
   const counterPill = document.getElementById('onlineIndicatorCounter');
-  const dockOnlineCount = document.getElementById('dockOnlineCountText');
+  const homeOnlinePill = document.getElementById('homeOnlineIndicator');
+  const dockOnlineCount = document.getElementById('modalOnlineCountText');
   if (!container) return;
   container.innerHTML = '';
 
@@ -1145,7 +1153,7 @@ function renderMembersPresenceList() {
     const item = document.createElement('div');
     item.className = 'member-presence-item';
     item.innerHTML = `
-      <div class="member-presence-left clickable-profile" onclick="openUserProfile('${user.id}')" title="คลิกเพื่อดูโปรไฟล์">
+      <div class="member-presence-left clickable-profile" onclick="closeModal('teamMembersModal'); openUserProfile('${user.id}')" title="คลิกเพื่อดูโปรไฟล์">
         <div class="member-avatar-wrapper">
           ${renderAvatarHtml(user.avatar)}
           <span class="status-badge-dot ${presence.isOnline ? 'online' : 'offline'}"></span>
@@ -1161,7 +1169,7 @@ function renderMembersPresenceList() {
       </div>
       <div>
         ${!isSelf ? `
-          <button type="button" class="btn-dm-start" onclick="startDirectChat('${user.id}')" title="เปิดแชทส่วนตัวกับ ${escapeHtml(user.name)}">
+          <button type="button" class="btn-dm-start" onclick="closeModal('teamMembersModal'); startDirectChat('${user.id}')" title="เปิดแชทส่วนตัวกับ ${escapeHtml(user.name)}">
             💬 ทักแชท
           </button>
         ` : ''}
@@ -1171,6 +1179,7 @@ function renderMembersPresenceList() {
   });
 
   if (counterPill) counterPill.innerText = `${onlineCount}`;
+  if (homeOnlinePill) homeOnlinePill.innerText = `${onlineCount}`;
   if (dockOnlineCount) dockOnlineCount.innerText = `${onlineCount} ออนไลน์`;
 }
 
@@ -1182,9 +1191,7 @@ window.startDirectChat = function(targetUserId) {
   activeChatMode = 'dm';
   activeDmTargetUser = targetUser;
 
-  isRightDockOpen = true;
-  const panel = document.getElementById('rightDockPanel');
-  if (panel) panel.classList.add('open');
+  window.switchAppView('chat');
 
   document.getElementById('btnChatBackToTeam').style.display = 'inline-block';
   document.getElementById('chatHeaderTitleText').innerText = `🔒 ${targetUser.name}`;
@@ -1323,7 +1330,6 @@ window.handleEditProfileSubmit = async function(e) {
     return;
   }
 
-  // แสดงป๊อปอัปหลอดโหลด
   showSaveLoadingModal("กำลังบันทึกข้อมูลโปรไฟล์...", "กรุณารอสักครู่ ระบบกำลังอัปเดตข้อมูลขึ้นระบบคลาวด์");
   setSaveProgress(30);
 
@@ -1723,7 +1729,7 @@ function renderChatMessages() {
 
   if (msgsToRender.length === 0) {
     body.innerHTML = `
-      <div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; margin-top: 30px;">
+      <div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 40px;">
         ${activeChatMode === 'dm' ? '🔒 ยังไม่มีข้อความคุยส่วนตัว เริ่มทักทายได้เลย!' : '💬 ยังไม่มีข้อความในห้องทีม'}
       </div>
     `;
@@ -1759,10 +1765,20 @@ function updateCurrentUserDisplay() {
   const user = getCurrentUser();
   if (user) {
     const adminTag = isAdmin(user) ? ' 👑' : '';
+    
+    // อัปเดตใน Sidebar
     document.getElementById('currentAvatarDisplay').innerHTML = renderAvatarHtml(user.avatar);
     document.getElementById('currentUserNameDisplay').innerText = `${user.name}${adminTag}`;
     document.getElementById('currentUserRoleDisplay').innerText = user.role || (isAdmin(user) ? 'Creator (Admin)' : 'สมาชิกทีม');
     
+    // อัปเดตในหน้า Home View (Top-Left)
+    const homeAvatar = document.getElementById('homeUserAvatarDisplay');
+    const homeName = document.getElementById('homeUserNameDisplay');
+    const homeRole = document.getElementById('homeUserRoleDisplay');
+    if (homeAvatar) homeAvatar.innerHTML = renderAvatarHtml(user.avatar);
+    if (homeName) homeName.innerText = `${user.name}${adminTag}`;
+    if (homeRole) homeRole.innerText = user.role || (isAdmin(user) ? 'Creator (Admin)' : 'สมาชิกทีม');
+
     const clearChatBtn = document.getElementById('btnClearChat');
     if (clearChatBtn && activeChatMode === 'team') {
       clearChatBtn.style.display = isAdmin(user) ? 'inline-block' : 'none';
