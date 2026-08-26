@@ -175,6 +175,35 @@ function formatCurrency(amount) {
   return '฿ ' + num.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
+// ================= REVENUE WIDGET TOGGLE =================
+window.toggleRevenueWidget = function() {
+  AudioFX.click();
+  const widget = document.getElementById('revenueWidgetSection');
+  if (!widget) return;
+  
+  const isCollapsed = widget.classList.toggle('is-collapsed');
+  updateRevenueToggleUI(isCollapsed);
+  localStorage.setItem('taiyoani_revenue_collapsed', isCollapsed ? 'true' : 'false');
+};
+
+function updateRevenueToggleUI(isCollapsed) {
+  const textEl = document.getElementById('revenueToggleText');
+  const iconEl = document.getElementById('revenueToggleIcon');
+  if (textEl && iconEl) {
+    textEl.innerText = isCollapsed ? 'แสดง' : 'ซ่อน';
+    iconEl.innerText = isCollapsed ? '🙈' : '👁️';
+  }
+}
+
+function initRevenueWidgetState() {
+  const savedState = localStorage.getItem('taiyoani_revenue_collapsed') === 'true';
+  const widget = document.getElementById('revenueWidgetSection');
+  if (widget && savedState) {
+    widget.classList.add('is-collapsed');
+    updateRevenueToggleUI(true);
+  }
+}
+
 // ================= DEVICE MODE SWITCHER =================
 window.setDeviceMode = function(mode) {
   AudioFX.click();
@@ -620,6 +649,7 @@ window.handleSaveTaskScript = async function() {
 // ================= AUTH GATEKEEPER =================
 function initAuth() {
   initDeviceMode();
+  initRevenueWidgetState();
   startRealtimeSync();
   
   if (currentUserId) {
