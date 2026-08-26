@@ -136,7 +136,7 @@
     </div>
   </div>
 
-  <!-- Backdrop ปิด Drawer Sidebar (ไม่ขวางคลิกหากไม่ได้เปิดเมนู) -->
+  <!-- Backdrop ปิด Drawer Sidebar บนมือถือ -->
   <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleMobileSidebar()"></div>
 
   <!-- หน้าต่าง Workspace หลัก -->
@@ -198,7 +198,6 @@
             <span>📝</span> <span class="action-text">โน้ต</span>
           </button>
 
-          <!-- ปุ่มเปิดแถบแชท & สมาชิกทางขวามือ -->
           <button type="button" class="btn-members-toggle" onclick="toggleChatWindow()" id="btnMembersToggle" title="เปิดแถบแชทและรายชื่อสมาชิกด้านขวา">
             <span>👥</span>
             <span class="action-text">สมาชิก & แชท</span>
@@ -219,17 +218,25 @@
         </div>
       </header>
 
-      <!-- วิตเจ็ตแสดงรายได้ของแต่ละทีม -->
-      <section class="revenue-widget-section">
+      <!-- วิตเจ็ตแสดงรายได้ของแต่ละทีม (รองรับการซ่อน/แสดง) -->
+      <section class="revenue-widget-section" id="revenueWidgetSection">
         <div class="revenue-widget-header">
           <div class="revenue-header-title">
             <span>💰</span>
             <span>รายได้และงบประมาณทีม (Team Revenue & Budget)</span>
             <span class="revenue-updated-badge" id="revenueUpdatedBadge">อัปเดต: ...</span>
           </div>
-          <button type="button" class="btn-edit-revenue" id="btnAdminEditRevenue" onclick="openRevenueModal()" style="display: none;">
-            ✏️ จัดการรายได้ทีม
-          </button>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <!-- ปุ่มซ่อน/แสดงแถบรายได้ -->
+            <button type="button" class="btn-toggle-revenue" id="btnToggleRevenue" onclick="toggleRevenueWidget()" title="ซ่อน/แสดงแถบรายได้">
+              <span id="revenueToggleIcon">👁️</span>
+              <span id="revenueToggleText">ซ่อน</span>
+            </button>
+
+            <button type="button" class="btn-edit-revenue" id="btnAdminEditRevenue" onclick="openRevenueModal()" style="display: none;">
+              ✏️ จัดการรายได้ทีม
+            </button>
+          </div>
         </div>
 
         <div class="revenue-cards-grid">
