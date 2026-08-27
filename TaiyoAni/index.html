@@ -156,7 +156,7 @@
         </div>
       </div>
 
-      <!-- ปุ่มแก้ไขโปรไฟล์ และ ปุ่มออกจากระบบที่ย้ายมาไว้หน้าโฮม -->
+      <!-- ปุ่มแก้ไขโปรไฟล์ และ ปุ่มออกจากระบบที่หน้าโฮม -->
       <div class="home-top-right-actions">
         <button type="button" class="btn-glass-action-pill" onclick="openEditProfileModal()" title="แก้ไขโปรไฟล์ส่วนตัว">
           ✏️ แก้ไขโปรไฟล์
@@ -180,7 +180,41 @@
       </div>
     </section>
 
-    <!-- 2. หน้าโปรเจกต์ (PROJECTS VIEW) -->
+    <!-- 2. หน้าคอมมูนิตี้ & ระดมความคิด (COMMUNITY VIEW) - เข้าถึงได้ทุกคน -->
+    <section class="app-view-section" id="viewCommunity">
+      <div class="community-fullscreen-card">
+        <div class="community-header">
+          <div class="community-title-box">
+            <span class="community-header-icon">💡</span>
+            <div>
+              <h2>คอมมูนิตี้ & เสนอไอเดีย (Community Hub)</h2>
+              <p>พื้นที่แลกเปลี่ยนความคิดเห็น เสนอไอเดียสร้างสรรค์ และพูดคุยสำหรับทุกคน</p>
+            </div>
+          </div>
+          <button type="button" class="btn-community-post" onclick="openCommunityPostModal()">
+            <span>✨</span> <span>ตั้งกระทู้ / เสนอไอเดีย</span>
+          </button>
+        </div>
+
+        <div class="community-filter-bar">
+          <div class="community-tags-scroll">
+            <button type="button" class="community-filter-pill active" onclick="filterCommunity('all')">🌟 ทั้งหมด</button>
+            <button type="button" class="community-filter-pill" onclick="filterCommunity('idea')">💡 ไอเดียใหม่</button>
+            <button type="button" class="community-filter-pill" onclick="filterCommunity('discussion')">💬 พูดคุยทั่วไป</button>
+            <button type="button" class="community-filter-pill" onclick="filterCommunity('art')">🎨 อาร์ต & สไตล์</button>
+            <button type="button" class="community-filter-pill" onclick="filterCommunity('qa')">❓ สอบถาม / เสนอแนะ</button>
+          </div>
+          <div class="community-search-box">
+            <span class="community-search-icon">🔍</span>
+            <input type="text" id="communitySearchInput" class="community-search-input" placeholder="ค้นหาไอเดียหรือหัวข้อ...">
+          </div>
+        </div>
+
+        <div class="community-feed-container" id="communityPostsFeed"></div>
+      </div>
+    </section>
+
+    <!-- 3. หน้าโปรเจกต์ (PROJECTS VIEW) - เฉพาะแอดมินและทีมงาน -->
     <section class="app-view-section" id="viewProjects">
       <aside class="sidebar" id="appSidebar">
         <div class="sidebar-header-row">
@@ -257,79 +291,114 @@
       </main>
     </section>
 
-    <!-- 3. หน้ารายได้ (REVENUE VIEW) -->
+<!-- 4. หน้ารายได้ (REVENUE VIEW) - เฉพาะแอดมินและทีมงาน -->
     <section class="app-view-section" id="viewRevenue">
       <div class="revenue-fullscreen-card">
+        
         <div class="revenue-widget-header">
           <div class="revenue-header-title">
-            <span style="font-size: 1.4rem;">💰</span>
+            <div class="revenue-header-icon-box">💎</div>
             <div>
-              <h2 style="font-size: 1.25rem; color:#fff;">รายได้และงบประมาณทีม (Team Revenue & Budget)</h2>
-              <span class="revenue-updated-badge" id="revenueUpdatedBadge">อัปเดต: ...</span>
+              <h2>รายได้และงบประมาณทีม (Team Revenue & Payout Hub)</h2>
+              <p class="revenue-updated-badge" id="revenueUpdatedBadge">อัปเดตล่าสุด: พร้อมใช้งาน</p>
             </div>
           </div>
-          <div style="display: flex; gap: 6px; align-items: center;">
-            <button type="button" class="btn-edit-revenue" id="btnAdminEditRevenue" onclick="openRevenueModal()" style="display: none;">
-              ✏️ จัดการรายได้ทีม
+          <div>
+            <button type="button" class="btn-edit-revenue-gold" id="btnAdminEditRevenue" onclick="openRevenueModal()" style="display: none;">
+              <span>👑</span> จัดการงบ & ข้อมูลโอนเงิน
             </button>
           </div>
         </div>
 
-        <div class="revenue-cards-grid revenue-grid-large">
-          <div class="revenue-card card-voice">
-            <div class="revenue-card-header">
-              <span class="revenue-icon">🎙️</span>
-              <span class="revenue-team-name">ทีมพากย์ (Voice)</span>
+        <div class="revenue-scroll-viewport">
+          <div class="revenue-hero-card">
+            <div class="revenue-hero-bg-glow"></div>
+            <div class="revenue-hero-content">
+              <div class="revenue-hero-badge">✨ TOTAL BUDGET POOL</div>
+              <div class="revenue-hero-amount" id="revenueTotalDisplay">฿ 0</div>
+              <div class="revenue-hero-subtitle" id="revenueNoteDisplay">งบประมาณและผลตอบแทนรวมทุกฝ่าย</div>
             </div>
-            <div class="revenue-amount" id="revenueVoiceDisplay">฿ 0</div>
-            <div class="revenue-card-footer">งานลงเสียง & พากย์บทบาท</div>
           </div>
 
-          <div class="revenue-card card-animation">
-            <div class="revenue-card-header">
-              <span class="revenue-icon">🎬</span>
-              <span class="revenue-team-name">ทีมแอนิเมชั่น (3D)</span>
+          <div class="revenue-cards-grid-modern">
+            <div class="revenue-card-premium card-voice">
+              <div class="revenue-card-header">
+                <div class="rev-tag-badge voice">🎙️ ทีมพากย์</div>
+                <span class="rev-sub-tag">Voice Over</span>
+              </div>
+              <div class="revenue-amount-modern" id="revenueVoiceDisplay">฿ 0</div>
+              <div class="revenue-card-footer-modern">งานลงเสียง, แคสต์บท & พากย์ตัวละคร</div>
             </div>
-            <div class="revenue-amount" id="revenueAnimDisplay">฿ 0</div>
-            <div class="revenue-card-footer">ผลิต 3D Model, Animation & Rigging</div>
+
+            <div class="revenue-card-premium card-animation">
+              <div class="revenue-card-header">
+                <div class="rev-tag-badge anim">🎬 ทีมแอนิเมชั่น</div>
+                <span class="rev-sub-tag">3D & Rigging</span>
+              </div>
+              <div class="revenue-amount-modern" id="revenueAnimDisplay">฿ 0</div>
+              <div class="revenue-card-footer-modern">โมเดล 3D, แอนิเมชั่น & จัดฉาก</div>
+            </div>
+
+            <div class="revenue-card-premium card-audio">
+              <div class="revenue-card-header">
+                <div class="rev-tag-badge audio">🎵 ทีมงานเสียง</div>
+                <span class="rev-sub-tag">SFX & Music</span>
+              </div>
+              <div class="revenue-amount-modern" id="revenueAudioDisplay">฿ 0</div>
+              <div class="revenue-card-footer-modern">ดนตรีประกอบ, มิกซ์เสียง & Sound FX</div>
+            </div>
+
+            <div class="revenue-card-premium card-other">
+              <div class="revenue-card-header">
+                <div class="rev-tag-badge other">✨ ทีมสนับสนุน</div>
+                <span class="rev-sub-tag">Support & Ops</span>
+              </div>
+              <div class="revenue-amount-modern" id="revenueOtherDisplay">฿ 0</div>
+              <div class="revenue-card-footer-modern">งานกราฟิก, ตัดต่อ & ค่าใช้จ่ายกลาง</div>
+            </div>
           </div>
 
-          <div class="revenue-card card-audio">
-            <div class="revenue-card-header">
-              <span class="revenue-icon">🎵</span>
-              <span class="revenue-team-name">ทีมงานเสียง (SFX)</span>
+          <div class="revenue-payout-panel">
+            <div class="payout-panel-header">
+              <div class="payout-panel-title">
+                <span class="payout-icon">💳</span>
+                <div>
+                  <h3>กำหนดการและรายละเอียดการโอนเงิน (Payout Schedule & Notice)</h3>
+                  <span class="payout-sub">ข้อมูลทางการสำหรับทีมงาน ประกาศโดยแอดมิน</span>
+                </div>
+              </div>
+              <div id="revenueTransferStatusBadge" class="payout-status-badge status-pending">
+                ⏳ กำลังสรุปยอด
+              </div>
             </div>
-            <div class="revenue-amount" id="revenueAudioDisplay">฿ 0</div>
-            <div class="revenue-card-footer">ดนตรีประกอบ & Sound Effects</div>
+
+            <div class="payout-info-grid">
+              <div class="payout-info-item">
+                <span class="payout-info-label">📅 วันที่กำหนดโอนเงิน:</span>
+                <span class="payout-info-val highlight" id="revenueTransferDateDisplay">ยังไม่ได้กำหนดวันที่</span>
+              </div>
+              <div class="payout-info-item">
+                <span class="payout-info-label">👤 ผู้ดูแลการจ่ายเงิน:</span>
+                <span class="payout-info-val" id="revenuePayerDisplay">TaiyoAni (Admin)</span>
+              </div>
+            </div>
+
+            <div class="payout-notes-container">
+              <span class="payout-notes-label">📢 คำชี้แจง / เงื่อนไขการโอนเงิน:</span>
+              <div class="payout-notes-content" id="revenueTransferDetailsDisplay">
+                ยังไม่มีข้อความชี้แจงการโอนเงินจากแอดมิน
+              </div>
+            </div>
           </div>
 
-          <div class="revenue-card card-other">
-            <div class="revenue-card-header">
-              <span class="revenue-icon">✨</span>
-              <span class="revenue-team-name">ทีมอื่นๆ (Support)</span>
-            </div>
-            <div class="revenue-amount" id="revenueOtherDisplay">฿ 0</div>
-            <div class="revenue-card-footer">กราฟิก, ตัดต่อ & ค่าใช้จ่ายกลาง</div>
-          </div>
-
-          <div class="revenue-card card-total">
-            <div class="revenue-card-header">
-              <span class="revenue-icon">💎</span>
-              <span class="revenue-team-name">ยอดรวมทั้งหมด (Total Budget)</span>
-            </div>
-            <div class="revenue-amount total-val" id="revenueTotalDisplay">฿ 0</div>
-            <div class="revenue-card-footer">งบประมาณและผลตอบแทนรวมทุกทีม</div>
-          </div>
         </div>
       </div>
     </section>
 
-    <!-- 4. หน้าแชท (CHAT VIEW) -->
+    <!-- 5. หน้าแชท (CHAT VIEW) -->
     <section class="app-view-section" id="viewChat">
       <div class="chat-fullscreen-layout">
-        <!-- แถบด้านบนของหัวแชท -->
         <div class="dock-chat-header">
-          <!-- ฝั่งซ้าย: ปุ่มย้อนกลับ/สลับห้องหรือดูรายชื่อสมาชิก -->
           <div class="chat-header-left">
             <button type="button" class="btn-chat-nav-back" onclick="handleChatHeaderBack()" title="เลือกผู้ที่จะคุยด้วย / สลับห้อง">
               <span id="chatBackIcon">👥</span>
@@ -337,13 +406,11 @@
             </button>
           </div>
 
-          <!-- ตรงกลาง: ชื่อช่องแชท/ห้องที่คุยอยู่ -->
           <div class="dock-chat-title-center">
             <span class="chat-live-dot" id="chatHeaderLiveDot"></span>
             <span id="chatHeaderTitleText">💬 ห้องแชทรวมทีม</span>
           </div>
 
-          <!-- ฝั่งขวา: ปุ่มโทรคุยด้วยเสียง + ปุ่มล้างประวัติ -->
           <div class="chat-header-right">
             <button type="button" class="btn-voice-call" id="btnVoiceCall" onclick="startVoiceCall()" title="โทรคุยด้วยเสียง">
               <span>📞</span>
@@ -360,7 +427,6 @@
 
         <div class="chat-messages-body" id="chatMessagesBody"></div>
 
-        <!-- กล่องพรีวิวรูปภาพก่อนส่ง -->
         <div class="chat-image-preview-wrapper" id="chatImagePreviewWrapper">
           <div class="chat-image-preview-thumb">
             <img src="" id="chatImagePreviewImg" alt="Preview">
@@ -369,7 +435,6 @@
           <button type="button" class="btn-sm delete" onclick="removeChatImageAttachment()">✕ ลบรูป</button>
         </div>
 
-        <!-- แถบเครื่องมือพิมพ์ข้อความ -->
         <form class="chat-input-row" onsubmit="handleSendChatMessage(event)">
           <button type="button" class="btn-chat-tool" id="btnChatEmojiToggle" onclick="toggleChatEmojiPicker()" title="ใส่อิโมจิ">
             😊
@@ -395,6 +460,11 @@
         <span class="bottom-nav-text">โฮม</span>
       </button>
 
+      <button type="button" class="bottom-nav-item" id="navBtnCommunity" onclick="switchAppView('community')">
+        <span class="bottom-nav-icon">💡</span>
+        <span class="bottom-nav-text">คอมมู</span>
+      </button>
+
       <button type="button" class="bottom-nav-item" id="navBtnProjects" onclick="switchAppView('projects')">
         <span class="bottom-nav-icon">📁</span>
         <span class="bottom-nav-text">โปรเจกต์</span>
@@ -415,6 +485,47 @@
     </nav>
   </div>
 
+  <!-- ================= COMMUNITY POST MODAL ================= -->
+  <div class="modal-overlay" id="communityPostModal" style="z-index: 1240;">
+    <div class="modal" style="max-width: 540px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">✨ สร้างกระทู้ / เสนอไอเดียใหม่</h3>
+        <button type="button" class="close-btn" onclick="closeModal('communityPostModal')">✕</button>
+      </div>
+      <form onsubmit="handleCreateCommunityPost(event)">
+        <div class="form-group">
+          <label>เลือกหมวดหมู่ *</label>
+          <select id="communityCategorySelect" class="form-control" required>
+            <option value="idea">💡 ไอเดียใหม่ (New Idea)</option>
+            <option value="discussion">💬 พูดคุยทั่วไป (General Discussion)</option>
+            <option value="art">🎨 อาร์ต & สไตล์ (Art & Design)</option>
+            <option value="qa">❓ สอบถาม / เสนอแนะ (Q&A / Feedback)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>หัวข้อกระทู้ / ชื่อไอเดีย *</label>
+          <input type="text" id="communityTitleInput" class="form-control" placeholder="เช่น ชวนระดมไอเดียฉากต่อสู้, เสนอโทนสีงานใหม่" required>
+        </div>
+
+        <div class="form-group">
+          <label>รายละเอียด & แนวคิด *</label>
+          <textarea id="communityContentInput" class="form-control" style="min-height: 120px;" placeholder="อธิบายแนวคิด ข้อดี หรือจุดเด่นของไอเดียนี้..." required></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>แท็กกำกับ (ใส่เครื่องหมาย # คั่นคำ)</label>
+          <input type="text" id="communityTagsInput" class="form-control" placeholder="เช่น #3D #Blender #Anime #ConceptArt">
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('communityPostModal')">ยกเลิก</button>
+          <button type="submit" class="btn-create-task">🚀 โพสต์ลงคอมมูนิตี้</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- ================= ACCESS DENIED MODAL ================= -->
   <div class="modal-overlay" id="accessDeniedModal" style="z-index: 1350;">
     <div class="modal" style="max-width: 400px; text-align: center; padding: 26px 20px;">
@@ -422,7 +533,7 @@
       <h3 style="color: #ffffff; margin-bottom: 8px; font-size: 1.2rem;">จำกัดสิทธิ์การเข้าถึง</h3>
       <p style="font-size: 0.88rem; color: #cbd5e1; line-height: 1.6; margin-bottom: 20px;">
         หน้านี้เปิดให้เข้าถึงได้เฉพาะ <strong style="color: #fbbf24;">ยศทีมงาน</strong> และ <strong style="color: #f43f5e;">แอดมิน</strong> เท่านั้น<br>
-        สมาชิกทั่วไปสามารถใช้งานห้องแชทและดูข้อมูลหน้าโฮมได้ตามปกติ
+        สมาชิกทั่วไปสามารถใช้งานหน้าโฮม คอมมูนิตี้ และห้องแชทได้ตามปกติ
       </p>
       <button type="button" class="btn-create-task" onclick="closeAccessDeniedModal()" style="width: 100%; justify-content: center; padding: 10px 16px; font-size: 0.92rem;">
         🏠 กลับไปหน้าโฮม
@@ -787,50 +898,76 @@
   </div>
 
   <!-- REVENUE MODAL -->
-  <div class="modal-overlay" id="revenueModal">
-    <div class="modal" style="max-width: 520px;">
+ <div class="modal-overlay" id="revenueModal" style="z-index: 1260;">
+    <div class="modal" style="max-width: 560px;">
       <div class="modal-header">
-        <h3 style="display: flex; align-items: center; gap: 8px;">👑 จัดการรายได้ทีม (Admin Only)</h3>
+        <h3 style="display: flex; align-items: center; gap: 8px;">👑 จัดการงบประมาณและข้อมูลโอนเงิน (Admin Only)</h3>
         <button type="button" class="close-btn" onclick="closeModal('revenueModal')">✕</button>
       </div>
       <form onsubmit="handleSaveRevenue(event)">
-        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
-          กรอกจำนวนเงิน (บาท) ของแต่ละทีม ข้อมูลจะถูกส่งไปแสดงผลที่วิตเจ็ตของทุกคนในทีมแบบเรียลไทม์:
+        <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px;">
+          กรอกงบประมาณของแต่ละฝ่าย พร้อมกำหนดวันโอนเงินและคำชี้แจง ข้อมูลจะถูกอัปเดตแบบเรียลไทม์ทันที:
         </p>
 
-        <div class="form-group">
-          <label>🎙️ รายได้ทีมพากย์ (บาท):</label>
-          <input type="number" id="inputRevenueVoice" class="form-control" placeholder="0" min="0" step="any" required>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>🎙️ ทีมพากย์ (บาท):</label>
+            <input type="number" id="inputRevenueVoice" class="form-control" placeholder="0" min="0" step="any" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>🎬 ทีมแอนิเมชั่น (บาท):</label>
+            <input type="number" id="inputRevenueAnim" class="form-control" placeholder="0" min="0" step="any" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>🎵 ทีมงานเสียง (บาท):</label>
+            <input type="number" id="inputRevenueAudio" class="form-control" placeholder="0" min="0" step="any" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>✨ ทีมสนับสนุน (บาท):</label>
+            <input type="number" id="inputRevenueOther" class="form-control" placeholder="0" min="0" step="any" required>
+          </div>
         </div>
 
         <div class="form-group">
-          <label>🎬 รายได้ทีมแอนิเมชั่น (บาท):</label>
-          <input type="number" id="inputRevenueAnim" class="form-control" placeholder="0" min="0" step="any" required>
+          <label>📌 หัวข้องวด / หมายเหตุภาพรวม:</label>
+          <input type="text" id="inputRevenueNote" class="form-control" placeholder="เช่น ประจำงวด Episode 1 / งบเดือนสิงหาคม">
+        </div>
+
+        <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 16px 0;">
+
+        <div style="font-size: 0.86rem; font-weight: 700; color: #fbbf24; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+          💳 ข้อมูลกำหนดการโอนเงิน (แสดงให้ทุกคนในทีมอ่าน)
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>📅 กำหนดวันโอนเงิน:</label>
+            <input type="text" id="inputRevenueTransferDate" class="form-control" placeholder="เช่น 31 ส.ค. 2026 หรือ ทุกวันศุกร์สิ้นเดือน">
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>🚦 สถานะการโอนเงิน:</label>
+            <select id="inputRevenueTransferStatus" class="form-control">
+              <option value="pending">⏳ กำลังสรุปยอด / รอโอน</option>
+              <option value="processing">🔄 กำลังดำเนินการโอนเงิน</option>
+              <option value="completed">✅ โอนเงินเรียบร้อยแล้ว</option>
+            </select>
+          </div>
         </div>
 
         <div class="form-group">
-          <label>🎵 รายได้ทีมงานเสียง / SFX (บาท):</label>
-          <input type="number" id="inputRevenueAudio" class="form-control" placeholder="0" min="0" step="any" required>
-        </div>
-
-        <div class="form-group">
-          <label>✨ รายได้ทีมอื่นๆ / ค่าใช้จ่ายกลาง (บาท):</label>
-          <input type="number" id="inputRevenueOther" class="form-control" placeholder="0" min="0" step="any" required>
-        </div>
-
-        <div class="form-group">
-          <label>หมายเหตุ / งวดประจำรอบ:</label>
-          <input type="text" id="inputRevenueNote" class="form-control" placeholder="เช่น ประจำงวดเดือนนี้ / โปรเจกต์หลัก">
+          <label>📝 คำอธิบายการโอนเงิน / ช่องทางส่งสลิป / หมายเหตุจากแอดมิน:</label>
+          <textarea id="inputRevenueTransferDetails" class="form-control" style="min-height: 90px;" placeholder="เช่น โอนเข้าบัญชีที่แจ้งไว้ในแชทส่วนตัว หากท่านใดยังไม่ส่งเลขบัญชีกรุณาทักหาแอดมิน..."></textarea>
         </div>
 
         <div class="modal-footer">
           <button type="button" class="btn-sm" onclick="closeModal('revenueModal')">ยกเลิก</button>
-          <button type="submit" class="btn-create-task">💾 บันทึกและอัปเดตวิตเจ็ต</button>
+          <button type="submit" class="btn-create-task" style="background: linear-gradient(135deg, rgba(251, 191, 36, 0.4), rgba(245, 158, 11, 0.6)); border-color: var(--amber); color: #fff;">
+            💾 บันทึกงบประมาณ & แจ้งเตือนวันโอน
+          </button>
         </div>
       </form>
     </div>
   </div>
-
   <!-- PROJECT NOTES MODAL -->
   <div class="modal-overlay" id="projectNotesModal">
     <div class="modal" style="max-width: 650px;">
