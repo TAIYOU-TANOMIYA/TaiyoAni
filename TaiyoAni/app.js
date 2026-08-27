@@ -80,6 +80,24 @@ const AudioFX = {
   newIncomingMsg() { this.playTone(600, 1200, 'sine', 0.1, 0.14); },
   submitWork() { this.playTone(400, 1000, 'sine', 0.15, 0.12); },
   pageFlip() { this.playTone(550, 750, 'triangle', 0.08, 0.08); },
+  ringtone() {
+    try {
+      this.init();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(440, now);
+      osc.frequency.setValueAtTime(480, now + 0.1);
+      gain.gain.setValueAtTime(0.1, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.4);
+    } catch (e) {}
+  },
   like() {
     try {
       this.init();
@@ -113,13 +131,14 @@ const AudioFX = {
 };
 
 document.addEventListener('click', (e) => {
-  if (e.target.closest('button') || e.target.closest('.avatar-opt') || e.target.closest('.project-item') || e.target.closest('.word-tool-btn')) {
+  if (e.target.closest('button') || e.target.closest('.avatar-opt') || e.target.closest('.project-item') || e.target.closest('.word-tool-btn') || e.target.closest('.emoji-btn-opt')) {
     AudioFX.click();
   }
 });
 
 // ================= APP STATES =================
 const AVATAR_PRESETS = ['👨‍💻', '👩‍💻', '🐱', '🦊', '🚀', '🎨', '🎬', '⚡', '🐉', '✨'];
+const EMOJI_LIST = ['😀', '😂', '😍', '😎', '🥳', '🔥', '🎉', '👍', '❤️', '✨', '🎬', '🎨', '🚀', '💡', '🙌', '💯', '⭐', '☕', '🐱', '🌸', '👏', '💬', '👀', '📌'];
 const MAX_PAGES = 50;
 
 let teamUsers = [];
@@ -135,6 +154,14 @@ let pendingVerificationUser = null;
 let activeChatMode = 'team';
 let activeDmTargetUser = null;
 let dmUnsubscribe = null;
+let selectedChatImageBase64 = null;
+
+// Voice Call States
+let isVoiceCallActive = false;
+let isVoiceMuted = false;
+let voiceCallTimerInterval = null;
+let voiceCallSeconds = 0;
+let callRingtoneInterval = null;
 
 let activeScriptTaskId = null;
 let currentScriptPages = [''];
@@ -159,6 +186,12 @@ function isAdmin(user = getCurrentUser()) {
   return user.name.trim().toLowerCase() === 'taiyoani';
 }
 
+function isStaff(user = getCurrentUser()) {
+  if (!user) return false;
+  if (isAdmin(user)) return true;
+  return user.rankType === 'ทีมงาน' || (user.role && user.role.includes('ทีมงาน'));
+}
+
 function renderAvatarHtml(avatarData, customClass = '') {
   if (!avatarData || typeof avatarData !== 'string') {
     return `<span class="avatar-chip ${customClass}">👤</span>`;
@@ -174,9 +207,18 @@ function formatCurrency(amount) {
   return '฿ ' + num.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
-// ================= SECTION VIEW ROUTER =================
+// ================= SECTION VIEW ROUTER WITH ACCESS CONTROL =================
 window.switchAppView = function(viewName) {
   AudioFX.click();
+  const currentUser = getCurrentUser();
+
+  // กฎการเข้าถึง: หน้าโปรเจกต์และหน้ารายได้ เข้าได้เฉพาะ แอดมิน และ ทีมงาน เท่านั้น
+  if ((viewName === 'projects' || viewName === 'revenue') && !isAdmin(currentUser) && !isStaff(currentUser)) {
+    AudioFX.delete();
+    openAccessDeniedModal();
+    return;
+  }
+
   document.querySelectorAll('.app-view-section').forEach(sec => sec.classList.remove('active'));
   document.querySelectorAll('.bottom-nav-item').forEach(btn => btn.classList.remove('active'));
 
@@ -189,13 +231,35 @@ window.switchAppView = function(viewName) {
   localStorage.setItem('taiyoani_active_view', viewName);
 
   if (viewName === 'chat') {
+    renderChatMessages();
     scrollChatToBottom();
   }
 };
 
+window.openAccessDeniedModal = function() {
+  const modal = document.getElementById('accessDeniedModal');
+  if (modal) {
+    modal.style.display = 'flex';
+  } else {
+    alert('⚠️ เฉพาะยศแอดมินและทีมงานเท่านั้นที่มีสิทธิ์เข้าถึงหน้านี้');
+    window.switchAppView('home');
+  }
+};
+
+window.closeAccessDeniedModal = function() {
+  const modal = document.getElementById('accessDeniedModal');
+  if (modal) modal.style.display = 'none';
+  window.switchAppView('home');
+};
+
 function initAppView() {
   const savedView = localStorage.getItem('taiyoani_active_view') || 'home';
-  window.switchAppView(savedView);
+  const currentUser = getCurrentUser();
+  if ((savedView === 'projects' || savedView === 'revenue') && !isAdmin(currentUser) && !isStaff(currentUser)) {
+    window.switchAppView('home');
+  } else {
+    window.switchAppView(savedView);
+  }
 }
 
 // ================= LIVE CLOCK SYSTEM FOR HOME =================
@@ -221,7 +285,193 @@ function startLiveClock() {
 
 window.openTeamMembersModal = function() {
   AudioFX.click();
+  renderMembersPresenceList();
   document.getElementById('teamMembersModal').style.display = 'flex';
+};
+
+// ================= CHAT HEADER ACTIONS & NAVIGATION =================
+window.handleChatHeaderBack = function() {
+  AudioFX.click();
+  if (activeChatMode === 'dm') {
+    window.switchToTeamChat();
+  } else {
+    window.openTeamMembersModal();
+  }
+};
+
+function updateChatHeaderUI() {
+  const backIcon = document.getElementById('chatBackIcon');
+  const backText = document.getElementById('chatBackText');
+  const titleText = document.getElementById('chatHeaderTitleText');
+  const liveDot = document.getElementById('chatHeaderLiveDot');
+  const clearBtn = document.getElementById('btnClearChat');
+
+  if (activeChatMode === 'dm' && activeDmTargetUser) {
+    if (backIcon) backIcon.innerText = '⬅️';
+    if (backText) backText.innerText = 'กลับห้องรวม';
+    if (titleText) titleText.innerText = `🔒 ${activeDmTargetUser.name}`;
+    if (liveDot) liveDot.style.background = '#38bdf8';
+    if (clearBtn) clearBtn.style.display = 'none';
+  } else {
+    if (backIcon) backIcon.innerText = '👥';
+    if (backText) backText.innerText = 'สลับห้อง/สมาชิก';
+    if (titleText) titleText.innerText = '💬 ห้องแชทรวมทีม';
+    if (liveDot) liveDot.style.background = '#10b981';
+    if (clearBtn) clearBtn.style.display = isAdmin() ? 'inline-flex' : 'none';
+  }
+}
+
+// ================= VOICE CALL SYSTEM =================
+window.startVoiceCall = function() {
+  AudioFX.click();
+  const modal = document.getElementById('voiceCallModal');
+  const targetNameEl = document.getElementById('voiceCallTargetNameDisplay');
+  const avatarEl = document.getElementById('voiceCallAvatarDisplay');
+  const statusEl = document.getElementById('voiceCallStatusText');
+  const timerEl = document.getElementById('voiceCallTimerDisplay');
+
+  isVoiceCallActive = true;
+  isVoiceMuted = false;
+  voiceCallSeconds = 0;
+
+  const targetName = (activeChatMode === 'dm' && activeDmTargetUser) ? activeDmTargetUser.name : 'ห้องแชทรวมทีม (TaiyoAni Hub)';
+  if (targetNameEl) targetNameEl.innerText = targetName;
+  if (statusEl) statusEl.innerText = 'กำลังส่งสัญญาณเรียกสาย...';
+  if (timerEl) {
+    timerEl.style.display = 'none';
+    timerEl.innerText = '00:00';
+  }
+
+  if (activeChatMode === 'dm' && activeDmTargetUser) {
+    avatarEl.innerHTML = renderAvatarHtml(activeDmTargetUser.avatar);
+  } else {
+    avatarEl.innerText = '👥';
+  }
+
+  modal.style.display = 'flex';
+
+  AudioFX.ringtone();
+  if (callRingtoneInterval) clearInterval(callRingtoneInterval);
+  callRingtoneInterval = setInterval(() => {
+    if (isVoiceCallActive && voiceCallSeconds === 0) {
+      AudioFX.ringtone();
+    }
+  }, 2200);
+
+  setTimeout(() => {
+    if (!isVoiceCallActive) return;
+    if (callRingtoneInterval) clearInterval(callRingtoneInterval);
+
+    AudioFX.success();
+    if (statusEl) statusEl.innerText = '🟢 กำลังสนทนาเสียง (Connected)';
+    if (timerEl) timerEl.style.display = 'block';
+
+    if (voiceCallTimerInterval) clearInterval(voiceCallTimerInterval);
+    voiceCallTimerInterval = setInterval(() => {
+      voiceCallSeconds++;
+      const mins = String(Math.floor(voiceCallSeconds / 60)).padStart(2, '0');
+      const secs = String(voiceCallSeconds % 60).padStart(2, '0');
+      if (timerEl) timerEl.innerText = `${mins}:${secs}`;
+    }, 1000);
+  }, 2800);
+};
+
+window.endVoiceCall = function() {
+  AudioFX.delete();
+  isVoiceCallActive = false;
+  if (callRingtoneInterval) clearInterval(callRingtoneInterval);
+  if (voiceCallTimerInterval) clearInterval(voiceCallTimerInterval);
+  
+  const modal = document.getElementById('voiceCallModal');
+  if (modal) modal.style.display = 'none';
+};
+
+window.toggleVoiceMute = function() {
+  AudioFX.click();
+  isVoiceMuted = !isVoiceMuted;
+  const btn = document.getElementById('btnVoiceMute');
+  if (btn) {
+    btn.classList.toggle('active', isVoiceMuted);
+    btn.innerText = isVoiceMuted ? '🔇 เปิดไมค์' : '🎤 ปิดไมค์';
+  }
+};
+
+// ================= ADMIN ROLE MANAGEMENT SYSTEM =================
+window.openAdminRoleModal = function(userId) {
+  if (!isAdmin()) {
+    AudioFX.delete();
+    alert('เฉพาะแอดมิน (TaiyoAni) เท่านั้นที่มีสิทธิ์ปรับยศสมาชิก');
+    return;
+  }
+
+  const user = teamUsers.find(u => u.id === userId);
+  if (!user) return;
+
+  AudioFX.click();
+  closeModal('teamMembersModal');
+  closeModal('viewProfileModal');
+
+  document.getElementById('adminTargetUserId').value = user.id;
+  document.getElementById('adminTargetUserName').innerText = user.name;
+  document.getElementById('adminTargetUserCurrentRole').innerText = `ยศปัจจุบัน: ${isAdmin(user) ? 'แอดมิน' : (user.role || 'สมาชิกทั่วไป')}`;
+  document.getElementById('adminTargetUserAvatar').innerHTML = renderAvatarHtml(user.avatar);
+
+  const isUserStaff = isStaff(user) && !isAdmin(user);
+  document.getElementById('adminRoleSelect').value = isUserStaff ? 'ทีมงาน' : 'สมาชิกทั่วไป';
+  document.getElementById('adminRoleCustomInput').value = user.customRole || user.role || '';
+
+  document.getElementById('adminRoleModal').style.display = 'flex';
+};
+
+window.handleAdminRoleSelectChange = function() {
+  const selectVal = document.getElementById('adminRoleSelect').value;
+  const customInput = document.getElementById('adminRoleCustomInput');
+  if (selectVal === 'สมาชิกทั่วไป' && (!customInput.value || customInput.value.includes('ทีมงาน'))) {
+    customInput.value = 'สมาชิกทั่วไป';
+  } else if (selectVal === 'ทีมงาน' && (!customInput.value || customInput.value.includes('สมาชิกทั่วไป'))) {
+    customInput.value = 'ทีมงาน';
+  }
+};
+
+window.handleSaveUserRoleSubmit = async function(e) {
+  e.preventDefault();
+  if (!isAdmin()) {
+    alert('เฉพาะแอดมินเท่านั้นที่มีสิทธิ์เปลี่ยนยศ');
+    return;
+  }
+
+  const targetUserId = document.getElementById('adminTargetUserId').value;
+  const selectedRank = document.getElementById('adminRoleSelect').value;
+  const customRole = document.getElementById('adminRoleCustomInput').value.trim();
+
+  const finalRole = customRole || (selectedRank === 'ทีมงาน' ? 'ทีมงาน' : 'สมาชิกทั่วไป');
+
+  closeModal('adminRoleModal');
+  showSaveLoadingModal("กำลังบันทึกการเปลี่ยนยศ...", "กรุณารอสักครู่ ระบบกำลังอัปเดตข้อมูลขึ้นระบบคลาวด์");
+  setSaveProgress(40);
+
+  try {
+    await updateDoc(doc(db, "users", targetUserId), {
+      role: finalRole,
+      rankType: selectedRank,
+      customRole: customRole
+    });
+
+    setSaveProgress(100);
+    showSaveSuccessModal("ปรับยศสมาชิกสำเร็จ!", `เปลี่ยนยศเป็น "${finalRole}" เรียบร้อยแล้ว`);
+    AudioFX.success();
+
+    setTimeout(() => {
+      hideSaveLoadingModal();
+      updateCurrentUserDisplay();
+      renderMembersPresenceList();
+    }, 900);
+  } catch (err) {
+    console.error("Change role error:", err);
+    hideSaveLoadingModal();
+    AudioFX.delete();
+    alert("เกิดข้อผิดพลาดในการบันทึกยศ กรุณาลองใหม่อีกครั้ง");
+  }
 };
 
 // ================= VIEW PROFILE & BIO SYSTEM =================
@@ -229,10 +479,14 @@ window.openUserProfile = function(userId) {
   const user = teamUsers.find(u => u.id === userId);
   if (!user) return;
 
+  closeModal('teamMembersModal');
   AudioFX.click();
+
   const isSelf = currentUserId && user.id === currentUserId;
-  const adminTag = isAdmin(user) ? ' 👑 (Admin)' : '';
+  const userIsAdmin = isAdmin(user);
+  const adminTag = userIsAdmin ? ' 👑 (Admin)' : '';
   const presence = getPresenceStatus(user.lastActive);
+  const displayRole = userIsAdmin ? '👑 แอดมิน (Admin)' : (user.role || (isStaff(user) ? '🛡️ ทีมงาน' : '👤 สมาชิกทั่วไป'));
 
   const bannerContainer = document.getElementById('viewProfileBannerDisplay');
   if (bannerContainer) {
@@ -245,12 +499,21 @@ window.openUserProfile = function(userId) {
 
   document.getElementById('viewProfileAvatarDisplay').innerHTML = renderAvatarHtml(user.avatar);
   document.getElementById('viewProfileNameDisplay').innerText = `${user.name}${adminTag}`;
-  document.getElementById('viewProfileRoleDisplay').innerText = user.role || 'สมาชิกทีม';
+  document.getElementById('viewProfileRoleDisplay').innerText = displayRole;
   document.getElementById('viewProfileStatusDisplay').innerHTML = `<span style="color: ${presence.isOnline ? '#6ee7b7' : '#94a3b8'}">${presence.text}</span>`;
   document.getElementById('viewProfileEmailDisplay').innerText = user.email || 'ไม่ได้ระบุ';
   document.getElementById('viewProfileBioDisplay').innerText = user.bio && user.bio.trim() !== '' ? user.bio : 'ผู้ใช้นี้ยังไม่ได้ระบุคำแนะนำตัว';
 
   const actionsContainer = document.getElementById('viewProfileActionsContainer');
+  let adminBtnHtml = '';
+  if (isAdmin() && !isSelf && !userIsAdmin) {
+    adminBtnHtml = `
+      <button type="button" class="btn-admin-manage-role" onclick="openAdminRoleModal('${user.id}')">
+        🎖️ ปรับยศสมาชิก (Admin)
+      </button>
+    `;
+  }
+
   if (isSelf) {
     actionsContainer.innerHTML = `
       <button type="button" class="btn-create-task" onclick="closeModal('viewProfileModal'); openEditProfileModal();">
@@ -262,6 +525,7 @@ window.openUserProfile = function(userId) {
       <button type="button" class="btn-dm-start" style="padding: 8px 18px; font-size: 0.85rem;" onclick="closeModal('viewProfileModal'); startDirectChat('${user.id}');">
         💬 ส่งข้อความส่วนตัว (DM)
       </button>
+      ${adminBtnHtml}
     `;
   }
 
@@ -272,6 +536,109 @@ window.openCurrentUserProfile = function() {
   if (currentUserId) {
     window.openUserProfile(currentUserId);
   }
+};
+
+// ================= CHAT EMOJI & IMAGE ATTACHMENT =================
+function renderChatEmojiPicker() {
+  const container = document.getElementById('chatEmojiPickerPopover');
+  if (!container) return;
+  container.innerHTML = '';
+
+  EMOJI_LIST.forEach(emoji => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'emoji-btn-opt';
+    btn.innerText = emoji;
+    btn.onclick = () => {
+      const input = document.getElementById('chatTextInput');
+      input.value += emoji;
+      input.focus();
+      container.style.display = 'none';
+    };
+    container.appendChild(btn);
+  });
+}
+
+window.toggleChatEmojiPicker = function() {
+  AudioFX.click();
+  const picker = document.getElementById('chatEmojiPickerPopover');
+  if (picker) {
+    const isShown = picker.style.display === 'grid';
+    picker.style.display = isShown ? 'none' : 'grid';
+  }
+};
+
+document.addEventListener('click', (e) => {
+  const picker = document.getElementById('chatEmojiPickerPopover');
+  const btn = document.getElementById('btnChatEmojiToggle');
+  if (picker && picker.style.display === 'grid') {
+    if (!picker.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+      picker.style.display = 'none';
+    }
+  }
+});
+
+window.handleChatImageSelect = function(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      const maxDim = 800;
+      let width = img.width, height = img.height;
+
+      if (width > height && width > maxDim) {
+        height = Math.round((height * maxDim) / width);
+        width = maxDim;
+      } else if (height > maxDim) {
+        width = Math.round((width * maxDim) / height);
+        height = maxDim;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+
+      selectedChatImageBase64 = canvas.toDataURL('image/jpeg', 0.82);
+
+      const previewBox = document.getElementById('chatImagePreviewWrapper');
+      const previewImg = document.getElementById('chatImagePreviewImg');
+      if (previewBox && previewImg) {
+        previewImg.src = selectedChatImageBase64;
+        previewBox.style.display = 'flex';
+      }
+      AudioFX.click();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+window.removeChatImageAttachment = function() {
+  selectedChatImageBase64 = null;
+  const previewBox = document.getElementById('chatImagePreviewWrapper');
+  const fileInput = document.getElementById('chatFileInput');
+  if (previewBox) previewBox.style.display = 'none';
+  if (fileInput) fileInput.value = '';
+};
+
+window.openLightboxImage = function(imgSrc) {
+  AudioFX.click();
+  const modal = document.getElementById('imageLightboxModal');
+  const imgEl = document.getElementById('imageLightboxImg');
+  if (modal && imgEl) {
+    imgEl.src = imgSrc;
+    modal.style.display = 'flex';
+  }
+};
+
+window.closeLightbox = function() {
+  const modal = document.getElementById('imageLightboxModal');
+  if (modal) modal.style.display = 'none';
 };
 
 // ================= SAVE LOADING MODAL CONTROLLERS =================
@@ -750,6 +1117,7 @@ function initAuth() {
   initDeviceMode();
   initAppView();
   startLiveClock();
+  renderChatEmojiPicker();
   startRealtimeSync();
   
   if (currentUserId) {
@@ -887,9 +1255,10 @@ function populateLoginUserSelect() {
   teamUsers.forEach(u => {
     const opt = document.createElement('option');
     opt.value = u.id;
-    const adminTag = (u.name.trim().toLowerCase() === 'taiyoani') ? ' 👑 (Admin)' : '';
+    const adminTag = isAdmin(u) ? ' 👑 (Admin)' : '';
     const verifyStatus = u.isVerified ? '' : ' [⚠️ ยังไม่ยืนยันอีเมล]';
-    opt.innerText = `${u.name}${adminTag}${verifyStatus} (${u.role || 'Member'})`;
+    const roleText = isAdmin(u) ? 'แอดมิน' : (u.role || 'สมาชิกทั่วไป');
+    opt.innerText = `${u.name}${adminTag}${verifyStatus} (${roleText})`;
     select.appendChild(opt);
   });
 }
@@ -952,7 +1321,7 @@ window.handleRegisterSubmit = async function(e) {
       errorMsg.style.display = 'block';
       return;
     }
-    role = 'Creator (Admin)';
+    role = 'แอดมิน';
   }
 
   const emailExists = teamUsers.find(u => u.email && u.email.toLowerCase() === email);
@@ -977,7 +1346,8 @@ window.handleRegisterSubmit = async function(e) {
     id: userId,
     name,
     email,
-    role: role || 'ลูกทีม',
+    role: role || 'สมาชิกทั่วไป',
+    rankType: 'สมาชิกทั่วไป',
     bio: bio || '',
     avatar: avatarData,
     banner: '',
@@ -1134,7 +1504,6 @@ window.handleLogout = function() {
 // ================= MEMBERS PRESENCE RENDERING =================
 function renderMembersPresenceList() {
   const container = document.getElementById('membersPresenceList');
-  const counterPill = document.getElementById('onlineIndicatorCounter');
   const homeOnlinePill = document.getElementById('homeOnlineIndicator');
   const dockOnlineCount = document.getElementById('modalOnlineCountText');
   if (!container) return;
@@ -1143,42 +1512,69 @@ function renderMembersPresenceList() {
   let onlineCount = 0;
   const currentUser = getCurrentUser();
 
+  if (teamUsers.length === 0) {
+    container.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted); font-size:0.85rem;">ยังไม่มีสมาชิกในระบบ</div>';
+    return;
+  }
+
   teamUsers.forEach(user => {
     const presence = getPresenceStatus(user.lastActive);
     if (presence.isOnline) onlineCount++;
 
     const isSelf = currentUser && user.id === currentUser.id;
-    const adminTag = isAdmin(user) ? ' 👑' : '';
+    const userIsAdmin = isAdmin(user);
+    const userIsStaff = isStaff(user);
+    const adminTag = userIsAdmin ? ' 👑' : '';
+
+    let badgeClass = 'member';
+    let badgeText = '👤 สมาชิกทั่วไป';
+    if (userIsAdmin) {
+      badgeClass = 'admin';
+      badgeText = '👑 แอดมิน';
+    } else if (userIsStaff) {
+      badgeClass = 'staff';
+      badgeText = '🛡️ ทีมงาน';
+    }
+
+    let adminManageBtn = '';
+    if (isAdmin() && !isSelf && !userIsAdmin) {
+      adminManageBtn = `
+        <button type="button" class="btn-admin-manage-role" onclick="openAdminRoleModal('${user.id}')" title="ปรับยศสมาชิก">
+          🎖️ ปรับยศ
+        </button>
+      `;
+    }
 
     const item = document.createElement('div');
     item.className = 'member-presence-item';
     item.innerHTML = `
-      <div class="member-presence-left clickable-profile" onclick="closeModal('teamMembersModal'); openUserProfile('${user.id}')" title="คลิกเพื่อดูโปรไฟล์">
+      <div class="member-presence-left clickable-profile" onclick="openUserProfile('${user.id}')" title="คลิกเพื่อดูโปรไฟล์">
         <div class="member-avatar-wrapper">
           ${renderAvatarHtml(user.avatar)}
           <span class="status-badge-dot ${presence.isOnline ? 'online' : 'offline'}"></span>
         </div>
         <div class="member-presence-info">
-          <div class="member-presence-name">
-            ${escapeHtml(user.name)}${adminTag} ${isSelf ? '<span style="color:var(--text-muted); font-size:0.75rem;">(คุณ)</span>' : ''}
+          <div class="member-presence-name-row">
+            <span class="member-presence-name">${escapeHtml(user.name)}${adminTag}</span>
+            <span class="member-role-badge ${badgeClass}">${badgeText}</span>
           </div>
           <div class="member-presence-status ${presence.isOnline ? 'online' : ''}">
-            ${escapeHtml(presence.text)}
+            ${escapeHtml(presence.text)} • <span style="color:#cbd5e1;">${userIsAdmin ? '👑 แอดมิน' : escapeHtml(user.role || 'สมาชิกทั่วไป')}</span>
           </div>
         </div>
       </div>
-      <div>
+      <div class="member-presence-actions">
         ${!isSelf ? `
-          <button type="button" class="btn-dm-start" onclick="closeModal('teamMembersModal'); startDirectChat('${user.id}')" title="เปิดแชทส่วนตัวกับ ${escapeHtml(user.name)}">
+          <button type="button" class="btn-dm-start" onclick="startDirectChat('${user.id}')" title="เปิดแชทส่วนตัวกับ ${escapeHtml(user.name)}">
             💬 ทักแชท
           </button>
         ` : ''}
+        ${adminManageBtn}
       </div>
     `;
     container.appendChild(item);
   });
 
-  if (counterPill) counterPill.innerText = `${onlineCount}`;
   if (homeOnlinePill) homeOnlinePill.innerText = `${onlineCount}`;
   if (dockOnlineCount) dockOnlineCount.innerText = `${onlineCount} ออนไลน์`;
 }
@@ -1188,16 +1584,20 @@ window.startDirectChat = function(targetUserId) {
   const targetUser = teamUsers.find(u => u.id === targetUserId);
   if (!targetUser) return;
 
+  closeModal('teamMembersModal');
+  closeModal('viewProfileModal');
+
   activeChatMode = 'dm';
   activeDmTargetUser = targetUser;
 
   window.switchAppView('chat');
+  updateChatHeaderUI();
 
-  document.getElementById('btnChatBackToTeam').style.display = 'inline-block';
-  document.getElementById('chatHeaderTitleText').innerText = `🔒 ${targetUser.name}`;
-  document.getElementById('dmStatusBanner').style.display = 'flex';
-  document.getElementById('dmTargetNameDisplay').innerText = targetUser.name;
-  document.getElementById('btnClearChat').style.display = 'none';
+  const dmBanner = document.getElementById('dmStatusBanner');
+  if (dmBanner) dmBanner.style.display = 'flex';
+  
+  const dmTargetName = document.getElementById('dmTargetNameDisplay');
+  if (dmTargetName) dmTargetName.innerText = targetUser.name;
 
   const currentUid = currentUserId || 'guest';
   const roomId = [currentUid, targetUser.id].sort().join('_');
@@ -1214,7 +1614,10 @@ window.startDirectChat = function(targetUserId) {
     }
   });
 
-  document.getElementById('chatTextInput').focus();
+  setTimeout(() => {
+    const input = document.getElementById('chatTextInput');
+    if (input) input.focus();
+  }, 100);
 };
 
 window.switchToTeamChat = function() {
@@ -1227,14 +1630,10 @@ window.switchToTeamChat = function() {
     dmUnsubscribe = null;
   }
 
-  document.getElementById('btnChatBackToTeam').style.display = 'none';
-  document.getElementById('chatHeaderTitleText').innerText = '💬 ห้องแชทรวมทีม';
-  document.getElementById('dmStatusBanner').style.display = 'none';
+  updateChatHeaderUI();
   
-  const clearChatBtn = document.getElementById('btnClearChat');
-  if (clearChatBtn) {
-    clearChatBtn.style.display = isAdmin() ? 'inline-block' : 'none';
-  }
+  const dmBanner = document.getElementById('dmStatusBanner');
+  if (dmBanner) dmBanner.style.display = 'none';
 
   renderChatMessages();
   scrollChatToBottom();
@@ -1338,7 +1737,7 @@ window.handleEditProfileSubmit = async function(e) {
     const updatedFields = {
       name: newName,
       email: newEmail,
-      role: newRole || (isAdmin(user) ? 'Creator (Admin)' : 'ลูกทีม'),
+      role: newRole || (isAdmin(user) ? 'แอดมิน' : 'สมาชิกทั่วไป'),
       bio: newBio || '',
       avatar: newAvatar || user.avatar,
       banner: newBanner || ''
@@ -1665,40 +2064,41 @@ window.handleLikeTask = async function(taskId) {
   await updateDoc(doc(db, "projects", activeProjectId), { tasks: updatedTasks });
 };
 
-// ================= TEAM CHAT LOGIC =================
+// ================= TEAM CHAT LOGIC (TEXT, EMOJI & IMAGE) =================
 window.handleSendChatMessage = async function(e) {
   e.preventDefault();
   const input = document.getElementById('chatTextInput');
   const text = input.value.trim();
-  if (!text) return;
+  const imageBase64ToSend = selectedChatImageBase64;
+
+  if (!text && !imageBase64ToSend) return;
 
   const currentUser = getCurrentUser();
   if (!currentUser) return;
 
   AudioFX.sendChat();
   input.value = '';
+  removeChatImageAttachment();
 
   const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+  const payload = {
+    senderId: currentUser.id,
+    senderName: currentUser.name,
+    senderAvatar: currentUser.avatar,
+    text: text,
+    image: imageBase64ToSend || null,
+    time: nowStr,
+    timestamp: serverTimestamp()
+  };
+
   if (activeChatMode === 'team') {
-    await addDoc(collection(db, "chats"), {
-      senderId: currentUser.id,
-      senderName: currentUser.name,
-      senderAvatar: currentUser.avatar,
-      text: text,
-      time: nowStr,
-      timestamp: serverTimestamp()
-    });
+    await addDoc(collection(db, "chats"), payload);
   } else if (activeChatMode === 'dm' && activeDmTargetUser) {
     const roomId = [currentUser.id, activeDmTargetUser.id].sort().join('_');
     await addDoc(collection(db, "direct_chats", roomId, "messages"), {
-      senderId: currentUser.id,
-      senderName: currentUser.name,
-      senderAvatar: currentUser.avatar,
-      receiverId: activeDmTargetUser.id,
-      text: text,
-      time: nowStr,
-      timestamp: serverTimestamp()
+      ...payload,
+      receiverId: activeDmTargetUser.id
     });
   }
 };
@@ -1741,11 +2141,23 @@ function renderChatMessages() {
     const row = document.createElement('div');
     row.className = `chat-message-row ${isMine ? 'is-mine' : ''}`;
 
+    let imageAttachmentHtml = '';
+    if (msg.image) {
+      imageAttachmentHtml = `
+        <div class="chat-attached-image-box" onclick="openLightboxImage('${msg.image}')" title="คลิกเพื่อดูรูปภาพขนาดเต็ม">
+          <img src="${msg.image}" alt="รูปภาพแนบ">
+        </div>
+      `;
+    }
+
     row.innerHTML = `
       <div class="chat-msg-avatar clickable-profile" onclick="openUserProfile('${msg.senderId}')" title="คลิกเพื่อดูโปรไฟล์">${renderAvatarHtml(msg.senderAvatar)}</div>
       <div class="chat-msg-content">
         <div class="chat-msg-author clickable-profile" onclick="openUserProfile('${msg.senderId}')">${escapeHtml(msg.senderName)}</div>
-        <div class="chat-msg-bubble">${escapeHtml(msg.text)}</div>
+        <div class="chat-msg-bubble">
+          ${msg.text ? `<div>${escapeHtml(msg.text)}</div>` : ''}
+          ${imageAttachmentHtml}
+        </div>
         <div class="chat-msg-time">${escapeHtml(msg.time || '')}</div>
       </div>
     `;
@@ -1756,7 +2168,9 @@ function renderChatMessages() {
 function scrollChatToBottom() {
   const body = document.getElementById('chatMessagesBody');
   if (body) {
-    setTimeout(() => { body.scrollTop = body.scrollHeight; }, 60);
+    setTimeout(() => { 
+      body.scrollTop = body.scrollHeight; 
+    }, 60);
   }
 }
 
@@ -1764,29 +2178,26 @@ function scrollChatToBottom() {
 function updateCurrentUserDisplay() {
   const user = getCurrentUser();
   if (user) {
-    const adminTag = isAdmin(user) ? ' 👑' : '';
+    const userIsAdmin = isAdmin(user);
+    const adminTag = userIsAdmin ? ' 👑' : '';
+    const displayRole = userIsAdmin ? '👑 แอดมิน' : (user.role || (isStaff(user) ? '🛡️ ทีมงาน' : '👤 สมาชิกทั่วไป'));
     
-    // อัปเดตใน Sidebar
     document.getElementById('currentAvatarDisplay').innerHTML = renderAvatarHtml(user.avatar);
     document.getElementById('currentUserNameDisplay').innerText = `${user.name}${adminTag}`;
-    document.getElementById('currentUserRoleDisplay').innerText = user.role || (isAdmin(user) ? 'Creator (Admin)' : 'สมาชิกทีม');
+    document.getElementById('currentUserRoleDisplay').innerText = displayRole;
     
-    // อัปเดตในหน้า Home View (Top-Left)
     const homeAvatar = document.getElementById('homeUserAvatarDisplay');
     const homeName = document.getElementById('homeUserNameDisplay');
     const homeRole = document.getElementById('homeUserRoleDisplay');
     if (homeAvatar) homeAvatar.innerHTML = renderAvatarHtml(user.avatar);
     if (homeName) homeName.innerText = `${user.name}${adminTag}`;
-    if (homeRole) homeRole.innerText = user.role || (isAdmin(user) ? 'Creator (Admin)' : 'สมาชิกทีม');
+    if (homeRole) homeRole.innerText = displayRole;
 
-    const clearChatBtn = document.getElementById('btnClearChat');
-    if (clearChatBtn && activeChatMode === 'team') {
-      clearChatBtn.style.display = isAdmin(user) ? 'inline-block' : 'none';
-    }
+    updateChatHeaderUI();
 
     const editRevenueBtn = document.getElementById('btnAdminEditRevenue');
     if (editRevenueBtn) {
-      editRevenueBtn.style.display = isAdmin(user) ? 'inline-flex' : 'none';
+      editRevenueBtn.style.display = userIsAdmin ? 'inline-flex' : 'none';
     }
   }
 }
@@ -1798,8 +2209,9 @@ function populateAssigneeDropdown() {
   teamUsers.forEach(user => {
     const opt = document.createElement('option');
     opt.value = user.name;
-    const adminTag = (user.name.trim().toLowerCase() === 'taiyoani') ? ' 👑' : '';
-    opt.innerText = `${user.name}${adminTag} (${user.role || 'Member'})`;
+    const adminTag = isAdmin(user) ? ' 👑' : '';
+    const roleText = isAdmin(user) ? 'แอดมิน' : (user.role || 'สมาชิกทั่วไป');
+    opt.innerText = `${user.name}${adminTag} (${roleText})`;
     select.appendChild(opt);
   });
 }
