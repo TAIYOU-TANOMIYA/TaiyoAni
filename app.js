@@ -131,7 +131,7 @@ const AudioFX = {
 };
 
 document.addEventListener('click', (e) => {
-  if (e.target.closest('button') || e.target.closest('.avatar-opt') || e.target.closest('.project-item') || e.target.closest('.word-tool-btn') || e.target.closest('.emoji-btn-opt')) {
+  if (e.target.closest('button') || e.target.closest('.avatar-opt') || e.target.closest('.project-item') || e.target.closest('.word-tool-btn') || e.target.closest('.emoji-btn-opt') || e.target.closest('.community-filter-pill')) {
     AudioFX.click();
   }
 });
@@ -143,6 +143,7 @@ const MAX_PAGES = 50;
 
 let teamUsers = [];
 let projects = [];
+let communityPosts = [];
 let chatMessages = [];
 let dmChatMessages = [];
 let currentUserId = localStorage.getItem('taiyoani_active_user_id') || null;
@@ -150,6 +151,9 @@ let activeProjectId = null;
 let isMobileSidebarOpen = false;
 let initialChatLoadDone = false;
 let pendingVerificationUser = null;
+
+let activeCommunityFilter = 'all';
+let communitySearchQuery = '';
 
 let activeChatMode = 'team';
 let activeDmTargetUser = null;
@@ -173,6 +177,9 @@ let revenueData = {
   audio: 0,
   other: 0,
   note: '',
+  transferDate: '',
+  transferStatus: 'pending',
+  transferDetails: '',
   updatedBy: '',
   updatedTime: ''
 };
@@ -233,6 +240,8 @@ window.switchAppView = function(viewName) {
   if (viewName === 'chat') {
     renderChatMessages();
     scrollChatToBottom();
+  } else if (viewName === 'community') {
+    renderCommunityPosts();
   }
 };
 
@@ -288,6 +297,208 @@ window.openTeamMembersModal = function() {
   renderMembersPresenceList();
   document.getElementById('teamMembersModal').style.display = 'flex';
 };
+
+// ================= COMMUNITY HUB SYSTEM (ALL ROLES) =================
+window.openCommunityPostModal = function() {
+  AudioFX.click();
+  document.getElementById('communityCategorySelect').value = 'idea';
+  document.getElementById('communityTitleInput').value = '';
+  document.getElementById('communityContentInput').value = '';
+  document.getElementById('communityTagsInput').value = '';
+  document.getElementById('communityPostModal').style.display = 'flex';
+};
+
+window.handleCreateCommunityPost = async function(e) {
+  e.preventDefault();
+  const currentUser = getCurrentUser();
+  if (!currentUser) return;
+
+  const category = document.getElementById('communityCategorySelect').value;
+  const title = document.getElementById('communityTitleInput').value.trim();
+  const content = document.getElementById('communityContentInput').value.trim();
+  const rawTags = document.getElementById('communityTagsInput').value.trim();
+
+  if (!title || !content) return;
+
+  const tags = rawTags
+    ? rawTags.split(/\s+/).filter(t => t.length > 0).map(t => t.startsWith('#') ? t : `#${t}`)
+    : [];
+
+  const nowStr = new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) + ' ' + 
+                 new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const newPost = {
+    title,
+    content,
+    category,
+    tags,
+    likes: 0,
+    likedBy: [],
+    authorId: currentUser.id,
+    authorName: currentUser.name,
+    authorAvatar: currentUser.avatar,
+    authorRole: isAdmin(currentUser) ? 'แอดมิน' : (currentUser.role || 'สมาชิกทั่วไป'),
+    time: nowStr,
+    timestamp: serverTimestamp()
+  };
+
+  AudioFX.success();
+  await addDoc(collection(db, "community_posts"), newPost);
+  closeModal('communityPostModal');
+};
+
+window.filterCommunity = function(category) {
+  AudioFX.click();
+  activeCommunityFilter = category;
+  document.querySelectorAll('.community-filter-pill').forEach(btn => btn.classList.remove('active'));
+  
+  const pills = document.querySelectorAll('.community-filter-pill');
+  pills.forEach(pill => {
+    if (pill.getAttribute('onclick')?.includes(`'${category}'`)) {
+      pill.classList.add('active');
+    }
+  });
+
+  renderCommunityPosts();
+};
+
+window.handleLikeCommunityPost = async function(postId) {
+  const currentUser = getCurrentUser();
+  if (!currentUser) return;
+
+  const post = communityPosts.find(p => p.id === postId);
+  if (!post) return;
+
+  const likedBy = Array.isArray(post.likedBy) ? [...post.likedBy] : [];
+  const hasLiked = likedBy.includes(currentUser.id);
+
+  AudioFX.like();
+  if (hasLiked) {
+    const updatedLikedBy = likedBy.filter(id => id !== currentUser.id);
+    await updateDoc(doc(db, "community_posts", postId), {
+      likes: Math.max(0, (post.likes || 1) - 1),
+      likedBy: updatedLikedBy
+    });
+  } else {
+    likedBy.push(currentUser.id);
+    await updateDoc(doc(db, "community_posts", postId), {
+      likes: (post.likes || 0) + 1,
+      likedBy: likedBy
+    });
+  }
+};
+
+window.deleteCommunityPost = async function(postId) {
+  const post = communityPosts.find(p => p.id === postId);
+  if (!post) return;
+
+  const currentUser = getCurrentUser();
+  const isAuthor = currentUser && post.authorId === currentUser.id;
+  if (!isAdmin(currentUser) && !isAuthor) {
+    AudioFX.delete();
+    alert('คุณไม่มีสิทธิ์ลบกระทู้นี้');
+    return;
+  }
+
+  if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบกระทู้นี้?')) {
+    AudioFX.delete();
+    await deleteDoc(doc(db, "community_posts", postId));
+  }
+};
+
+function renderCommunityPosts() {
+  const feed = document.getElementById('communityPostsFeed');
+  if (!feed) return;
+  feed.innerHTML = '';
+
+  const currentUser = getCurrentUser();
+  let filtered = [...communityPosts];
+
+  if (activeCommunityFilter !== 'all') {
+    filtered = filtered.filter(p => p.category === activeCommunityFilter);
+  }
+
+  if (communitySearchQuery.trim() !== '') {
+    const queryLower = communitySearchQuery.toLowerCase();
+    filtered = filtered.filter(p => 
+      (p.title && p.title.toLowerCase().includes(queryLower)) ||
+      (p.content && p.content.toLowerCase().includes(queryLower)) ||
+      (p.authorName && p.authorName.toLowerCase().includes(queryLower)) ||
+      (p.tags && p.tags.some(t => t.toLowerCase().includes(queryLower)))
+    );
+  }
+
+  if (filtered.length === 0) {
+    feed.innerHTML = `
+      <div style="text-align: center; padding: 46px 16px; color: var(--text-muted);">
+        <div style="font-size: 2.8rem; margin-bottom: 8px;">💡</div>
+        <h4 style="color: #ffffff; font-size: 1.05rem;">ยังไม่มีกระทู้ในหมวดนี้</h4>
+        <p style="font-size: 0.82rem; margin-top: 4px;">คลิกปุ่ม "✨ ตั้งกระทู้ / เสนอไอเดีย" ด้านบนเพื่อเริ่มแลกเปลี่ยนความคิดเห็น!</p>
+      </div>
+    `;
+    return;
+  }
+
+  const categoryMap = {
+    idea: { text: '💡 Idea', class: 'tag-idea', label: 'ไอเดียใหม่' },
+    discussion: { text: '💬 Chat', class: 'tag-discussion', label: 'พูดคุยทั่วไป' },
+    art: { text: '🎨 Art', class: 'tag-art', label: 'อาร์ต & สไตล์' },
+    qa: { text: '❓ Q&A', class: 'tag-qa', label: 'สอบถาม / เสนอแนะ' }
+  };
+
+  filtered.forEach(post => {
+    const catInfo = categoryMap[post.category] || categoryMap.idea;
+    const likedBy = Array.isArray(post.likedBy) ? post.likedBy : [];
+    const isVoted = currentUser && likedBy.includes(currentUser.id);
+    const isAuthor = currentUser && post.authorId === currentUser.id;
+    const isPostAdmin = post.authorRole === 'แอดมิน' || (post.authorName && post.authorName.toLowerCase() === 'taiyoani');
+    const canDelete = isAdmin(currentUser) || isAuthor;
+
+    const card = document.createElement('div');
+    card.className = 'community-post-card';
+    card.innerHTML = `
+      <div class="post-card-header">
+        <div class="post-author-wrapper">
+          <div class="post-author-avatar clickable-profile" onclick="openUserProfile('${post.authorId}')" title="คลิกดูโปรไฟล์">
+            ${renderAvatarHtml(post.authorAvatar)}
+          </div>
+          <div class="post-author-info">
+            <div class="post-author-name clickable-profile" onclick="openUserProfile('${post.authorId}')">
+              ${escapeHtml(post.authorName)} ${isPostAdmin ? '👑' : ''}
+            </div>
+            <div class="post-time-meta">${escapeHtml(post.time || '')} • ${catInfo.label}</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span class="post-category-tag ${catInfo.class}">${catInfo.text}</span>
+          ${canDelete ? `
+            <button type="button" class="btn-sm delete" style="padding: 3px 6px; font-size: 0.72rem;" onclick="deleteCommunityPost('${post.id}')" title="ลบโพสต์">🗑️</button>
+          ` : ''}
+        </div>
+      </div>
+
+      <h3 class="post-title">${escapeHtml(post.title)}</h3>
+      <p class="post-description">${escapeHtml(post.content)}</p>
+
+      <div class="post-card-footer">
+        <div class="post-actions-group">
+          <button type="button" class="btn-post-action ${isVoted ? 'is-voted' : ''}" onclick="handleLikeCommunityPost('${post.id}')" title="กดถูกใจไอเดีย">
+            <span>🔥</span> <span class="action-count">${post.likes || 0}</span>
+          </button>
+          ${!isAuthor ? `
+            <button type="button" class="btn-post-action" onclick="startDirectChat('${post.authorId}')" title="ทักข้อความส่วนตัวหา ${escapeHtml(post.authorName)}">
+              <span>💬</span> <span>ทักแชท</span>
+            </button>
+          ` : ''}
+        </div>
+        <div class="post-chips-group">
+          ${(post.tags || []).map(tag => `<span class="post-chip">${escapeHtml(tag)}</span>`).join('')}
+        </div>
+      </div>
+    `;
+    feed.appendChild(card);
+  });
+}
 
 // ================= CHAT HEADER ACTIONS & NAVIGATION =================
 window.handleChatHeaderBack = function() {
@@ -486,7 +697,7 @@ window.openUserProfile = function(userId) {
   const userIsAdmin = isAdmin(user);
   const adminTag = userIsAdmin ? ' 👑 (Admin)' : '';
   const presence = getPresenceStatus(user.lastActive);
-  const displayRole = userIsAdmin ? '👑 แอดมิน (Admin)' : (user.role || (isStaff(user) ? '🛡️ ทีมงาน' : '👤 สมาชิกทั่วไป'));
+  const displayRole = userIsAdmin ? '👑 แอดมิน' : (user.role || (isStaff(user) ? '🛡️ ทีมงาน' : '👤 สมาชิกทั่วไป'));
 
   const bannerContainer = document.getElementById('viewProfileBannerDisplay');
   if (bannerContainer) {
@@ -802,9 +1013,16 @@ function startRealtimeSync() {
       scrollChatToBottom();
     }
   });
+
+  const communityQuery = query(collection(db, "community_posts"), orderBy("timestamp", "desc"));
+  onSnapshot(communityQuery, (snapshot) => {
+    communityPosts = [];
+    snapshot.forEach(doc => communityPosts.push({ id: doc.id, ...doc.data() }));
+    renderCommunityPosts();
+  });
 }
 
-// ================= REVENUE WIDGET LOGIC =================
+// ================= REVENUE & PAYOUT SYSTEM =================
 function renderRevenueWidget() {
   const voice = Number(revenueData.voice) || 0;
   const anim = Number(revenueData.animation) || 0;
@@ -812,19 +1030,69 @@ function renderRevenueWidget() {
   const other = Number(revenueData.other) || 0;
   const total = voice + anim + audio + other;
 
-  document.getElementById('revenueVoiceDisplay').innerText = formatCurrency(voice);
-  document.getElementById('revenueAnimDisplay').innerText = formatCurrency(anim);
-  document.getElementById('revenueAudioDisplay').innerText = formatCurrency(audio);
-  document.getElementById('revenueOtherDisplay').innerText = formatCurrency(other);
-  document.getElementById('revenueTotalDisplay').innerText = formatCurrency(total);
+  // แสดงยอดเงิน
+  const voiceEl = document.getElementById('revenueVoiceDisplay');
+  const animEl = document.getElementById('revenueAnimDisplay');
+  const audioEl = document.getElementById('revenueAudioDisplay');
+  const otherEl = document.getElementById('revenueOtherDisplay');
+  const totalEl = document.getElementById('revenueTotalDisplay');
 
+  if (voiceEl) voiceEl.innerText = formatCurrency(voice);
+  if (animEl) animEl.innerText = formatCurrency(anim);
+  if (audioEl) audioEl.innerText = formatCurrency(audio);
+  if (otherEl) otherEl.innerText = formatCurrency(other);
+  if (totalEl) totalEl.innerText = formatCurrency(total);
+
+  // แสดงหมายเหตุงวด
+  const noteEl = document.getElementById('revenueNoteDisplay');
+  if (noteEl) {
+    noteEl.innerText = revenueData.note ? `งวด: ${revenueData.note}` : 'งบประมาณและผลตอบแทนรวมทุกฝ่าย';
+  }
+
+  // ป้ายวันเวลาอัปเดต
   const badge = document.getElementById('revenueUpdatedBadge');
   if (badge) {
     if (revenueData.updatedTime) {
-      const noteTxt = revenueData.note ? ` (${revenueData.note})` : '';
-      badge.innerText = `อัปเดต: ${revenueData.updatedTime}${noteTxt}`;
+      badge.innerText = `อัปเดตล่าสุด: ${revenueData.updatedTime} โดย ${revenueData.updatedBy || 'แอดมิน'}`;
     } else {
-      badge.innerText = `อัปเดต: พร้อมใช้งาน`;
+      badge.innerText = `อัปเดตล่าสุด: พร้อมใช้งาน`;
+    }
+  }
+
+  // กำหนดการและรายละเอียดการโอนเงิน (Payout Details)
+  const transferDateEl = document.getElementById('revenueTransferDateDisplay');
+  const transferDetailsEl = document.getElementById('revenueTransferDetailsDisplay');
+  const statusBadgeEl = document.getElementById('revenueTransferStatusBadge');
+  const payerEl = document.getElementById('revenuePayerDisplay');
+
+  if (transferDateEl) {
+    transferDateEl.innerText = (revenueData.transferDate && revenueData.transferDate.trim() !== '') 
+      ? revenueData.transferDate 
+      : 'ยังไม่ได้กำหนดวันที่';
+  }
+
+  if (transferDetailsEl) {
+    transferDetailsEl.innerText = (revenueData.transferDetails && revenueData.transferDetails.trim() !== '')
+      ? revenueData.transferDetails
+      : 'ยังไม่มีข้อความชี้แจงการโอนเงินจากแอดมิน';
+  }
+
+  if (payerEl) {
+    payerEl.innerText = `${revenueData.updatedBy || 'TaiyoAni'} (Admin)`;
+  }
+
+  if (statusBadgeEl) {
+    const status = revenueData.transferStatus || 'pending';
+    statusBadgeEl.className = 'payout-status-badge';
+    if (status === 'completed') {
+      statusBadgeEl.classList.add('status-completed');
+      statusBadgeEl.innerText = '✅ โอนเงินเรียบร้อยแล้ว';
+    } else if (status === 'processing') {
+      statusBadgeEl.classList.add('status-processing');
+      statusBadgeEl.innerText = '🔄 กำลังดำเนินการโอนเงิน';
+    } else {
+      statusBadgeEl.classList.add('status-pending');
+      statusBadgeEl.innerText = '⏳ กำลังสรุปยอด / รอโอน';
     }
   }
 }
@@ -832,7 +1100,7 @@ function renderRevenueWidget() {
 window.openRevenueModal = function() {
   if (!isAdmin()) {
     AudioFX.delete();
-    alert('เฉพาะแอดมิน (TaiyoAni) เท่านั้นที่มีสิทธิ์จัดการรายได้');
+    alert('เฉพาะแอดมิน (TaiyoAni) เท่านั้นที่มีสิทธิ์จัดการรายได้และข้อมูลโอนเงิน');
     return;
   }
   AudioFX.click();
@@ -841,6 +1109,11 @@ window.openRevenueModal = function() {
   document.getElementById('inputRevenueAudio').value = revenueData.audio || 0;
   document.getElementById('inputRevenueOther').value = revenueData.other || 0;
   document.getElementById('inputRevenueNote').value = revenueData.note || '';
+  
+  document.getElementById('inputRevenueTransferDate').value = revenueData.transferDate || '';
+  document.getElementById('inputRevenueTransferStatus').value = revenueData.transferStatus || 'pending';
+  document.getElementById('inputRevenueTransferDetails').value = revenueData.transferDetails || '';
+
   document.getElementById('revenueModal').style.display = 'flex';
 };
 
@@ -857,6 +1130,10 @@ window.handleSaveRevenue = async function(e) {
   const other = parseFloat(document.getElementById('inputRevenueOther').value) || 0;
   const note = document.getElementById('inputRevenueNote').value.trim();
 
+  const transferDate = document.getElementById('inputRevenueTransferDate').value.trim();
+  const transferStatus = document.getElementById('inputRevenueTransferStatus').value;
+  const transferDetails = document.getElementById('inputRevenueTransferDetails').value.trim();
+
   const currentUser = getCurrentUser();
   const nowStr = new Date().toLocaleDateString('th-TH') + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -867,6 +1144,9 @@ window.handleSaveRevenue = async function(e) {
     audio,
     other,
     note,
+    transferDate,
+    transferStatus,
+    transferDetails,
     updatedBy: currentUser ? currentUser.name : 'TaiyoAni',
     updatedTime: nowStr,
     timestamp: serverTimestamp()
@@ -1120,6 +1400,14 @@ function initAuth() {
   renderChatEmojiPicker();
   startRealtimeSync();
   
+  const searchInput = document.getElementById('communitySearchInput');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      communitySearchQuery = e.target.value;
+      renderCommunityPosts();
+    });
+  }
+
   if (currentUserId) {
     document.getElementById('authGate').style.display = 'none';
     document.getElementById('mainAppLayout').style.display = 'flex';
