@@ -148,30 +148,30 @@
 
     <!-- 1. หน้าโฮม (HOME VIEW) -->
     <section class="app-view-section active" id="viewHome">
-      <!-- การ์ดโปรไฟล์มุมบนซ้าย -->
       <div class="home-top-left-profile clickable-profile" onclick="openCurrentUserProfile()" title="คลิกเพื่อดูโปรไฟล์ของคุณ">
         <div class="home-profile-avatar" id="homeUserAvatarDisplay"></div>
         <div class="home-profile-info">
           <div class="home-profile-name" id="homeUserNameDisplay">กำลังโหลด...</div>
-          <div class="home-profile-role" id="homeUserRoleDisplay">สมาชิกทีม</div>
+          <div class="home-profile-role" id="homeUserRoleDisplay">สมาชิกทั่วไป</div>
         </div>
       </div>
 
-      <!-- สลับโหมดจอฝั่งบนขวาของหน้า Home -->
+      <!-- ปุ่มแก้ไขโปรไฟล์ และ ปุ่มออกจากระบบที่ย้ายมาไว้หน้าโฮม -->
       <div class="home-top-right-actions">
         <button type="button" class="btn-glass-action-pill" onclick="openEditProfileModal()" title="แก้ไขโปรไฟล์ส่วนตัว">
           ✏️ แก้ไขโปรไฟล์
         </button>
+        <button type="button" class="btn-glass-action-pill btn-logout-pill" onclick="handleLogout()" title="ออกจากระบบ / สลับบัญชี">
+          🚪 ออกจากระบบ
+        </button>
       </div>
 
-      <!-- ศูนย์กลาง: นาฬิกาแก้ว 3D + รายชื่อสมาชิก -->
       <div class="home-center-stage">
         <div class="home-glass-clock-card">
           <div class="home-clock-time" id="homeClockTimeDisplay">00:00:00</div>
           <div class="home-clock-date" id="homeClockDateDisplay">วัน... ที่ ...</div>
         </div>
 
-        <!-- ปุ่มเปิดรายชื่อสมาชิกในทีม -->
         <button type="button" class="btn-home-members-trigger" onclick="openTeamMembersModal()">
           <span>👥</span>
           <span>สมาชิกในทีม</span>
@@ -212,11 +212,10 @@
           <div class="user-avatar clickable-profile" id="currentAvatarDisplay" onclick="openCurrentUserProfile()" title="คลิกเพื่อดูโปรไฟล์"></div>
           <div class="user-info clickable-profile" onclick="openCurrentUserProfile()" title="คลิกเพื่อดูโปรไฟล์">
             <div class="user-name" id="currentUserNameDisplay">กำลังโหลด...</div>
-            <div class="user-role" id="currentUserRoleDisplay">ลูกทีม</div>
+            <div class="user-role" id="currentUserRoleDisplay">สมาชิกทั่วไป</div>
           </div>
           <div class="user-profile-actions">
             <button type="button" class="btn-action-icon" onclick="openEditProfileModal()" title="แก้ไขข้อมูลโปรไฟล์">✏️</button>
-            <button type="button" class="btn-action-icon btn-logout-icon" onclick="handleLogout()" title="ออกจากระบบ / สลับบัญชี">🚪</button>
           </div>
         </div>
       </aside>
@@ -328,13 +327,28 @@
     <!-- 4. หน้าแชท (CHAT VIEW) -->
     <section class="app-view-section" id="viewChat">
       <div class="chat-fullscreen-layout">
+        <!-- แถบด้านบนของหัวแชท -->
         <div class="dock-chat-header">
-          <div class="dock-chat-title">
-            <button type="button" class="btn-chat-back" id="btnChatBackToTeam" onclick="switchToTeamChat()" title="กลับไปห้องแชททีม" style="display: none;">⬅️</button>
-            <span class="chat-live-dot"></span>
+          <!-- ฝั่งซ้าย: ปุ่มย้อนกลับ/สลับห้องหรือดูรายชื่อสมาชิก -->
+          <div class="chat-header-left">
+            <button type="button" class="btn-chat-nav-back" onclick="handleChatHeaderBack()" title="เลือกผู้ที่จะคุยด้วย / สลับห้อง">
+              <span id="chatBackIcon">👥</span>
+              <span class="chat-nav-back-text" id="chatBackText">สลับห้อง/สมาชิก</span>
+            </button>
+          </div>
+
+          <!-- ตรงกลาง: ชื่อช่องแชท/ห้องที่คุยอยู่ -->
+          <div class="dock-chat-title-center">
+            <span class="chat-live-dot" id="chatHeaderLiveDot"></span>
             <span id="chatHeaderTitleText">💬 ห้องแชทรวมทีม</span>
           </div>
-          <div class="chat-header-controls">
+
+          <!-- ฝั่งขวา: ปุ่มโทรคุยด้วยเสียง + ปุ่มล้างประวัติ -->
+          <div class="chat-header-right">
+            <button type="button" class="btn-voice-call" id="btnVoiceCall" onclick="startVoiceCall()" title="โทรคุยด้วยเสียง">
+              <span>📞</span>
+              <span class="voice-call-text">โทรเสียง</span>
+            </button>
             <button type="button" class="btn-chat-control" id="btnClearChat" onclick="handleClearChat()" title="ล้างประวัติแชท (เฉพาะแอดมิน)" style="display: none;">🗑️</button>
           </div>
         </div>
@@ -346,9 +360,30 @@
 
         <div class="chat-messages-body" id="chatMessagesBody"></div>
 
+        <!-- กล่องพรีวิวรูปภาพก่อนส่ง -->
+        <div class="chat-image-preview-wrapper" id="chatImagePreviewWrapper">
+          <div class="chat-image-preview-thumb">
+            <img src="" id="chatImagePreviewImg" alt="Preview">
+          </div>
+          <span style="font-size: 0.8rem; color: #cbd5e1; flex: 1;">แนบรูปภาพพร้อมส่ง</span>
+          <button type="button" class="btn-sm delete" onclick="removeChatImageAttachment()">✕ ลบรูป</button>
+        </div>
+
+        <!-- แถบเครื่องมือพิมพ์ข้อความ -->
         <form class="chat-input-row" onsubmit="handleSendChatMessage(event)">
-          <input type="text" id="chatTextInput" class="chat-input" placeholder="พิมพ์ข้อความ... (กด Enter เพื่อส่ง)" autocomplete="off" required>
+          <button type="button" class="btn-chat-tool" id="btnChatEmojiToggle" onclick="toggleChatEmojiPicker()" title="ใส่อิโมจิ">
+            😊
+          </button>
+
+          <label class="btn-chat-tool" title="แนบรูปภาพส่งในแชท">
+            📷
+            <input type="file" id="chatFileInput" accept="image/*" style="display: none;" onchange="handleChatImageSelect(event)">
+          </label>
+
+          <input type="text" id="chatTextInput" class="chat-input" placeholder="พิมพ์ข้อความ... (กด Enter เพื่อส่ง)" autocomplete="off">
           <button type="submit" class="btn-chat-send" title="ส่งข้อความ">🚀</button>
+
+          <div class="chat-emoji-popover" id="chatEmojiPickerPopover"></div>
         </form>
       </div>
     </section>
@@ -380,16 +415,95 @@
     </nav>
   </div>
 
+  <!-- ================= ACCESS DENIED MODAL ================= -->
+  <div class="modal-overlay" id="accessDeniedModal" style="z-index: 1350;">
+    <div class="modal" style="max-width: 400px; text-align: center; padding: 26px 20px;">
+      <div style="font-size: 3rem; margin-bottom: 8px;">🔒</div>
+      <h3 style="color: #ffffff; margin-bottom: 8px; font-size: 1.2rem;">จำกัดสิทธิ์การเข้าถึง</h3>
+      <p style="font-size: 0.88rem; color: #cbd5e1; line-height: 1.6; margin-bottom: 20px;">
+        หน้านี้เปิดให้เข้าถึงได้เฉพาะ <strong style="color: #fbbf24;">ยศทีมงาน</strong> และ <strong style="color: #f43f5e;">แอดมิน</strong> เท่านั้น<br>
+        สมาชิกทั่วไปสามารถใช้งานห้องแชทและดูข้อมูลหน้าโฮมได้ตามปกติ
+      </p>
+      <button type="button" class="btn-create-task" onclick="closeAccessDeniedModal()" style="width: 100%; justify-content: center; padding: 10px 16px; font-size: 0.92rem;">
+        🏠 กลับไปหน้าโฮม
+      </button>
+    </div>
+  </div>
+
+  <!-- ================= ADMIN ROLE MANAGEMENT MODAL ================= -->
+  <div class="modal-overlay" id="adminRoleModal" style="z-index: 1220;">
+    <div class="modal" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">🎖️ ปรับยศสมาชิก (Admin Only)</h3>
+        <button type="button" class="close-btn" onclick="closeModal('adminRoleModal')">✕</button>
+      </div>
+      <form onsubmit="handleSaveUserRoleSubmit(event)">
+        <input type="hidden" id="adminTargetUserId">
+        <div style="display: flex; align-items: center; gap: 12px; background: rgba(0,0,0,0.25); padding: 12px; border-radius: 10px; margin-bottom: 14px; border: 1px solid var(--glass-border);">
+          <div class="member-avatar-wrapper" id="adminTargetUserAvatar"></div>
+          <div>
+            <h4 id="adminTargetUserName" style="color: #fff; font-size: 1.05rem;">-</h4>
+            <p id="adminTargetUserCurrentRole" style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">ยศปัจจุบัน: -</p>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>เลือกประเภทยศ *</label>
+          <select id="adminRoleSelect" class="form-control" onchange="handleAdminRoleSelectChange()" required>
+            <option value="ทีมงาน">🛡️ ทีมงาน (Staff / Team Crew)</option>
+            <option value="สมาชิกทั่วไป">👤 สมาชิกทั่วไป (General Member)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>ระบุตำแหน่ง / หน้าที่เจาะจง (แสดงในโปรไฟล์):</label>
+          <input type="text" id="adminRoleCustomInput" class="form-control" placeholder="เช่น 3D Animator (ทีมงาน), ผู้ช่วยงานตัดต่อ">
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('adminRoleModal')">ยกเลิก</button>
+          <button type="submit" class="btn-create-task">💾 บันทึกการปรับยศ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= VOICE CALL MODAL ================= -->
+  <div class="modal-overlay" id="voiceCallModal" style="z-index: 1250;">
+    <div class="modal voice-call-card">
+      <div class="voice-call-avatar-pulse" id="voiceCallAvatarPulse">
+        <div class="voice-call-avatar" id="voiceCallAvatarDisplay">📞</div>
+      </div>
+      <h3 class="voice-call-target-name" id="voiceCallTargetNameDisplay">ห้องแชทรวมทีม</h3>
+      <p class="voice-call-status-text" id="voiceCallStatusText">กำลังเชื่อมต่อสัญญาณเสียง...</p>
+      <div class="voice-call-timer" id="voiceCallTimerDisplay" style="display: none;">00:00</div>
+
+      <div class="voice-call-actions">
+        <button type="button" class="btn-voice-action mute" id="btnVoiceMute" onclick="toggleVoiceMute()" title="ปิด/เปิดไมค์">
+          🎤 ปิดไมค์
+        </button>
+        <button type="button" class="btn-voice-action end" onclick="endVoiceCall()" title="วางสาย">
+          📞 วางสาย
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= LIGHTBOX IMAGE MODAL ================= -->
+  <div class="image-lightbox-modal" id="imageLightboxModal" onclick="closeLightbox()">
+    <img src="" class="image-lightbox-content" id="imageLightboxImg" alt="Full View">
+  </div>
+
   <!-- ================= MODALS ================= -->
 
   <!-- MODAL รายชื่อสมาชิกทีม (TEAM MEMBERS MODAL) -->
   <div class="modal-overlay" id="teamMembersModal">
-    <div class="modal" style="max-width: 440px;">
+    <div class="modal team-members-modal-box">
       <div class="modal-header">
         <h3 style="display: flex; align-items: center; gap: 8px;">👥 รายชื่อสมาชิกในระบบ (<span id="modalOnlineCountText">0 ออนไลน์</span>)</h3>
         <button type="button" class="close-btn" onclick="closeModal('teamMembersModal')">✕</button>
       </div>
-      <div class="dock-members-list" id="membersPresenceList" style="max-height: 60vh;"></div>
+      <div class="dock-members-list" id="membersPresenceList"></div>
     </div>
   </div>
 
@@ -460,7 +574,7 @@
             <div class="avatar-upload-controls">
               <label class="btn-file-upload">
                 📁 เปลี่ยนรูปโปรไฟล์
-                <input type="file" id="editAvatarFileInput" accept="image/*" onchange="handleAvatarFileSelect(event, 'edit')">
+                <input type="file" id="editAvatarFileInput" accept="image/*" onchange="handleAvatarFileSelect(event)">
               </label>
               <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">หรือเลือก Preset:</div>
             </div>
