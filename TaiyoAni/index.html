@@ -156,10 +156,10 @@
         </div>
       </div>
 
-      <!-- ปุ่มแก้ไขโปรไฟล์ และ ปุ่มออกจากระบบที่หน้าโฮม -->
+     <!-- ปุ่มตั้งค่าระบบเสียง และ ปุ่มออกจากระบบที่หน้าโฮม -->
       <div class="home-top-right-actions">
-        <button type="button" class="btn-glass-action-pill" onclick="openEditProfileModal()" title="แก้ไขโปรไฟล์ส่วนตัว">
-          ✏️ แก้ไขโปรไฟล์
+        <button type="button" class="btn-glass-action-pill" onclick="openSettingsModal()" title="ตั้งค่าระบบและอุปกรณ์เสียง">
+          ⚙️ ตั้งค่าระบบเสียง
         </button>
         <button type="button" class="btn-glass-action-pill btn-logout-pill" onclick="handleLogout()" title="ออกจากระบบ / สลับบัญชี">
           🚪 ออกจากระบบ
@@ -579,7 +579,27 @@
     </div>
   </div>
 
-  <!-- ================= VOICE CALL MODAL ================= -->
+ <!-- ================= INCOMING CALL POPUP MODAL ================= -->
+  <div class="modal-overlay" id="incomingCallModal" style="z-index: 1320;">
+    <div class="modal voice-call-card incoming-card">
+      <div class="voice-call-avatar-pulse ringing" id="incomingCallAvatarPulse">
+        <div class="voice-call-avatar" id="incomingCallAvatarDisplay">📞</div>
+      </div>
+      <h3 class="voice-call-target-name" id="incomingCallerNameDisplay">สายเรียกเข้า...</h3>
+      <p class="voice-call-status-text">📞 มีสมาชิกกำลังโทรหาคุณ...</p>
+
+      <div class="voice-call-actions" style="margin-top: 14px;">
+        <button type="button" class="btn-voice-action accept" onclick="acceptIncomingCall()" title="รับสาย">
+          🟢 รับสาย
+        </button>
+        <button type="button" class="btn-voice-action end" onclick="declineIncomingCall()" title="ปฏิเสธสาย">
+          🔴 วางสาย
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= VOICE CALL ACTIVE MODAL ================= -->
   <div class="modal-overlay" id="voiceCallModal" style="z-index: 1250;">
     <div class="modal voice-call-card">
       <div class="voice-call-avatar-pulse" id="voiceCallAvatarPulse">
@@ -593,10 +613,16 @@
         <button type="button" class="btn-voice-action mute" id="btnVoiceMute" onclick="toggleVoiceMute()" title="ปิด/เปิดไมค์">
           🎤 ปิดไมค์
         </button>
+        <button type="button" class="btn-voice-action settings" onclick="openSettingsModal()" title="ตั้งค่าไมโครโฟน/ลำโพง">
+          ⚙️ ตั้งค่า
+        </button>
         <button type="button" class="btn-voice-action end" onclick="endVoiceCall()" title="วางสาย">
-          📞 วางสาย
+          🔴 วางสาย
         </button>
       </div>
+
+      <!-- แท็กสำหรับเล่นเสียง WebRTC จากคู่สนทนา -->
+      <audio id="remoteVoiceAudio" autoplay playsinline></audio>
     </div>
   </div>
 
@@ -1081,5 +1107,66 @@
   </div>
 
   <script type="module" src="app.js"></script>
+  
+<!-- ================= SETTINGS & AUDIO HARDWARE MODAL ================= -->
+  <div class="modal-overlay" id="settingsModal" style="z-index: 1280;">
+    <div class="modal" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">⚙️ ตั้งค่าอุปกรณ์เสียง (Voice & Audio Hardware)</h3>
+        <button type="button" class="close-btn" onclick="closeSettingsModal()">✕</button>
+      </div>
+      
+      <div class="settings-body">
+        <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px;">
+          ระบบจะตรวจจับไมโครโฟนและลำโพงในอุปกรณ์ของคุณอัตโนมัติ เพื่อให้พร้อมสำหรับการโทรคุยด้วยเสียง
+        </p>
+
+        <!-- ตรวจจับและเลือกไมโครโฟน -->
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label style="margin-bottom: 0;">🎙️ อุปกรณ์รับเสียง (Microphone Input):</label>
+            <button type="button" class="btn-sm" style="padding: 2px 8px; font-size: 0.72rem;" onclick="refreshAudioDevices()">🔄 ค้นหาใหม่</button>
+          </div>
+          <select id="settingAudioInputSelect" class="form-control" onchange="handleAudioDeviceChange()"></select>
+        </div>
+
+        <!-- กล่องทดสอบไมค์และหลอดระดับเสียงแบบเรียลไทม์ -->
+        <div class="audio-test-box">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 0.8rem; font-weight: 600; color: #f8fafc;">ระดับเสียงไมโครโฟน (Live Mic Meter):</span>
+            <button type="button" id="btnToggleMicTest" class="btn-sm" onclick="toggleMicTest()">🎙️ เริ่มทดสอบไมค์</button>
+          </div>
+          <div class="audio-meter-track">
+            <div class="audio-meter-fill" id="audioMeterFill"></div>
+          </div>
+          <div id="micTestStatusText" style="font-size: 0.72rem; color: var(--text-muted); margin-top: 6px;">กดเริ่มทดสอบ แล้วลองพูดเพื่อดูการตอบสนองของไมค์</div>
+        </div>
+
+        <!-- ตรวจจับและเลือกลำโพง/หูฟัง -->
+        <div class="form-group" style="margin-top: 14px;">
+          <label>🔊 อุปกรณ์ส่งออกเสียง (Speaker / Output):</label>
+          <select id="settingAudioOutputSelect" class="form-control" onchange="handleAudioDeviceChange()"></select>
+        </div>
+
+        <!-- กล่องทดสอบลำโพง -->
+        <div class="audio-test-box">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="font-size: 0.8rem; font-weight: 600; color: #f8fafc;">ทดสอบเสียงลำโพง (Speaker Test):</div>
+              <div style="font-size: 0.72rem; color: var(--text-muted);">ส่งสัญญาณเสียงทดสอบเพื่อตรวจเช็กความชัดเจน</div>
+            </div>
+            <button type="button" class="btn-sm" onclick="testSpeakerSound()">🔔 เล่นเสียงทดสอบ</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="margin-top: 16px;">
+        <button type="button" class="btn-create-task" onclick="closeSettingsModal()" style="width: 100%; justify-content: center;">
+          💾 บันทึกและเสร็จสิ้น
+        </button>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
