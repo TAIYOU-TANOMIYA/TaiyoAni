@@ -131,7 +131,7 @@ const AudioFX = {
 };
 
 document.addEventListener('click', (e) => {
-  if (e.target.closest('button') || e.target.closest('.avatar-opt') || e.target.closest('.project-item') || e.target.closest('.word-tool-btn') || e.target.closest('.emoji-btn-opt') || e.target.closest('.community-filter-pill')) {
+  if (e.target.closest('button') || e.target.closest('.avatar-opt') || e.target.closest('.project-item') || e.target.closest('.word-tool-btn') || e.target.closest('.emoji-btn-opt') || e.target.closest('.category-select-pill')) {
     AudioFX.click();
   }
 });
@@ -140,10 +140,12 @@ document.addEventListener('click', (e) => {
 const AVATAR_PRESETS = ['👨‍💻', '👩‍💻', '🐱', '🦊', '🚀', '🎨', '🎬', '⚡', '🐉', '✨'];
 const EMOJI_LIST = ['😀', '😂', '😍', '😎', '🥳', '🔥', '🎉', '👍', '❤️', '✨', '🎬', '🎨', '🚀', '💡', '🙌', '💯', '⭐', '☕', '🐱', '🌸', '👏', '💬', '👀', '📌'];
 const MAX_PAGES = 50;
+const STORY_EXPIRATION_HOURS = 24;
 
 let teamUsers = [];
 let projects = [];
 let communityPosts = [];
+let communityStories = [];
 let chatMessages = [];
 let dmChatMessages = [];
 let currentUserId = localStorage.getItem('taiyoani_active_user_id') || null;
@@ -152,10 +154,26 @@ let isMobileSidebarOpen = false;
 let initialChatLoadDone = false;
 let pendingVerificationUser = null;
 
-let activeCommunityFilter = 'all';
-let communitySearchQuery = '';
+// Home Banner States
+let homeBanners = [];
+let currentBannerSlideIndex = 0;
+let bannerAutoSlideTimer = null;
+const BANNER_AUTO_SLIDE_INTERVAL = 6000;
 
-// Discord Chat States
+// Search & Filter States
+let activeCommunityFilter = 'all';
+let modalTempSearchCategory = 'all';
+let communitySearchQuery = '';
+let activeDetailPostId = null;
+
+// Story Player States
+let storyViewerQueue = [];
+let currentStorySlideIndex = 0;
+let storyTimerInterval = null;
+let storyProgressStep = 0;
+const STORY_DURATION_MS = 5000;
+
+// Discord Chat & Voice Call / Voice Room States
 let activeChatMode = 'team'; // 'team' | 'dm' | 'group'
 let activeDmTargetUser = null;
 let activeGroupId = null;
@@ -166,7 +184,7 @@ let groupChatMessages = [];
 let dmUnsubscribe = null;
 let selectedChatImageBase64 = null;
 
-// Voice Call & Hardware States
+// Voice Call 1-on-1 States (สำหรับแชทส่วนตัว DM)
 let isVoiceCallActive = false;
 let isVoiceMuted = false;
 let voiceCallTimerInterval = null;
@@ -177,6 +195,12 @@ let currentPeerConnection = null;
 let localVoiceStream = null;
 let incomingCallData = null;
 
+// Voice Room States (สำหรับแชทกลุ่มส่วนตัว Group Chat)
+let activeVoiceRoomId = null;
+let voiceRoomUnsubscribe = null;
+let isUserInVoiceRoom = false;
+
+// Audio Hardware States
 let isMicTesting = false;
 let micTestStream = null;
 let micTestAudioCtx = null;
@@ -237,7 +261,71 @@ function formatCurrency(amount) {
   return '฿ ' + num.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
-// ================= SECTION VIEW ROUTER WITH ACCESS CONTROL =================
+// ================= SYSTEM & HARDWARE NOTIFICATION MANAGER =================
+async function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission !== 'granted') {
+    try {
+      await Notification.requestPermission();
+    } catch (e) {}
+  }
+}
+
+function triggerHardwareAlert(title, body, iconUrl = './Tanomiya.png', onClickCallback = null) {
+  if ('vibrate' in navigator) {
+    navigator.vibrate([180, 80, 180]);
+  }
+
+  AudioFX.newIncomingMsg();
+
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      const notif = new Notification(title, {
+        body: body,
+        icon: iconUrl,
+        badge: './Tanomiya.png',
+        silent: false
+      });
+      if (onClickCallback) {
+        notif.onclick = () => {
+          window.focus();
+          onClickCallback();
+        };
+      }
+    } catch (e) {}
+  }
+
+  showInAppToast(title, body, iconUrl, onClickCallback);
+}
+
+function showInAppToast(title, body, iconUrl, onClick) {
+  const container = document.getElementById('inAppToastContainer');
+  if (!container) return;
+
+  const toast = document.createElement('div');
+  toast.className = 'in-app-toast';
+  toast.onclick = () => {
+    if (onClick) onClick();
+    toast.remove();
+  };
+
+  toast.innerHTML = `
+    <div class="in-app-toast-avatar">${renderAvatarHtml(iconUrl)}</div>
+    <div class="in-app-toast-content">
+      <div class="in-app-toast-title">${escapeHtml(title)}</div>
+      <div class="in-app-toast-body">${escapeHtml(body)}</div>
+    </div>
+  `;
+
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(-10px)';
+    toast.style.transition = 'all 0.3s ease';
+    setTimeout(() => toast.remove(), 300);
+  }, 4500);
+}
+
+// ================= SECTION VIEW ROUTER =================
 window.switchAppView = function(viewName) {
   AudioFX.click();
   const currentUser = getCurrentUser();
@@ -264,7 +352,10 @@ window.switchAppView = function(viewName) {
     renderChatMessages();
     scrollChatToBottom();
   } else if (viewName === 'community') {
+    renderStoriesTray();
     renderCommunityPosts();
+  } else if (viewName === 'home') {
+    renderHomeBanners();
   }
 };
 
@@ -321,9 +412,523 @@ window.openTeamMembersModal = function() {
   document.getElementById('teamMembersModal').style.display = 'flex';
 };
 
-// ================= COMMUNITY HUB SYSTEM (IG STYLE) =================
-let openCommentPostIds = new Set();
+// ================= HOME BANNER CAROUSEL SYSTEM =================
+window.openAddBannerModal = function() {
+  if (!isAdmin()) {
+    AudioFX.delete();
+    alert('เฉพาะแอดมิน (TaiyoAni) เท่านั้นที่มีสิทธิ์ลงแบนเนอร์');
+    return;
+  }
+  AudioFX.click();
+  document.getElementById('bannerTitleInput').value = '';
+  document.getElementById('bannerSubtitleInput').value = '';
+  document.getElementById('bannerLinkInput').value = '';
+  document.getElementById('bannerFileInput').value = '';
+  document.getElementById('bannerMediaDataInput').value = '';
+  document.getElementById('bannerMediaTypeInput').value = 'image';
+  document.getElementById('bannerMediaPreviewContainer').innerHTML = '<span style="font-size: 0.8rem; color: var(--text-muted);">ตัวอย่างไฟล์สื่อจะแสดงที่นี่</span>';
+  document.getElementById('homeBannerModal').style.display = 'flex';
+};
 
+window.handleBannerMediaSelect = function(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const isVideo = file.type.startsWith('video/');
+  const previewBox = document.getElementById('bannerMediaPreviewContainer');
+
+  if (isVideo) {
+    if (file.size > 750 * 1024) {
+      AudioFX.delete();
+      alert('⚠️ ไฟล์วิดีโอมีขนาดใหญ่เกินไป (จำกัดไม่เกิน 750 KB)\nแนะนำให้บีบอัดไฟล์วิดีโอก่อน หรือใช้ไฟล์ภาพ GIF แทน');
+      event.target.value = '';
+      return;
+    }
+
+    const videoEl = document.createElement('video');
+    videoEl.preload = 'metadata';
+    videoEl.src = URL.createObjectURL(file);
+
+    videoEl.onloadedmetadata = function() {
+      URL.revokeObjectURL(videoEl.src);
+      if (videoEl.duration > 60) {
+        AudioFX.delete();
+        alert('⚠️ วิดีโอมีความยาวเกิน 1 นาที (จำกัดไม่เกิน 60 วินาที)');
+        event.target.value = '';
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const base64 = e.target.result;
+        document.getElementById('bannerMediaDataInput').value = base64;
+        document.getElementById('bannerMediaTypeInput').value = 'video';
+        if (previewBox) {
+          previewBox.innerHTML = `<video src="${base64}" autoplay muted loop playsinline></video>`;
+        }
+      };
+      reader.readAsDataURL(file);
+    };
+  } else {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        const canvas = document.createElement('canvas');
+        const maxDim = 1200;
+        let width = img.width, height = img.height;
+
+        if (width > height && width > maxDim) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else if (height > maxDim) {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const base64 = canvas.toDataURL(file.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.85);
+        document.getElementById('bannerMediaDataInput').value = base64;
+        document.getElementById('bannerMediaTypeInput').value = 'image';
+        if (previewBox) {
+          previewBox.innerHTML = `<img src="${base64}" alt="Banner Preview">`;
+        }
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+};
+
+window.handleSaveHomeBanner = async function(e) {
+  e.preventDefault();
+  if (!isAdmin()) return;
+
+  const title = document.getElementById('bannerTitleInput').value.trim();
+  const subtitle = document.getElementById('bannerSubtitleInput').value.trim();
+  const link = document.getElementById('bannerLinkInput').value.trim();
+  const mediaData = document.getElementById('bannerMediaDataInput').value;
+  const mediaType = document.getElementById('bannerMediaTypeInput').value;
+
+  if (!mediaData) {
+    alert('กรุณาเลือกไฟล์ภาพหรือวิดีโอ');
+    return;
+  }
+
+  const currentUser = getCurrentUser();
+  AudioFX.success();
+
+  try {
+    await addDoc(collection(db, "home_banners"), {
+      title,
+      subtitle,
+      link,
+      mediaData,
+      mediaType,
+      createdBy: currentUser ? currentUser.name : 'TaiyoAni',
+      createdAt: Date.now(),
+      timestamp: serverTimestamp()
+    });
+    closeModal('homeBannerModal');
+  } catch (err) {
+    console.error("Save banner error:", err);
+    AudioFX.delete();
+    alert("เกิดข้อผิดพลาดในการบันทึกแบนเนอร์: ขนาดไฟล์สื่ออาจใหญ่เกินขีดจำกัด");
+  }
+};
+
+window.handleDeleteBanner = async function(bannerId) {
+  if (!isAdmin()) return;
+  if (confirm('คุณต้องการลบแบนเนอร์นี้ใช่หรือไม่?')) {
+    AudioFX.delete();
+    await deleteDoc(doc(db, "home_banners", bannerId));
+  }
+};
+
+function renderHomeBanners() {
+  const track = document.getElementById('homeBannerTrack');
+  const dotsContainer = document.getElementById('bannerDotsContainer');
+  const adminBar = document.getElementById('homeBannerAdminBar');
+  if (!track || !dotsContainer) return;
+
+  if (adminBar) {
+    adminBar.style.display = isAdmin() ? 'flex' : 'none';
+  }
+
+  track.innerHTML = '';
+  dotsContainer.innerHTML = '';
+
+  const bannersToRender = homeBanners.length > 0 ? homeBanners : [{
+    id: 'default-banner',
+    title: '✨ ยินดีต้อนรับสู่ TaiyoAni Hub',
+    subtitle: 'พื้นที่แสดงผลงาน ความคืบหน้าโปรเจกต์ และข่าวสารทางการของทีม',
+    mediaType: 'image',
+    mediaData: './Tanomiya.png',
+    isDefault: true
+  }];
+
+  if (currentBannerSlideIndex >= bannersToRender.length) {
+    currentBannerSlideIndex = 0;
+  }
+
+  bannersToRender.forEach((banner, index) => {
+    const isActive = index === currentBannerSlideIndex;
+    const slide = document.createElement('div');
+    slide.className = `home-banner-slide ${isActive ? 'active' : ''}`;
+
+    let mediaHtml = '';
+    if (banner.mediaType === 'video') {
+      mediaHtml = `<video src="${banner.mediaData}" autoplay muted loop playsinline></video>`;
+    } else {
+      mediaHtml = `<img src="${banner.mediaData}" alt="${escapeHtml(banner.title)}">`;
+    }
+
+    const deleteBtnHtml = (isAdmin() && !banner.isDefault) ? `
+      <button type="button" class="btn-delete-banner-admin" onclick="handleDeleteBanner('${banner.id}')" title="ลบแบนเนอร์">
+        🗑️ ลบแบนเนอร์
+      </button>
+    ` : '';
+
+    const linkBtnHtml = banner.link ? `
+      <a href="${escapeHtml(banner.link)}" target="_blank" rel="noopener noreferrer" class="btn-banner-link">
+        ดูรายละเอียด ↗
+      </a>
+    ` : '';
+
+    slide.innerHTML = `
+      ${deleteBtnHtml}
+      ${mediaHtml}
+      <div class="home-banner-overlay">
+        <div class="banner-info-box">
+          <h3>${escapeHtml(banner.title)}</h3>
+          <p>${escapeHtml(banner.subtitle || '')}</p>
+        </div>
+        ${linkBtnHtml}
+      </div>
+    `;
+    track.appendChild(slide);
+
+    const dot = document.createElement('div');
+    dot.className = `banner-dot ${isActive ? 'active' : ''}`;
+    dot.onclick = () => goToBannerSlide(index);
+    dotsContainer.appendChild(dot);
+  });
+
+  resetBannerAutoSlide(bannersToRender.length);
+}
+
+window.nextBannerSlide = function() {
+  const total = homeBanners.length > 0 ? homeBanners.length : 1;
+  currentBannerSlideIndex = (currentBannerSlideIndex + 1) % total;
+  updateBannerSlidesUI();
+};
+
+window.prevBannerSlide = function() {
+  const total = homeBanners.length > 0 ? homeBanners.length : 1;
+  currentBannerSlideIndex = (currentBannerSlideIndex - 1 + total) % total;
+  updateBannerSlidesUI();
+};
+
+window.goToBannerSlide = function(index) {
+  currentBannerSlideIndex = index;
+  updateBannerSlidesUI();
+};
+
+function updateBannerSlidesUI() {
+  AudioFX.click();
+  const slides = document.querySelectorAll('.home-banner-slide');
+  const dots = document.querySelectorAll('.banner-dot');
+
+  slides.forEach((s, idx) => {
+    s.classList.toggle('active', idx === currentBannerSlideIndex);
+  });
+  dots.forEach((d, idx) => {
+    d.classList.toggle('active', idx === currentBannerSlideIndex);
+  });
+
+  resetBannerAutoSlide(slides.length);
+}
+
+function resetBannerAutoSlide(totalSlides) {
+  if (bannerAutoSlideTimer) clearInterval(bannerAutoSlideTimer);
+  if (totalSlides <= 1) return;
+
+  bannerAutoSlideTimer = setInterval(() => {
+    currentBannerSlideIndex = (currentBannerSlideIndex + 1) % totalSlides;
+    const slides = document.querySelectorAll('.home-banner-slide');
+    const dots = document.querySelectorAll('.banner-dot');
+    slides.forEach((s, idx) => s.classList.toggle('active', idx === currentBannerSlideIndex));
+    dots.forEach((d, idx) => d.classList.toggle('active', idx === currentBannerSlideIndex));
+  }, BANNER_AUTO_SLIDE_INTERVAL);
+}
+
+// ================= UNIFIED SEARCH & FILTER MODAL SYSTEM =================
+window.openCommunitySearchModal = function() {
+  AudioFX.click();
+  const searchInput = document.getElementById('modalSearchInput');
+  if (searchInput) searchInput.value = communitySearchQuery;
+  
+  modalTempSearchCategory = activeCommunityFilter;
+  updateSearchPillsUI();
+  document.getElementById('communitySearchModal').style.display = 'flex';
+};
+
+window.selectSearchCategory = function(cat) {
+  AudioFX.click();
+  modalTempSearchCategory = cat;
+  updateSearchPillsUI();
+};
+
+function updateSearchPillsUI() {
+  document.querySelectorAll('.category-select-pill').forEach(pill => {
+    if (pill.getAttribute('data-cat') === modalTempSearchCategory) {
+      pill.classList.add('active');
+    } else {
+      pill.classList.remove('active');
+    }
+  });
+}
+
+window.handleApplySearchFilter = function() {
+  AudioFX.success();
+  activeCommunityFilter = modalTempSearchCategory;
+  const input = document.getElementById('modalSearchInput');
+  communitySearchQuery = input ? input.value.trim() : '';
+
+  updateFilterActiveIndicator();
+  closeModal('communitySearchModal');
+  renderCommunityPosts();
+};
+
+window.handleResetSearchFilter = function() {
+  AudioFX.delete();
+  activeCommunityFilter = 'all';
+  modalTempSearchCategory = 'all';
+  communitySearchQuery = '';
+  const input = document.getElementById('modalSearchInput');
+  if (input) input.value = '';
+
+  updateSearchPillsUI();
+  updateFilterActiveIndicator();
+  closeModal('communitySearchModal');
+  renderCommunityPosts();
+};
+
+function updateFilterActiveIndicator() {
+  const dot = document.getElementById('filterActiveDot');
+  if (!dot) return;
+  if (activeCommunityFilter !== 'all' || communitySearchQuery !== '') {
+    dot.style.display = 'block';
+  } else {
+    dot.style.display = 'none';
+  }
+}
+
+// ================= 24-HOUR COMMUNITY STORIES SYSTEM =================
+window.openCreateStoryModal = function() {
+  AudioFX.click();
+  document.getElementById('storyTextInput').value = '';
+  document.getElementById('createStoryModal').style.display = 'flex';
+};
+
+window.handleCreateStorySubmit = async function(e) {
+  e.preventDefault();
+  const currentUser = getCurrentUser();
+  if (!currentUser) return;
+
+  const text = document.getElementById('storyTextInput').value.trim();
+  if (!text) return;
+
+  const selectedBg = document.querySelector('input[name="storyBg"]:checked')?.value || 'linear-gradient(135deg, #38bdf8, #818cf8)';
+
+  const newStory = {
+    authorId: currentUser.id,
+    authorName: currentUser.name,
+    authorAvatar: currentUser.avatar,
+    text: text,
+    bg: selectedBg,
+    createdAt: Date.now(),
+    timestamp: serverTimestamp()
+  };
+
+  AudioFX.success();
+  await addDoc(collection(db, "community_stories"), newStory);
+  closeModal('createStoryModal');
+};
+
+function getActiveStories() {
+  const now = Date.now();
+  const lifetimeMs = STORY_EXPIRATION_HOURS * 60 * 60 * 1000;
+  return communityStories.filter(story => {
+    const createdTime = story.createdAt || (story.timestamp?.toDate ? story.timestamp.toDate().getTime() : now);
+    return (now - createdTime) < lifetimeMs;
+  });
+}
+
+function renderStoriesTray() {
+  const feedList = document.getElementById('storiesFeedList');
+  const userStoryAvatar = document.getElementById('currentUserStoryAvatar');
+  const currentUser = getCurrentUser();
+
+  if (userStoryAvatar && currentUser) {
+    userStoryAvatar.innerHTML = renderAvatarHtml(currentUser.avatar);
+  }
+
+  if (!feedList) return;
+  feedList.innerHTML = '';
+
+  const activeStories = getActiveStories();
+  const groupedByUser = {};
+
+  activeStories.forEach(s => {
+    if (!groupedByUser[s.authorId]) {
+      groupedByUser[s.authorId] = [];
+    }
+    groupedByUser[s.authorId].push(s);
+  });
+
+  const userIds = Object.keys(groupedByUser);
+
+  if (userIds.length === 0) {
+    feedList.innerHTML = '<div style="font-size:0.75rem; color:var(--text-muted); padding-left: 6px; white-space:nowrap;">ยังไม่มีสตอรี่ใน 24 ชม. นี้</div>';
+    return;
+  }
+
+  userIds.forEach(uid => {
+    const userStories = groupedByUser[uid];
+    const latestStory = userStories[userStories.length - 1];
+    
+    const item = document.createElement('div');
+    item.className = 'story-item';
+    item.onclick = () => openStoryViewer(uid);
+    item.innerHTML = `
+      <div class="story-avatar-ring">
+        <div class="story-avatar-inner">
+          ${renderAvatarHtml(latestStory.authorAvatar)}
+        </div>
+      </div>
+      <span class="story-username">${escapeHtml(latestStory.authorName)}</span>
+    `;
+    feedList.appendChild(item);
+  });
+}
+
+window.openStoryViewer = function(authorId) {
+  const activeStories = getActiveStories();
+  storyViewerQueue = activeStories.filter(s => s.authorId === authorId);
+  if (storyViewerQueue.length === 0) return;
+
+  currentStorySlideIndex = 0;
+  AudioFX.click();
+  document.getElementById('storyViewerModal').style.display = 'flex';
+  showCurrentStorySlide();
+};
+
+function showCurrentStorySlide() {
+  if (storyTimerInterval) clearInterval(storyTimerInterval);
+
+  const story = storyViewerQueue[currentStorySlideIndex];
+  if (!story) {
+    closeStoryViewer();
+    return;
+  }
+
+  const card = document.getElementById('storyViewerCard');
+  const avatar = document.getElementById('storyViewerAvatar');
+  const authorName = document.getElementById('storyViewerAuthorName');
+  const timeAgo = document.getElementById('storyViewerTimeAgo');
+  const textDisplay = document.getElementById('storyViewerTextDisplay');
+  const delBtn = document.getElementById('btnDeleteCurrentStory');
+  const fill = document.getElementById('storyProgressBarFill');
+
+  if (card) card.style.background = story.bg || 'linear-gradient(135deg, #38bdf8, #818cf8)';
+  if (avatar) avatar.innerHTML = renderAvatarHtml(story.authorAvatar);
+  if (authorName) authorName.innerText = story.authorName;
+  if (textDisplay) textDisplay.innerText = story.text;
+
+  const now = Date.now();
+  const createdTime = story.createdAt || (story.timestamp?.toDate ? story.timestamp.toDate().getTime() : now);
+  const diffHours = Math.max(0, Math.floor((now - createdTime) / (1000 * 60 * 60)));
+  const diffMins = Math.max(0, Math.floor((now - createdTime) / (1000 * 60)));
+
+  if (timeAgo) {
+    if (diffMins < 1) timeAgo.innerText = 'เมื่อสักครู่';
+    else if (diffMins < 60) timeAgo.innerText = `${diffMins} นาทีที่แล้ว`;
+    else timeAgo.innerText = `${diffHours} ชม. ที่แล้ว`;
+  }
+
+  const currentUser = getCurrentUser();
+  const canDelete = currentUser && (isAdmin(currentUser) || currentUser.id === story.authorId);
+  if (delBtn) delBtn.style.display = canDelete ? 'flex' : 'none';
+
+  storyProgressStep = 0;
+  if (fill) fill.style.width = '0%';
+
+  const intervalStep = 50;
+  const totalSteps = STORY_DURATION_MS / intervalStep;
+
+  storyTimerInterval = setInterval(() => {
+    storyProgressStep++;
+    const percent = (storyProgressStep / totalSteps) * 100;
+    if (fill) fill.style.width = `${percent}%`;
+
+    if (storyProgressStep >= totalSteps) {
+      clearInterval(storyTimerInterval);
+      nextStorySlide();
+    }
+  }, intervalStep);
+}
+
+window.nextStorySlide = function() {
+  if (currentStorySlideIndex < storyViewerQueue.length - 1) {
+    currentStorySlideIndex++;
+    showCurrentStorySlide();
+  } else {
+    closeStoryViewer();
+  }
+};
+
+window.prevStorySlide = function() {
+  if (currentStorySlideIndex > 0) {
+    currentStorySlideIndex--;
+    showCurrentStorySlide();
+  }
+};
+
+window.closeStoryViewer = function() {
+  if (storyTimerInterval) clearInterval(storyTimerInterval);
+  const modal = document.getElementById('storyViewerModal');
+  if (modal) modal.style.display = 'none';
+};
+
+window.handleStoryViewerBgClick = function(event) {
+  if (event.target.id === 'storyViewerModal') {
+    closeStoryViewer();
+  }
+};
+
+window.handleDeleteCurrentStory = async function() {
+  const story = storyViewerQueue[currentStorySlideIndex];
+  if (!story) return;
+
+  const currentUser = getCurrentUser();
+  if (!currentUser || (!isAdmin(currentUser) && currentUser.id !== story.authorId)) {
+    alert('คุณไม่มีสิทธิ์ลบสตอรี่นี้');
+    return;
+  }
+
+  if (confirm('คุณต้องการลบสตอรี่นี้ใช่หรือไม่?')) {
+    AudioFX.delete();
+    await deleteDoc(doc(db, "community_stories", story.id));
+    closeStoryViewer();
+  }
+};
+
+// ================= COMMUNITY POSTS HUB SYSTEM =================
 window.openCommunityPostModal = function() {
   AudioFX.click();
   document.getElementById('communityCategorySelect').value = 'idea';
@@ -373,21 +978,6 @@ window.handleCreateCommunityPost = async function(e) {
   closeModal('communityPostModal');
 };
 
-window.filterCommunity = function(category) {
-  AudioFX.click();
-  activeCommunityFilter = category;
-  document.querySelectorAll('.community-filter-pill').forEach(btn => btn.classList.remove('active'));
-  
-  const pills = document.querySelectorAll('.community-filter-pill');
-  pills.forEach(pill => {
-    if (pill.getAttribute('onclick')?.includes(`'${category}'`)) {
-      pill.classList.add('active');
-    }
-  });
-
-  renderCommunityPosts();
-};
-
 window.handleLikeCommunityPost = async function(postId) {
   const currentUser = getCurrentUser();
   if (!currentUser) return;
@@ -429,33 +1019,127 @@ window.deleteCommunityPost = async function(postId) {
   if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบกระทู้นี้?')) {
     AudioFX.delete();
     await deleteDoc(doc(db, "community_posts", postId));
+    if (activeDetailPostId === postId) {
+      closeModal('communityDetailModal');
+    }
   }
 };
 
-window.togglePostComments = function(postId) {
+window.openCommunityPostDetail = function(postId) {
+  const post = communityPosts.find(p => p.id === postId);
+  if (!post) return;
+
+  activeDetailPostId = postId;
   AudioFX.click();
-  if (openCommentPostIds.has(postId)) {
-    openCommentPostIds.delete(postId);
-  } else {
-    openCommentPostIds.add(postId);
-  }
-  renderCommunityPosts();
+  renderCommunityDetailModal();
+  document.getElementById('communityDetailModal').style.display = 'flex';
 };
 
-window.handleAddComment = async function(postId, event) {
+function renderCommunityDetailModal() {
+  const post = communityPosts.find(p => p.id === activeDetailPostId);
+  const container = document.getElementById('communityDetailBody');
+  const catBox = document.getElementById('detailModalCategoryBox');
+  if (!post || !container) return;
+
+  const currentUser = getCurrentUser();
+  const likedBy = Array.isArray(post.likedBy) ? post.likedBy : [];
+  const isLiked = currentUser && likedBy.includes(currentUser.id);
+  const isAuthor = currentUser && post.authorId === currentUser.id;
+  const isPostAdmin = post.authorRole === 'แอดมิน' || (post.authorName && post.authorName.toLowerCase() === 'taiyoani');
+  const canDelete = isAdmin(currentUser) || isAuthor;
+  const commentsList = Array.isArray(post.comments) ? post.comments : [];
+
+  const categoryMap = {
+    idea: { text: '💡 Idea', class: 'tag-idea' },
+    discussion: { text: '💬 Chat', class: 'tag-discussion' },
+    art: { text: '🎨 Art', class: 'tag-art' },
+    qa: { text: '❓ Q&A', class: 'tag-qa' }
+  };
+  const catInfo = categoryMap[post.category] || categoryMap.idea;
+
+  if (catBox) {
+    catBox.innerHTML = `<span class="post-category-tag ${catInfo.class}">${catInfo.text}</span>`;
+  }
+
+  container.innerHTML = `
+    <div class="ig-post-header">
+      <div class="ig-author-wrapper">
+        <div class="ig-avatar-ring clickable-profile" onclick="closeModal('communityDetailModal'); openUserProfile('${post.authorId}')">
+          <div class="ig-avatar-inner">
+            ${renderAvatarHtml(post.authorAvatar)}
+          </div>
+        </div>
+        <div class="ig-author-meta">
+          <div class="ig-author-name clickable-profile" onclick="closeModal('communityDetailModal'); openUserProfile('${post.authorId}')">
+            ${escapeHtml(post.authorName)} ${isPostAdmin ? '👑' : ''}
+          </div>
+          <span class="ig-post-time">${escapeHtml(post.time || '')}</span>
+        </div>
+      </div>
+      ${canDelete ? `
+        <button type="button" class="btn-delete-comment" onclick="deleteCommunityPost('${post.id}')" title="ลบโพสต์" style="font-size: 0.85rem;">ลบโพสต์</button>
+      ` : ''}
+    </div>
+
+    <div class="ig-post-body">
+      <h2 style="font-size: 1.25rem; font-weight: 700; color: #fff;">${escapeHtml(post.title)}</h2>
+      <p style="font-size: 0.92rem; color: #cbd5e1; line-height: 1.6; white-space: pre-wrap; margin-top: 6px;">${escapeHtml(post.content)}</p>
+      <div class="ig-tags-container" style="margin-top: 8px;">
+        ${(post.tags || []).map(t => `<span class="ig-tag-chip">${escapeHtml(t)}</span>`).join('')}
+      </div>
+    </div>
+
+    <div class="ig-action-bar">
+      <div class="ig-action-left">
+        <button type="button" class="ig-btn-icon ${isLiked ? 'is-liked' : ''}" onclick="handleLikeCommunityPost('${post.id}')">
+          <span>${isLiked ? '❤️' : '🤍'}</span>
+        </button>
+        <span class="ig-likes-text">ถูกใจ ${post.likes || 0} คน</span>
+      </div>
+      <span style="font-size: 0.8rem; color: var(--text-muted);">ทั้งหมด ${commentsList.length} ความคิดเห็น</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <h4 style="font-size: 0.88rem; color: #94a3b8;">ความคิดเห็นทั้งหมด:</h4>
+      ${commentsList.length === 0 ? `
+        <div style="font-size: 0.82rem; color: var(--text-muted); text-align: center; padding: 14px;">ยังไม่มีความคิดเห็นในโพสต์นี้</div>
+      ` : commentsList.map(c => {
+          const isMine = currentUser && c.authorId === currentUser.id;
+          const canDel = isAdmin(currentUser) || isMine;
+          return `
+            <div class="ig-comment-row">
+              <div class="ig-comment-avatar clickable-profile" onclick="closeModal('communityDetailModal'); openUserProfile('${c.authorId}')">
+                ${renderAvatarHtml(c.authorAvatar)}
+              </div>
+              <div class="ig-comment-content">
+                <div>
+                  <span class="ig-comment-user clickable-profile" onclick="closeModal('communityDetailModal'); openUserProfile('${c.authorId}')">
+                    ${escapeHtml(c.authorName)}${c.authorRole === 'แอดมิน' ? ' 👑' : ''}
+                  </span>
+                  <span class="ig-comment-text">${escapeHtml(c.text)}</span>
+                </div>
+                <div class="ig-comment-footer">
+                  <span>${escapeHtml(c.time || '')}</span>
+                  ${canDel ? `<button type="button" class="btn-delete-comment" onclick="handleDeleteComment('${post.id}', '${c.id}')">ลบ</button>` : ''}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+    </div>
+  `;
+}
+
+window.handleModalAddComment = async function(event) {
   event.preventDefault();
   const currentUser = getCurrentUser();
-  if (!currentUser) {
-    alert('กรุณาเข้าสู่ระบบก่อนแสดงความคิดเห็น');
-    return;
-  }
+  if (!currentUser || !activeDetailPostId) return;
 
-  const inputEl = document.getElementById(`igCommentInput-${postId}`);
-  if (!inputEl) return;
+  const inputEl = document.getElementById('detailModalCommentInput');
   const text = inputEl.value.trim();
   if (!text) return;
 
-  const post = communityPosts.find(p => p.id === postId);
+  const post = communityPosts.find(p => p.id === activeDetailPostId);
   if (!post) return;
 
   const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -474,9 +1158,8 @@ window.handleAddComment = async function(postId, event) {
 
   AudioFX.sendChat();
   inputEl.value = '';
-  openCommentPostIds.add(postId);
 
-  await updateDoc(doc(db, "community_posts", postId), {
+  await updateDoc(doc(db, "community_posts", activeDetailPostId), {
     comments: currentComments
   });
 };
@@ -531,8 +1214,8 @@ function renderCommunityPosts() {
     feed.innerHTML = `
       <div style="text-align: center; padding: 46px 16px; color: var(--text-muted);">
         <div style="font-size: 2.8rem; margin-bottom: 8px;">💡</div>
-        <h4 style="color: #ffffff; font-size: 1.05rem;">ยังไม่มีกระทู้ในหมวดนี้</h4>
-        <p style="font-size: 0.82rem; margin-top: 4px;">คลิกปุ่ม "✨ ตั้งกระทู้ / เสนอไอเดีย" ด้านบนเพื่อเริ่มแลกเปลี่ยนความคิดเห็น!</p>
+        <h4 style="color: #ffffff; font-size: 1.05rem;">ยังไม่มีกระทู้ตามเงื่อนไขที่ค้นหา</h4>
+        <p style="font-size: 0.82rem; margin-top: 4px;">ลองเปลี่ยนคำค้นหา หรือคลิกปุ่ม "✨ ตั้งกระทู้" ด้านบนเพื่อเริ่มแลกเปลี่ยนไอเดีย!</p>
       </div>
     `;
     return;
@@ -553,7 +1236,9 @@ function renderCommunityPosts() {
     const isPostAdmin = post.authorRole === 'แอดมิน' || (post.authorName && post.authorName.toLowerCase() === 'taiyoani');
     const canDelete = isAdmin(currentUser) || isAuthor;
     const commentsList = Array.isArray(post.comments) ? post.comments : [];
-    const isCommentOpen = openCommentPostIds.has(post.id);
+    
+    const previewComments = commentsList.slice(0, 3);
+    const hasMoreComments = commentsList.length > 3;
 
     const card = document.createElement('div');
     card.className = 'community-post-card';
@@ -582,7 +1267,7 @@ function renderCommunityPosts() {
       </div>
 
       <div class="ig-post-body">
-        <h3 class="ig-post-title">${escapeHtml(post.title)}</h3>
+        <h3 class="ig-post-title clickable-title" onclick="openCommunityPostDetail('${post.id}')" title="คลิกเพื่อดูรายละเอียดโพสต์แบบเต็ม">${escapeHtml(post.title)}</h3>
         <p class="ig-post-caption">${escapeHtml(post.content)}</p>
         <div class="ig-tags-container">
           ${(post.tags || []).map(t => `<span class="ig-tag-chip">${escapeHtml(t)}</span>`).join('')}
@@ -594,7 +1279,7 @@ function renderCommunityPosts() {
           <button type="button" class="ig-btn-icon ${isLiked ? 'is-liked' : ''}" onclick="handleLikeCommunityPost('${post.id}')" title="ถูกใจ">
             <span>${isLiked ? '❤️' : '🤍'}</span>
           </button>
-          <button type="button" class="ig-btn-icon" onclick="togglePostComments('${post.id}')" title="ความคิดเห็น">
+          <button type="button" class="ig-btn-icon" onclick="openCommunityPostDetail('${post.id}')" title="ดูรายละเอียดและแสดงความคิดเห็น">
             <span>💬</span>
           </button>
           ${!isAuthor ? `
@@ -608,47 +1293,27 @@ function renderCommunityPosts() {
         </div>
       </div>
 
-      ${isCommentOpen ? `
-        <div class="ig-comments-drawer">
-          <div class="ig-comments-list">
-            ${commentsList.length === 0 ? `
-              <div style="font-size: 0.76rem; color: var(--text-muted); text-align: center; padding: 6px;">
-                ยังไม่มีความคิดเห็น มาร่วมแสดงความคิดเห็นคนแรกเลย!
-              </div>
-            ` : commentsList.map(c => {
-                const isMine = currentUser && c.authorId === currentUser.id;
-                const canDel = isAdmin(currentUser) || isMine;
-                return `
-                  <div class="ig-comment-row">
-                    <div class="ig-comment-avatar clickable-profile" onclick="openUserProfile('${c.authorId}')">
-                      ${renderAvatarHtml(c.authorAvatar)}
-                    </div>
-                    <div class="ig-comment-content">
-                      <div>
-                        <span class="ig-comment-user clickable-profile" onclick="openUserProfile('${c.authorId}')">
-                          ${escapeHtml(c.authorName)}${c.authorRole === 'แอดมิน' ? ' 👑' : ''}
-                        </span>
-                        <span class="ig-comment-text">${escapeHtml(c.text)}</span>
-                      </div>
-                      <div class="ig-comment-footer">
-                        <span>${escapeHtml(c.time || '')}</span>
-                        ${canDel ? `<button type="button" class="btn-delete-comment" onclick="handleDeleteComment('${post.id}', '${c.id}')">ลบ</button>` : ''}
-                      </div>
-                    </div>
-                  </div>
-                `;
-              }).join('')}
-          </div>
-
-          <form class="ig-comment-input-bar" onsubmit="handleAddComment('${post.id}', event)">
-            <input type="text" id="igCommentInput-${post.id}" class="ig-comment-input" placeholder="เพิ่มความคิดเห็นในชื่อ ${escapeHtml(currentUser ? currentUser.name : 'คุณ')}..." autocomplete="off" required>
-            <button type="submit" class="btn-ig-submit-comment">โพสต์</button>
-          </form>
+      ${commentsList.length > 0 ? `
+        <div class="ig-comment-preview-box">
+          ${previewComments.map(c => `
+            <div class="ig-preview-comment-item">
+              <span class="ig-preview-user" onclick="openUserProfile('${c.authorId}')">${escapeHtml(c.authorName)}:</span>
+              <span class="ig-preview-text">${escapeHtml(c.text)}</span>
+            </div>
+          `).join('')}
+          
+          <button type="button" class="btn-view-all-comments" onclick="openCommunityPostDetail('${post.id}')">
+            ${hasMoreComments ? `💬 ดูความคิดเห็นทั้งหมด (${commentsList.length} ข้อความ) ❯` : `🔍 ดูรายละเอียดโพสต์แบบเต็ม ❯`}
+          </button>
         </div>
       ` : ''}
     `;
     feed.appendChild(card);
   });
+
+  if (activeDetailPostId) {
+    renderCommunityDetailModal();
+  }
 }
 
 // ================= DISCORD-STYLE CHANNELS & GROUPS =================
@@ -721,31 +1386,53 @@ window.switchChatChannel = function(mode, targetId = null) {
   highlightActiveChannelItem();
 };
 
+function getVoiceRoomId() {
+  // สร้าง Voice Room ID เฉพาะเมื่ออยู่ในแชทกลุ่มเท่านั้น
+  if (activeChatMode === 'group' && activeGroupId) {
+    return 'group_' + activeGroupId;
+  }
+  return null;
+}
+
 function updateDiscordChatHeader(mode, titleName = '') {
   const prefixEl = document.getElementById('discordHeaderPrefix');
   const titleEl = document.getElementById('discordChatHeaderTitle');
   const descEl = document.getElementById('discordChatHeaderDesc');
-  const callBtn = document.getElementById('btnVoiceCall');
+  const voiceRoomBtn = document.getElementById('btnToggleVoiceRoom');
+  const voiceCallBtn = document.getElementById('btnVoiceCall');
+  const deleteGroupBtn = document.getElementById('btnDeleteCurrentGroup');
   const clearBtn = document.getElementById('btnClearChat');
+  const currentUser = getCurrentUser();
+
+  const roomId = getVoiceRoomId();
+  listenVoiceRoomParticipants(roomId);
 
   if (mode === 'team') {
     if (prefixEl) prefixEl.innerText = '#';
     if (titleEl) titleEl.innerText = 'ห้องแชทรวมทีม (Main Chat)';
     if (descEl) descEl.innerText = 'พื้นที่พูดคุยรวมทุกคนในทีม (ไม่รองรับการโทร)';
-    if (callBtn) callBtn.style.display = 'none';
+    if (voiceRoomBtn) voiceRoomBtn.style.display = 'none';
+    if (voiceCallBtn) voiceCallBtn.style.display = 'none';
+    if (deleteGroupBtn) deleteGroupBtn.style.display = 'none';
     if (clearBtn) clearBtn.style.display = isAdmin() ? 'inline-flex' : 'none';
   } else if (mode === 'dm') {
     if (prefixEl) prefixEl.innerText = '@';
     if (titleEl) titleEl.innerText = titleName;
-    if (descEl) descEl.innerText = 'แชทส่วนตัว 1-on-1 (รองรับการโทรเสียง)';
-    if (callBtn) callBtn.style.display = 'inline-flex';
+    if (descEl) descEl.innerText = 'แชทส่วนตัว 1-on-1 (รองรับการโทรเสียงแบบตัวต่อตัว)';
+    if (voiceCallBtn) voiceCallBtn.style.display = 'inline-flex'; // แสดงปุ่มโทรเสียงแบบ 1-on-1
+    if (voiceRoomBtn) voiceRoomBtn.style.display = 'none'; // ซ่อนปุ่มห้องเสียง
+    if (deleteGroupBtn) deleteGroupBtn.style.display = 'none';
     if (clearBtn) clearBtn.style.display = 'none';
   } else if (mode === 'group') {
     if (prefixEl) prefixEl.innerText = '👥';
     if (titleEl) titleEl.innerText = titleName;
-    if (descEl) descEl.innerText = 'กลุ่มแชทส่วนตัว (รองรับการโทรเสียงประจำกลุ่ม)';
-    if (callBtn) callBtn.style.display = 'inline-flex';
+    if (descEl) descEl.innerText = 'กลุ่มแชทส่วนตัว (มีช่องสนทนาเสียงประจำกลุ่ม)';
+    if (voiceRoomBtn) voiceRoomBtn.style.display = 'inline-flex'; // แสดงปุ่มเข้าร่วมห้องเสียง
+    if (voiceCallBtn) voiceCallBtn.style.display = 'none'; // ซ่อนปุ่มโทร
     if (clearBtn) clearBtn.style.display = 'none';
+
+    const canDeleteGroup = activeGroupData && currentUser && (isAdmin(currentUser) || activeGroupData.createdById === currentUser.id);
+    if (deleteGroupBtn) deleteGroupBtn.style.display = canDeleteGroup ? 'inline-flex' : 'none';
   }
 }
 
@@ -866,123 +1553,34 @@ window.handleCreateGroupChat = async function(e) {
   switchChatChannel('group', newGroupDoc.id);
 };
 
-// ================= MESSAGE SEND & RENDER =================
-window.handleSendChatMessage = async function(e) {
-  e.preventDefault();
-  const input = document.getElementById('chatTextInput');
-  const text = input.value.trim();
-  const imageBase64ToSend = selectedChatImageBase64;
-
-  if (!text && !imageBase64ToSend) return;
-
+window.handleDeleteCurrentGroup = async function() {
   const currentUser = getCurrentUser();
-  if (!currentUser) return;
+  if (!activeGroupData || !currentUser) return;
 
-  AudioFX.sendChat();
-  input.value = '';
-  removeChatImageAttachment();
-
-  const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-  const payload = {
-    senderId: currentUser.id,
-    senderName: currentUser.name,
-    senderAvatar: currentUser.avatar,
-    text: text,
-    image: imageBase64ToSend || null,
-    time: nowStr,
-    timestamp: serverTimestamp()
-  };
-
-  if (activeChatMode === 'team') {
-    await addDoc(collection(db, "chats"), payload);
-  } else if (activeChatMode === 'dm' && activeDmTargetUser) {
-    const roomId = [currentUser.id, activeDmTargetUser.id].sort().join('_');
-    await addDoc(collection(db, "direct_chats", roomId, "messages"), {
-      ...payload,
-      receiverId: activeDmTargetUser.id
-    });
-  } else if (activeChatMode === 'group' && activeGroupId) {
-    await addDoc(collection(db, "group_chats", activeGroupId, "messages"), payload);
-  }
-};
-
-window.handleClearChat = async function() {
-  if (!isAdmin()) {
+  const isCreator = activeGroupData.createdById === currentUser.id;
+  if (!isAdmin(currentUser) && !isCreator) {
     AudioFX.delete();
-    alert('เฉพาะแอดมิน (TaiyoAni) เท่านั้นที่มีสิทธิ์ล้างประวัติแชท');
+    alert("เฉพาะผู้สร้างกลุ่มนี้ หรือแอดมินเท่านั้นที่มีสิทธิ์ลบกลุ่ม");
     return;
   }
 
-  if (confirm('คุณแน่ใจหรือไม่ว่าต้องการล้างประวัติแชทห้องทีมทั้งหมด?')) {
+  if (confirm(`คุณต้องการลบกลุ่ม "${activeGroupData.name}" และข้อความทั้งหมดใช่หรือไม่?`)) {
     AudioFX.delete();
-    const snap = await getDocs(collection(db, "chats"));
-    snap.forEach(async (d) => await deleteDoc(doc(db, "chats", d.id)));
+    const gId = activeGroupData.id;
+    
+    const msgsSnap = await getDocs(collection(db, "group_chats", gId, "messages"));
+    msgsSnap.forEach(async (d) => await deleteDoc(doc(db, "group_chats", gId, "messages", d.id)));
+
+    if (activeVoiceRoomId) await leaveVoiceRoom();
+
+    await deleteDoc(doc(db, "group_chats", gId));
+    
+    switchChatChannel('team');
+    alert("ลบกลุ่มแชทเรียบร้อยแล้ว");
   }
 };
 
-function renderChatMessages() {
-  const body = document.getElementById('chatMessagesBody');
-  const mainCounter = document.getElementById('mainChatBadgeCounter');
-  const dockCounter = document.getElementById('chatBadgeCounter');
-  if (mainCounter) mainCounter.innerText = chatMessages.length;
-  if (dockCounter) dockCounter.innerText = chatMessages.length;
-  if (!body) return;
-
-  body.innerHTML = '';
-  const currentUser = getCurrentUser();
-  
-  let msgsToRender = chatMessages;
-  if (activeChatMode === 'dm') msgsToRender = dmChatMessages;
-  if (activeChatMode === 'group') msgsToRender = groupChatMessages;
-
-  if (msgsToRender.length === 0) {
-    let emptyNotice = '💬 ยังไม่มีข้อความในห้องแชทหลัก';
-    if (activeChatMode === 'dm') emptyNotice = `🔒 ยังไม่มีข้อความคุยกับ ${activeDmTargetUser?.name || 'สมาชิก'} เริ่มทักทายได้เลย!`;
-    if (activeChatMode === 'group') emptyNotice = `👥 ยังไม่มีข้อความในกลุ่ม ${activeGroupData?.name || ''} เริ่มเปิดบทสนทนาเลย!`;
-    body.innerHTML = `<div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 40px;">${emptyNotice}</div>`;
-    return;
-  }
-
-  msgsToRender.forEach(msg => {
-    const isMine = currentUser && msg.senderId === currentUser.id;
-    const row = document.createElement('div');
-    row.className = `chat-message-row ${isMine ? 'is-mine' : ''}`;
-
-    let imageAttachmentHtml = '';
-    if (msg.image) {
-      imageAttachmentHtml = `
-        <div class="chat-attached-image-box" onclick="openLightboxImage('${msg.image}')" title="คลิกเพื่อดูรูปภาพขนาดเต็ม">
-          <img src="${msg.image}" alt="รูปภาพแนบ">
-        </div>
-      `;
-    }
-
-    row.innerHTML = `
-      <div class="chat-msg-avatar clickable-profile" onclick="openUserProfile('${msg.senderId}')" title="คลิกเพื่อดูโปรไฟล์">${renderAvatarHtml(msg.senderAvatar)}</div>
-      <div class="chat-msg-content">
-        <div class="chat-msg-author clickable-profile" onclick="openUserProfile('${msg.senderId}')">${escapeHtml(msg.senderName)}</div>
-        <div class="chat-msg-bubble">
-          ${msg.text ? `<div>${escapeHtml(msg.text)}</div>` : ''}
-          ${imageAttachmentHtml}
-        </div>
-        <div class="chat-msg-time">${escapeHtml(msg.time || '')}</div>
-      </div>
-    `;
-    body.appendChild(row);
-  });
-}
-
-function scrollChatToBottom() {
-  const body = document.getElementById('chatMessagesBody');
-  if (body) {
-    setTimeout(() => { 
-      body.scrollTop = body.scrollHeight; 
-    }, 60);
-  }
-}
-
-// ================= REAL-TIME WEBRTC VOICE CALL SYSTEM =================
+// ================= 1-ON-1 VOICE CALL SYSTEM (เฉพาะแชทส่วนตัว DM) =================
 function startIncomingCallListener() {
   if (!currentUserId) return;
   
@@ -1064,24 +1662,14 @@ window.startVoiceCall = async function() {
   const currentUser = getCurrentUser();
   if (!currentUser) return;
 
-  if (activeChatMode === 'team') {
-    alert('ห้องแชทรวมหลักไม่รองรับการโทรเสียง กรุณาสร้างกลุ่มหรือทักแชทส่วนตัวเพื่อโทรคุย');
+  if (activeChatMode !== 'dm' || !activeDmTargetUser) {
+    alert('การโทรด้วยเสียงใช้ได้เฉพาะในแชทส่วนตัวแบบ 1-on-1 เท่านั้น');
     return;
   }
 
-  let callTargetName = '';
-  let callAvatar = '';
-  let callReceiverId = '';
-
-  if (activeChatMode === 'dm' && activeDmTargetUser) {
-    callTargetName = activeDmTargetUser.name;
-    callAvatar = activeDmTargetUser.avatar;
-    callReceiverId = activeDmTargetUser.id;
-  } else if (activeChatMode === 'group' && activeGroupData) {
-    callTargetName = `กลุ่ม: ${activeGroupData.name}`;
-    callAvatar = '👥';
-    callReceiverId = activeGroupData.id;
-  }
+  const callTargetName = activeDmTargetUser.name;
+  const callAvatar = activeDmTargetUser.avatar;
+  const callReceiverId = activeDmTargetUser.id;
 
   openVoiceCallUI(callTargetName, callAvatar);
 
@@ -1091,7 +1679,7 @@ window.startVoiceCall = async function() {
     callerAvatar: currentUser.avatar,
     receiverId: callReceiverId,
     receiverName: callTargetName,
-    isGroupCall: (activeChatMode === 'group'),
+    isGroupCall: false,
     status: 'ringing',
     timestamp: serverTimestamp()
   });
@@ -1275,6 +1863,233 @@ window.toggleVoiceMute = function() {
     btn.innerText = isVoiceMuted ? '🔇 เปิดไมค์' : '🎤 ปิดไมค์';
   }
 };
+
+// ================= VOICE ROOM LOGIC (เฉพาะแชทกลุ่มส่วนตัว Group Chat) =================
+window.toggleVoiceRoom = async function() {
+  AudioFX.click();
+  const currentUser = getCurrentUser();
+  const roomId = getVoiceRoomId();
+  if (!currentUser || !roomId) return;
+
+  if (isUserInVoiceRoom) {
+    await leaveVoiceRoom();
+  } else {
+    await joinVoiceRoom(roomId, currentUser);
+  }
+};
+
+async function joinVoiceRoom(roomId, user) {
+  try {
+    localVoiceStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    isUserInVoiceRoom = true;
+    activeVoiceRoomId = roomId;
+
+    await setDoc(doc(db, "voice_rooms", roomId, "participants", user.id), {
+      userId: user.id,
+      name: user.name,
+      avatar: user.avatar,
+      joinedAt: serverTimestamp()
+    });
+
+    updateVoiceRoomButtonUI(true);
+    triggerHardwareAlert("🔊 เข้าร่วมห้องเสียงแล้ว", `คุณกำลังอยู่ในช่องสนทนาเสียงของกลุ่ม`, user.avatar);
+  } catch (err) {
+    alert("ไม่สามารถเข้าถึงไมโครโฟนได้ กรุณาอนุญาตการใช้งานไมค์");
+  }
+}
+
+async function leaveVoiceRoom() {
+  const currentUser = getCurrentUser();
+  if (activeVoiceRoomId && currentUser) {
+    try {
+      await deleteDoc(doc(db, "voice_rooms", activeVoiceRoomId, "participants", currentUser.id));
+    } catch (e) {}
+  }
+
+  if (localVoiceStream) {
+    localVoiceStream.getTracks().forEach(t => t.stop());
+    localVoiceStream = null;
+  }
+
+  isUserInVoiceRoom = false;
+  activeVoiceRoomId = null;
+  updateVoiceRoomButtonUI(false);
+}
+
+function updateVoiceRoomButtonUI(inRoom) {
+  const btn = document.getElementById('btnToggleVoiceRoom');
+  const icon = document.getElementById('voiceRoomBtnIcon');
+  const text = document.getElementById('voiceRoomBtnText');
+  if (!btn) return;
+
+  btn.classList.toggle('in-room', inRoom);
+  if (icon) icon.innerText = inRoom ? '🔴' : '🎧';
+  if (text) text.innerText = inRoom ? 'ออกจากห้องเสียง' : 'เข้าร่วมเสียง';
+}
+
+function listenVoiceRoomParticipants(roomId) {
+  if (voiceRoomUnsubscribe) {
+    voiceRoomUnsubscribe();
+    voiceRoomUnsubscribe = null;
+  }
+
+  const bar = document.getElementById('voiceRoomParticipantsBar');
+  if (!bar) return;
+  bar.innerHTML = '';
+
+  if (!roomId) {
+    bar.style.display = 'none';
+    return;
+  }
+  bar.style.display = 'flex';
+
+  voiceRoomUnsubscribe = onSnapshot(collection(db, "voice_rooms", roomId, "participants"), (snap) => {
+    bar.innerHTML = '';
+    snap.forEach((d) => {
+      const p = d.data();
+      const chip = document.createElement('div');
+      chip.className = 'voice-participant-chip';
+      chip.title = `${p.name} (กำลังอยู่ในห้องเสียง)`;
+      chip.innerHTML = renderAvatarHtml(p.avatar);
+      bar.appendChild(chip);
+    });
+  });
+}
+
+// ================= MESSAGE SEND & UNSEND =================
+window.handleSendChatMessage = async function(e) {
+  e.preventDefault();
+  const input = document.getElementById('chatTextInput');
+  const text = input.value.trim();
+  const imageBase64ToSend = selectedChatImageBase64;
+
+  if (!text && !imageBase64ToSend) return;
+
+  const currentUser = getCurrentUser();
+  if (!currentUser) return;
+
+  AudioFX.sendChat();
+  input.value = '';
+  removeChatImageAttachment();
+
+  const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const payload = {
+    senderId: currentUser.id,
+    senderName: currentUser.name,
+    senderAvatar: currentUser.avatar,
+    text: text,
+    image: imageBase64ToSend || null,
+    time: nowStr,
+    timestamp: serverTimestamp()
+  };
+
+  if (activeChatMode === 'team') {
+    await addDoc(collection(db, "chats"), payload);
+  } else if (activeChatMode === 'dm' && activeDmTargetUser) {
+    const roomId = [currentUser.id, activeDmTargetUser.id].sort().join('_');
+    await addDoc(collection(db, "direct_chats", roomId, "messages"), {
+      ...payload,
+      receiverId: activeDmTargetUser.id
+    });
+  } else if (activeChatMode === 'group' && activeGroupId) {
+    await addDoc(collection(db, "group_chats", activeGroupId, "messages"), payload);
+  }
+};
+
+window.handleUnsendMessage = async function(messageId) {
+  const currentUser = getCurrentUser();
+  if (!currentUser || !messageId) return;
+
+  if (confirm("คุณต้องการยกเลิกข้อความนี้ใช่หรือไม่?")) {
+    AudioFX.delete();
+    if (activeChatMode === 'team') {
+      await deleteDoc(doc(db, "chats", messageId));
+    } else if (activeChatMode === 'dm' && activeDmTargetUser) {
+      const roomId = [currentUser.id, activeDmTargetUser.id].sort().join('_');
+      await deleteDoc(doc(db, "direct_chats", roomId, "messages", messageId));
+    } else if (activeChatMode === 'group' && activeGroupId) {
+      await deleteDoc(doc(db, "group_chats", activeGroupId, "messages", messageId));
+    }
+  }
+};
+
+window.handleClearChat = async function() {
+  if (!isAdmin()) {
+    AudioFX.delete();
+    alert('เฉพาะแอดมิน (TaiyoAni) เท่านั้นที่มีสิทธิ์ล้างประวัติแชท');
+    return;
+  }
+
+  if (confirm('คุณแน่ใจหรือไม่ว่าต้องการล้างประวัติแชทห้องทีมทั้งหมด?')) {
+    AudioFX.delete();
+    const snap = await getDocs(collection(db, "chats"));
+    snap.forEach(async (d) => await deleteDoc(doc(db, "chats", d.id)));
+  }
+};
+
+function renderChatMessages() {
+  const body = document.getElementById('chatMessagesBody');
+  const mainCounter = document.getElementById('mainChatBadgeCounter');
+  const dockCounter = document.getElementById('chatBadgeCounter');
+  if (mainCounter) mainCounter.innerText = chatMessages.length;
+  if (dockCounter) dockCounter.innerText = chatMessages.length;
+  if (!body) return;
+
+  body.innerHTML = '';
+  const currentUser = getCurrentUser();
+  
+  let msgsToRender = chatMessages;
+  if (activeChatMode === 'dm') msgsToRender = dmChatMessages;
+  if (activeChatMode === 'group') msgsToRender = groupChatMessages;
+
+  if (msgsToRender.length === 0) {
+    let emptyNotice = '💬 ยังไม่มีข้อความในห้องนี้';
+    body.innerHTML = `<div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 40px;">${emptyNotice}</div>`;
+    return;
+  }
+
+  msgsToRender.forEach(msg => {
+    const isMine = currentUser && msg.senderId === currentUser.id;
+    const canUnsend = isMine || isAdmin(currentUser);
+    const row = document.createElement('div');
+    row.className = `chat-message-row ${isMine ? 'is-mine' : ''}`;
+
+    let imageAttachmentHtml = '';
+    if (msg.image) {
+      imageAttachmentHtml = `
+        <div class="chat-attached-image-box" onclick="openLightboxImage('${msg.image}')" title="คลิกเพื่อดูรูปภาพ">
+          <img src="${msg.image}" alt="รูปภาพแนบ">
+        </div>
+      `;
+    }
+
+    row.innerHTML = `
+      <div class="chat-msg-avatar clickable-profile" onclick="openUserProfile('${msg.senderId}')" title="ดูโปรไฟล์">${renderAvatarHtml(msg.senderAvatar)}</div>
+      <div class="chat-msg-content">
+        <div class="chat-msg-author clickable-profile" onclick="openUserProfile('${msg.senderId}')">${escapeHtml(msg.senderName)}</div>
+        <div class="chat-msg-bubble">
+          ${msg.text ? `<div>${escapeHtml(msg.text)}</div>` : ''}
+          ${imageAttachmentHtml}
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span class="chat-msg-time">${escapeHtml(msg.time || '')}</span>
+          ${canUnsend ? `<button type="button" class="btn-unsend-msg" onclick="handleUnsendMessage('${msg.id}')" title="ยกเลิกข้อความนี้">ยกเลิกข้อความ</button>` : ''}
+        </div>
+      </div>
+    `;
+    body.appendChild(row);
+  });
+}
+
+function scrollChatToBottom() {
+  const body = document.getElementById('chatMessagesBody');
+  if (body) {
+    setTimeout(() => { 
+      body.scrollTop = body.scrollHeight; 
+    }, 60);
+  }
+}
 
 // ================= AUDIO HARDWARE & SETTINGS =================
 window.openSettingsModal = async function() {
@@ -1816,6 +2631,7 @@ function startRealtimeSync() {
     updateCurrentUserDisplay();
     renderMembersPresenceList();
     renderDiscordSidebarChannels();
+    renderHomeBanners();
   });
 
   onSnapshot(collection(db, "group_chats"), (snapshot) => {
@@ -1853,7 +2669,10 @@ function startRealtimeSync() {
     if (initialChatLoadDone && activeChatMode === 'team' && newChats.length > chatMessages.length) {
       const lastMsg = newChats[newChats.length - 1];
       if (lastMsg && lastMsg.senderId !== currentUserId) {
-        AudioFX.newIncomingMsg();
+        triggerHardwareAlert(`💬 ${lastMsg.senderName} (ห้องรวม)`, lastMsg.text || '📷 ส่งรูปภาพ', lastMsg.senderAvatar, () => {
+          window.switchAppView('chat');
+          window.switchChatChannel('team');
+        });
       }
     }
     initialChatLoadDone = true;
@@ -1869,6 +2688,20 @@ function startRealtimeSync() {
     communityPosts = [];
     snapshot.forEach(doc => communityPosts.push({ id: doc.id, ...doc.data() }));
     renderCommunityPosts();
+  });
+
+  const storiesQuery = query(collection(db, "community_stories"), orderBy("timestamp", "asc"));
+  onSnapshot(storiesQuery, (snapshot) => {
+    communityStories = [];
+    snapshot.forEach(doc => communityStories.push({ id: doc.id, ...doc.data() }));
+    renderStoriesTray();
+  });
+
+  const bannersQuery = query(collection(db, "home_banners"), orderBy("createdAt", "desc"));
+  onSnapshot(bannersQuery, (snapshot) => {
+    homeBanners = [];
+    snapshot.forEach(doc => homeBanners.push({ id: doc.id, ...doc.data() }));
+    renderHomeBanners();
   });
 }
 
@@ -2246,14 +3079,6 @@ function initAuth() {
   renderChatEmojiPicker();
   startRealtimeSync();
   startIncomingCallListener();
-  
-  const searchInput = document.getElementById('communitySearchInput');
-  if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
-      communitySearchQuery = e.target.value;
-      renderCommunityPosts();
-    });
-  }
 
   if (currentUserId) {
     document.getElementById('authGate').style.display = 'none';
@@ -2878,7 +3703,7 @@ window.handleEditProfileSubmit = async function(e) {
   }
 };
 
-// ================= WORKSPACE ACTIONS (PROJECT & TASKS) =================
+// ================= WORKSPACE ACTIONS =================
 window.openAddProjectModal = function() {
   document.getElementById('projTitleInput').value = '';
   document.getElementById('projDescInput').value = '';
@@ -3174,6 +3999,11 @@ function updateCurrentUserDisplay() {
     if (editRevenueBtn) {
       editRevenueBtn.style.display = userIsAdmin ? 'inline-flex' : 'none';
     }
+
+    const bannerAdminBar = document.getElementById('homeBannerAdminBar');
+    if (bannerAdminBar) {
+      bannerAdminBar.style.display = userIsAdmin ? 'flex' : 'none';
+    }
   }
 }
 
@@ -3383,5 +4213,7 @@ function escapeHtml(text) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
+
+document.addEventListener('click', () => { requestNotificationPermission(); }, { once: true });
 
 initAuth();
