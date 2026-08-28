@@ -406,6 +406,82 @@ window.deleteCommunityPost = async function(postId) {
   }
 };
 
+// ================= COMMUNITY POSTS & COMMENTS (IG STYLE) =================
+let openCommentPostIds = new Set();
+
+window.togglePostComments = function(postId) {
+  AudioFX.click();
+  if (openCommentPostIds.has(postId)) {
+    openCommentPostIds.delete(postId);
+  } else {
+    openCommentPostIds.add(postId);
+  }
+  renderCommunityPosts();
+};
+
+window.handleAddComment = async function(postId, event) {
+  event.preventDefault();
+  const currentUser = getCurrentUser();
+  if (!currentUser) {
+    alert('กรุณาเข้าสู่ระบบก่อนแสดงความคิดเห็น');
+    return;
+  }
+
+  const inputEl = document.getElementById(`igCommentInput-${postId}`);
+  if (!inputEl) return;
+  const text = inputEl.value.trim();
+  if (!text) return;
+
+  const post = communityPosts.find(p => p.id === postId);
+  if (!post) return;
+
+  const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const newComment = {
+    id: 'cm-' + Date.now(),
+    text: text,
+    authorId: currentUser.id,
+    authorName: currentUser.name,
+    authorAvatar: currentUser.avatar,
+    authorRole: isAdmin(currentUser) ? 'แอดมิน' : (currentUser.role || 'สมาชิกทั่วไป'),
+    time: nowStr
+  };
+
+  const currentComments = Array.isArray(post.comments) ? [...post.comments] : [];
+  currentComments.push(newComment);
+
+  AudioFX.sendChat();
+  inputEl.value = '';
+  openCommentPostIds.add(postId);
+
+  await updateDoc(doc(db, "community_posts", postId), {
+    comments: currentComments
+  });
+};
+
+window.handleDeleteComment = async function(postId, commentId) {
+  const post = communityPosts.find(p => p.id === postId);
+  if (!post || !Array.isArray(post.comments)) return;
+
+  const comment = post.comments.find(c => c.id === commentId);
+  if (!comment) return;
+
+  const currentUser = getCurrentUser();
+  const isCommentAuthor = currentUser && comment.authorId === currentUser.id;
+  if (!isAdmin(currentUser) && !isCommentAuthor) {
+    AudioFX.delete();
+    alert('คุณไม่มีสิทธิ์ลบคอมเมนต์นี้');
+    return;
+  }
+
+  if (confirm('คุณต้องการลบคอมเมนต์นี้ใช่หรือไม่?')) {
+    AudioFX.delete();
+    const updatedComments = post.comments.filter(c => c.id !== commentId);
+    await updateDoc(doc(db, "community_posts", postId), {
+      comments: updatedComments
+    });
+  }
+};
+
 function renderCommunityPosts() {
   const feed = document.getElementById('communityPostsFeed');
   if (!feed) return;
@@ -440,61 +516,117 @@ function renderCommunityPosts() {
   }
 
   const categoryMap = {
-    idea: { text: '💡 Idea', class: 'tag-idea', label: 'ไอเดียใหม่' },
-    discussion: { text: '💬 Chat', class: 'tag-discussion', label: 'พูดคุยทั่วไป' },
-    art: { text: '🎨 Art', class: 'tag-art', label: 'อาร์ต & สไตล์' },
-    qa: { text: '❓ Q&A', class: 'tag-qa', label: 'สอบถาม / เสนอแนะ' }
+    idea: { text: '💡 Idea', class: 'tag-idea' },
+    discussion: { text: '💬 Chat', class: 'tag-discussion' },
+    art: { text: '🎨 Art', class: 'tag-art' },
+    qa: { text: '❓ Q&A', class: 'tag-qa' }
   };
 
   filtered.forEach(post => {
     const catInfo = categoryMap[post.category] || categoryMap.idea;
     const likedBy = Array.isArray(post.likedBy) ? post.likedBy : [];
-    const isVoted = currentUser && likedBy.includes(currentUser.id);
+    const isLiked = currentUser && likedBy.includes(currentUser.id);
     const isAuthor = currentUser && post.authorId === currentUser.id;
     const isPostAdmin = post.authorRole === 'แอดมิน' || (post.authorName && post.authorName.toLowerCase() === 'taiyoani');
     const canDelete = isAdmin(currentUser) || isAuthor;
+    const commentsList = Array.isArray(post.comments) ? post.comments : [];
+    const isCommentOpen = openCommentPostIds.has(post.id);
 
     const card = document.createElement('div');
     card.className = 'community-post-card';
     card.innerHTML = `
-      <div class="post-card-header">
-        <div class="post-author-wrapper">
-          <div class="post-author-avatar clickable-profile" onclick="openUserProfile('${post.authorId}')" title="คลิกดูโปรไฟล์">
-            ${renderAvatarHtml(post.authorAvatar)}
+      <!-- 1. Header: Avatar with Story Ring + Username + Tag -->
+      <div class="ig-post-header">
+        <div class="ig-author-wrapper">
+          <div class="ig-avatar-ring clickable-profile" onclick="openUserProfile('${post.authorId}')" title="ดูโปรไฟล์">
+            <div class="ig-avatar-inner">
+              ${renderAvatarHtml(post.authorAvatar)}
+            </div>
           </div>
-          <div class="post-author-info">
-            <div class="post-author-name clickable-profile" onclick="openUserProfile('${post.authorId}')">
+          <div class="ig-author-meta">
+            <div class="ig-author-name clickable-profile" onclick="openUserProfile('${post.authorId}')">
               ${escapeHtml(post.authorName)} ${isPostAdmin ? '👑' : ''}
             </div>
-            <div class="post-time-meta">${escapeHtml(post.time || '')} • ${catInfo.label}</div>
+            <span class="ig-post-time">${escapeHtml(post.time || '')}</span>
           </div>
         </div>
+
         <div style="display: flex; align-items: center; gap: 6px;">
           <span class="post-category-tag ${catInfo.class}">${catInfo.text}</span>
           ${canDelete ? `
-            <button type="button" class="btn-sm delete" style="padding: 3px 6px; font-size: 0.72rem;" onclick="deleteCommunityPost('${post.id}')" title="ลบโพสต์">🗑️</button>
+            <button type="button" class="btn-delete-comment" onclick="deleteCommunityPost('${post.id}')" title="ลบโพสต์" style="font-size: 0.9rem; padding: 2px 4px;">✕</button>
           ` : ''}
         </div>
       </div>
 
-      <h3 class="post-title">${escapeHtml(post.title)}</h3>
-      <p class="post-description">${escapeHtml(post.content)}</p>
+      <!-- 2. Post Body: Title & Caption -->
+      <div class="ig-post-body">
+        <h3 class="ig-post-title">${escapeHtml(post.title)}</h3>
+        <p class="ig-post-caption">${escapeHtml(post.content)}</p>
+        <div class="ig-tags-container">
+          ${(post.tags || []).map(t => `<span class="ig-tag-chip">${escapeHtml(t)}</span>`).join('')}
+        </div>
+      </div>
 
-      <div class="post-card-footer">
-        <div class="post-actions-group">
-          <button type="button" class="btn-post-action ${isVoted ? 'is-voted' : ''}" onclick="handleLikeCommunityPost('${post.id}')" title="กดถูกใจไอเดีย">
-            <span>🔥</span> <span class="action-count">${post.likes || 0}</span>
+      <!-- 3. Action Bar: Like, Comment, DM -->
+      <div class="ig-action-bar">
+        <div class="ig-action-left">
+          <button type="button" class="ig-btn-icon ${isLiked ? 'is-liked' : ''}" onclick="handleLikeCommunityPost('${post.id}')" title="ถูกใจ">
+            <span>${isLiked ? '❤️' : '🤍'}</span>
+          </button>
+          <button type="button" class="ig-btn-icon" onclick="togglePostComments('${post.id}')" title="ความคิดเห็น">
+            <span>💬</span>
           </button>
           ${!isAuthor ? `
-            <button type="button" class="btn-post-action" onclick="startDirectChat('${post.authorId}')" title="ทักข้อความส่วนตัวหา ${escapeHtml(post.authorName)}">
-              <span>💬</span> <span>ทักแชท</span>
+            <button type="button" class="ig-btn-icon" onclick="startDirectChat('${post.authorId}')" title="ส่งข้อความส่วนตัว (DM)">
+              <span>✈️</span>
             </button>
           ` : ''}
         </div>
-        <div class="post-chips-group">
-          ${(post.tags || []).map(tag => `<span class="post-chip">${escapeHtml(tag)}</span>`).join('')}
+        <div class="ig-likes-text">
+          ถูกใจ ${post.likes || 0} คน
         </div>
       </div>
+
+      <!-- 4. Comments Accordion Drawer -->
+      ${isCommentOpen ? `
+        <div class="ig-comments-drawer">
+          <div class="ig-comments-list">
+            ${commentsList.length === 0 ? `
+              <div style="font-size: 0.76rem; color: var(--text-muted); text-align: center; padding: 6px;">
+                ยังไม่มีความคิดเห็น มาร่วมแสดงความคิดเห็นคนแรกเลย!
+              </div>
+            ` : commentsList.map(c => {
+                const isMine = currentUser && c.authorId === currentUser.id;
+                const canDel = isAdmin(currentUser) || isMine;
+                return `
+                  <div class="ig-comment-row">
+                    <div class="ig-comment-avatar clickable-profile" onclick="openUserProfile('${c.authorId}')">
+                      ${renderAvatarHtml(c.authorAvatar)}
+                    </div>
+                    <div class="ig-comment-content">
+                      <div>
+                        <span class="ig-comment-user clickable-profile" onclick="openUserProfile('${c.authorId}')">
+                          ${escapeHtml(c.authorName)}${c.authorRole === 'แอดมิน' ? ' 👑' : ''}
+                        </span>
+                        <span class="ig-comment-text">${escapeHtml(c.text)}</span>
+                      </div>
+                      <div class="ig-comment-footer">
+                        <span>${escapeHtml(c.time || '')}</span>
+                        ${canDel ? `<button type="button" class="btn-delete-comment" onclick="handleDeleteComment('${post.id}', '${c.id}')">ลบ</button>` : ''}
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+          </div>
+
+          <form class="ig-comment-input-bar" onsubmit="handleAddComment('${post.id}', event)">
+            <input type="text" id="igCommentInput-${post.id}" class="ig-comment-input" placeholder="เพิ่มความคิดเห็นในชื่อ ${escapeHtml(currentUser ? currentUser.name : 'คุณ')}..." autocomplete="off" required>
+            <button type="submit" class="btn-ig-submit-comment">โพสต์</button>
+          </form>
+        </div>
+      ` : ''}
     `;
     feed.appendChild(card);
   });
@@ -510,101 +642,490 @@ window.handleChatHeaderBack = function() {
   }
 };
 
-function updateChatHeaderUI() {
-  const backIcon = document.getElementById('chatBackIcon');
-  const backText = document.getElementById('chatBackText');
-  const titleText = document.getElementById('chatHeaderTitleText');
-  const liveDot = document.getElementById('chatHeaderLiveDot');
-  const clearBtn = document.getElementById('btnClearChat');
+// ================= REAL-TIME WEBRTC VOICE CALL & HARDWARE SYSTEM =================
+let activeCallDocId = null;
+let currentPeerConnection = null;
+let localVoiceStream = null;
+let incomingCallData = null;
 
-  if (activeChatMode === 'dm' && activeDmTargetUser) {
-    if (backIcon) backIcon.innerText = '⬅️';
-    if (backText) backText.innerText = 'กลับห้องรวม';
-    if (titleText) titleText.innerText = `🔒 ${activeDmTargetUser.name}`;
-    if (liveDot) liveDot.style.background = '#38bdf8';
-    if (clearBtn) clearBtn.style.display = 'none';
-  } else {
-    if (backIcon) backIcon.innerText = '👥';
-    if (backText) backText.innerText = 'สลับห้อง/สมาชิก';
-    if (titleText) titleText.innerText = '💬 ห้องแชทรวมทีม';
-    if (liveDot) liveDot.style.background = '#10b981';
-    if (clearBtn) clearBtn.style.display = isAdmin() ? 'inline-flex' : 'none';
+let isMicTesting = false;
+let micTestStream = null;
+let micTestAudioCtx = null;
+let micTestAnalyser = null;
+let micTestAnimId = null;
+
+const RTC_CONFIG = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
+  ]
+};
+
+// 1. ระบบดักฟังสัญญาณสายเรียกเข้าแบบ Realtime
+function startIncomingCallListener() {
+  if (!currentUserId) return;
+  
+  const callsQuery = query(collection(db, "voice_calls"));
+  onSnapshot(callsQuery, (snapshot) => {
+    snapshot.docChanges().forEach((change) => {
+      const call = { id: change.doc.id, ...change.doc.data() };
+      
+      // มีสายโทรเข้ามาหาเรา
+      if (call.receiverId === currentUserId && call.status === 'ringing') {
+        if (!isVoiceCallActive && !incomingCallData) {
+          showIncomingCallPopup(call);
+        }
+      }
+
+      // สายปัจจุบันถูกวาง หรือปลายทางรับสาย
+      if (activeCallDocId && call.id === activeCallDocId) {
+        if (call.status === 'ended') {
+          handleRemoteHangup();
+        } else if (call.status === 'connected' && !isVoiceCallActive) {
+          onCallConnectedUI();
+        }
+      }
+    });
+  });
+}
+
+// 2. แสดงป๊อปอัพสายเรียกเข้า
+function showIncomingCallPopup(call) {
+  incomingCallData = call;
+  const modal = document.getElementById('incomingCallModal');
+  const nameEl = document.getElementById('incomingCallerNameDisplay');
+  const avatarEl = document.getElementById('incomingCallAvatarDisplay');
+
+  if (nameEl) nameEl.innerText = `${call.callerName} กำลังโทรหาคุณ...`;
+  if (avatarEl) avatarEl.innerHTML = renderAvatarHtml(call.callerAvatar);
+
+  if (modal) modal.style.display = 'flex';
+
+  AudioFX.ringtone();
+  if (callRingtoneInterval) clearInterval(callRingtoneInterval);
+  callRingtoneInterval = setInterval(() => {
+    if (incomingCallData) AudioFX.ringtone();
+  }, 2400);
+}
+
+// 3. กดรับสาย (Receiver)
+window.acceptIncomingCall = async function() {
+  if (!incomingCallData) return;
+  AudioFX.click();
+  if (callRingtoneInterval) clearInterval(callRingtoneInterval);
+
+  const modal = document.getElementById('incomingCallModal');
+  if (modal) modal.style.display = 'none';
+
+  activeCallDocId = incomingCallData.id;
+  const callDocRef = doc(db, "voice_calls", activeCallDocId);
+
+  await updateDoc(callDocRef, { status: 'connected' });
+
+  openVoiceCallUI(incomingCallData.callerName, incomingCallData.callerAvatar);
+  await setupWebRTCPeer(false, callDocRef);
+  incomingCallData = null;
+};
+
+// 4. กดปฏิเสธสาย / วางสายเรียกเข้า
+window.declineIncomingCall = async function() {
+  AudioFX.delete();
+  if (callRingtoneInterval) clearInterval(callRingtoneInterval);
+
+  const modal = document.getElementById('incomingCallModal');
+  if (modal) modal.style.display = 'none';
+
+  if (incomingCallData) {
+    try {
+      await updateDoc(doc(db, "voice_calls", incomingCallData.id), { status: 'ended' });
+    } catch (e) {}
+    incomingCallData = null;
+  }
+};
+
+// 5. กดเริ่มโทรเสียงจากหน้าแชท (Caller)
+window.startVoiceCall = async function() {
+  AudioFX.click();
+  const currentUser = getCurrentUser();
+  if (!currentUser) return;
+
+  let targetUser = activeDmTargetUser;
+  if (!targetUser) {
+    alert('กรุณาเลือกทักแชท (DM) กับสมาชิกที่ต้องการโทรหาโดยตรง');
+    window.openTeamMembersModal();
+    return;
+  }
+
+  if (targetUser.id === currentUser.id) {
+    alert('ไม่สามารถโทรหาตนเองได้');
+    return;
+  }
+
+  openVoiceCallUI(targetUser.name, targetUser.avatar);
+
+  const callDocRef = await addDoc(collection(db, "voice_calls"), {
+    callerId: currentUser.id,
+    callerName: currentUser.name,
+    callerAvatar: currentUser.avatar,
+    receiverId: targetUser.id,
+    receiverName: targetUser.name,
+    status: 'ringing',
+    timestamp: serverTimestamp()
+  });
+
+  activeCallDocId = callDocRef.id;
+
+  AudioFX.ringtone();
+  if (callRingtoneInterval) clearInterval(callRingtoneInterval);
+  callRingtoneInterval = setInterval(() => {
+    if (isVoiceCallActive && voiceCallSeconds === 0) AudioFX.ringtone();
+  }, 2400);
+
+  await setupWebRTCPeer(true, callDocRef);
+};
+
+// 6. เชื่อมต่อ WebRTC และส่งผ่านเสียงไมโครโฟน
+async function setupWebRTCPeer(isCaller, callDocRef) {
+  try {
+    currentPeerConnection = new RTCPeerConnection(RTC_CONFIG);
+
+    const selectedMicId = localStorage.getItem('taiyoani_audio_input_id') || '';
+    const audioConstraints = selectedMicId ? { deviceId: { exact: selectedMicId } } : true;
+    localVoiceStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false });
+
+    localVoiceStream.getTracks().forEach(track => {
+      currentPeerConnection.addTrack(track, localVoiceStream);
+    });
+
+    currentPeerConnection.ontrack = (event) => {
+      const remoteAudio = document.getElementById('remoteVoiceAudio');
+      if (remoteAudio && event.streams[0]) {
+        remoteAudio.srcObject = event.streams[0];
+        const selectedSpeakerId = localStorage.getItem('taiyoani_audio_output_id');
+        if (selectedSpeakerId && typeof remoteAudio.setSinkId === 'function') {
+          remoteAudio.setSinkId(selectedSpeakerId).catch(() => {});
+        }
+      }
+    };
+
+    const candidatesCol = collection(callDocRef, isCaller ? "callerCandidates" : "calleeCandidates");
+    currentPeerConnection.onicecandidate = (event) => {
+      if (event.candidate) {
+        addDoc(candidatesCol, event.candidate.toJSON());
+      }
+    };
+
+    if (isCaller) {
+      const offer = await currentPeerConnection.createOffer();
+      await currentPeerConnection.setLocalDescription(offer);
+      await updateDoc(callDocRef, { offer: { type: offer.type, sdp: offer.sdp } });
+
+      onSnapshot(callDocRef, async (snapshot) => {
+        const data = snapshot.data();
+        if (data && data.answer && !currentPeerConnection.currentRemoteDescription) {
+          const answerDesc = new RTCSessionDescription(data.answer);
+          await currentPeerConnection.setRemoteDescription(answerDesc);
+          onCallConnectedUI();
+        }
+      });
+
+      onSnapshot(collection(callDocRef, "calleeCandidates"), (snap) => {
+        snap.docChanges().forEach(async (change) => {
+          if (change.type === 'added') {
+            await currentPeerConnection.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+          }
+        });
+      });
+    } else {
+      const callData = (await getDocs(query(collection(db, "voice_calls")))).docs.find(d => d.id === callDocRef.id)?.data();
+      if (callData && callData.offer) {
+        await currentPeerConnection.setRemoteDescription(new RTCSessionDescription(callData.offer));
+        const answer = await currentPeerConnection.createAnswer();
+        await currentPeerConnection.setLocalDescription(answer);
+        await updateDoc(callDocRef, { answer: { type: answer.type, sdp: answer.sdp } });
+        onCallConnectedUI();
+      }
+
+      onSnapshot(collection(callDocRef, "callerCandidates"), (snap) => {
+        snap.docChanges().forEach(async (change) => {
+          if (change.type === 'added') {
+            await currentPeerConnection.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+          }
+        });
+      });
+    }
+  } catch (err) {
+    console.error("WebRTC Error:", err);
+    alert("ไม่สามารถเข้าถึงไมโครโฟนได้ กรุณาตรวจสอบการอนุญาตใช้งานไมค์");
+    endVoiceCall();
   }
 }
 
-// ================= VOICE CALL SYSTEM =================
-window.startVoiceCall = function() {
-  AudioFX.click();
+function openVoiceCallUI(targetName, avatarData) {
+  isVoiceCallActive = true;
+  isVoiceMuted = false;
+  voiceCallSeconds = 0;
+
   const modal = document.getElementById('voiceCallModal');
   const targetNameEl = document.getElementById('voiceCallTargetNameDisplay');
   const avatarEl = document.getElementById('voiceCallAvatarDisplay');
   const statusEl = document.getElementById('voiceCallStatusText');
   const timerEl = document.getElementById('voiceCallTimerDisplay');
 
-  isVoiceCallActive = true;
-  isVoiceMuted = false;
-  voiceCallSeconds = 0;
-
-  const targetName = (activeChatMode === 'dm' && activeDmTargetUser) ? activeDmTargetUser.name : 'ห้องแชทรวมทีม (TaiyoAni Hub)';
   if (targetNameEl) targetNameEl.innerText = targetName;
   if (statusEl) statusEl.innerText = 'กำลังส่งสัญญาณเรียกสาย...';
+  if (avatarEl) avatarEl.innerHTML = renderAvatarHtml(avatarData);
   if (timerEl) {
     timerEl.style.display = 'none';
     timerEl.innerText = '00:00';
   }
 
-  if (activeChatMode === 'dm' && activeDmTargetUser) {
-    avatarEl.innerHTML = renderAvatarHtml(activeDmTargetUser.avatar);
-  } else {
-    avatarEl.innerText = '👥';
-  }
+  if (modal) modal.style.display = 'flex';
+}
 
-  modal.style.display = 'flex';
-
-  AudioFX.ringtone();
+function onCallConnectedUI() {
   if (callRingtoneInterval) clearInterval(callRingtoneInterval);
-  callRingtoneInterval = setInterval(() => {
-    if (isVoiceCallActive && voiceCallSeconds === 0) {
-      AudioFX.ringtone();
-    }
-  }, 2200);
+  AudioFX.success();
 
-  setTimeout(() => {
-    if (!isVoiceCallActive) return;
-    if (callRingtoneInterval) clearInterval(callRingtoneInterval);
+  const statusEl = document.getElementById('voiceCallStatusText');
+  const timerEl = document.getElementById('voiceCallTimerDisplay');
+  if (statusEl) statusEl.innerText = '🟢 กำลังสนทนาเสียง (Connected)';
+  if (timerEl) timerEl.style.display = 'block';
 
-    AudioFX.success();
-    if (statusEl) statusEl.innerText = '🟢 กำลังสนทนาเสียง (Connected)';
-    if (timerEl) timerEl.style.display = 'block';
+  if (voiceCallTimerInterval) clearInterval(voiceCallTimerInterval);
+  voiceCallTimerInterval = setInterval(() => {
+    voiceCallSeconds++;
+    const mins = String(Math.floor(voiceCallSeconds / 60)).padStart(2, '0');
+    const secs = String(voiceCallSeconds % 60).padStart(2, '0');
+    if (timerEl) timerEl.innerText = `${mins}:${secs}`;
+  }, 1000);
+}
 
-    if (voiceCallTimerInterval) clearInterval(voiceCallTimerInterval);
-    voiceCallTimerInterval = setInterval(() => {
-      voiceCallSeconds++;
-      const mins = String(Math.floor(voiceCallSeconds / 60)).padStart(2, '0');
-      const secs = String(voiceCallSeconds % 60).padStart(2, '0');
-      if (timerEl) timerEl.innerText = `${mins}:${secs}`;
-    }, 1000);
-  }, 2800);
+function handleRemoteHangup() {
+  AudioFX.delete();
+  cleanupCallResources();
+  alert('คู่สนทนาวางสายแล้ว');
+}
+
+window.endVoiceCall = async function() {
+  AudioFX.delete();
+  if (activeCallDocId) {
+    try {
+      await updateDoc(doc(db, "voice_calls", activeCallDocId), { status: 'ended' });
+    } catch (e) {}
+  }
+  cleanupCallResources();
 };
 
-window.endVoiceCall = function() {
-  AudioFX.delete();
+function cleanupCallResources() {
   isVoiceCallActive = false;
+  activeCallDocId = null;
   if (callRingtoneInterval) clearInterval(callRingtoneInterval);
   if (voiceCallTimerInterval) clearInterval(voiceCallTimerInterval);
-  
+
+  if (localVoiceStream) {
+    localVoiceStream.getTracks().forEach(t => t.stop());
+    localVoiceStream = null;
+  }
+  if (currentPeerConnection) {
+    currentPeerConnection.close();
+    currentPeerConnection = null;
+  }
+
+  const remoteAudio = document.getElementById('remoteVoiceAudio');
+  if (remoteAudio) remoteAudio.srcObject = null;
+
   const modal = document.getElementById('voiceCallModal');
   if (modal) modal.style.display = 'none';
-};
+}
 
 window.toggleVoiceMute = function() {
   AudioFX.click();
   isVoiceMuted = !isVoiceMuted;
+  if (localVoiceStream) {
+    localVoiceStream.getAudioTracks().forEach(track => {
+      track.enabled = !isVoiceMuted;
+    });
+  }
   const btn = document.getElementById('btnVoiceMute');
   if (btn) {
     btn.classList.toggle('active', isVoiceMuted);
     btn.innerText = isVoiceMuted ? '🔇 เปิดไมค์' : '🎤 ปิดไมค์';
   }
+};
+
+// ================= AUDIO HARDWARE & SETTINGS SYSTEM =================
+window.openSettingsModal = async function() {
+  AudioFX.click();
+  document.getElementById('settingsModal').style.display = 'flex';
+  await refreshAudioDevices();
+};
+
+window.closeSettingsModal = function() {
+  stopMicTest();
+  document.getElementById('settingsModal').style.display = 'none';
+};
+
+window.refreshAudioDevices = async function() {
+  try {
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop());
+      } catch (e) {}
+    }
+
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const inputSelect = document.getElementById('settingAudioInputSelect');
+    const outputSelect = document.getElementById('settingAudioOutputSelect');
+
+    if (!inputSelect || !outputSelect) return;
+
+    inputSelect.innerHTML = '';
+    outputSelect.innerHTML = '';
+
+    const savedInputId = localStorage.getItem('taiyoani_audio_input_id') || '';
+    const savedOutputId = localStorage.getItem('taiyoani_audio_output_id') || '';
+
+    let micCount = 0;
+    let speakerCount = 0;
+
+    devices.forEach((device) => {
+      const opt = document.createElement('option');
+      opt.value = device.deviceId;
+
+      if (device.kind === 'audioinput') {
+        micCount++;
+        opt.innerText = device.label || `ไมโครโฟน ${micCount}`;
+        if (device.deviceId === savedInputId) opt.selected = true;
+        inputSelect.appendChild(opt);
+      } else if (device.kind === 'audiooutput') {
+        speakerCount++;
+        opt.innerText = device.label || `ลำโพง / หูฟัง ${speakerCount}`;
+        if (device.deviceId === savedOutputId) opt.selected = true;
+        outputSelect.appendChild(opt);
+      }
+    });
+
+    if (micCount === 0) inputSelect.innerHTML = '<option value="">ไม่พบอุปกรณ์ไมโครโฟน</option>';
+    if (speakerCount === 0) outputSelect.innerHTML = '<option value="">ลำโพงเริ่มต้นของระบบ (Default Speaker)</option>';
+  } catch (err) {
+    console.warn("Hardware enumeration error:", err);
+  }
+};
+
+window.handleAudioDeviceChange = function() {
+  const inputSelect = document.getElementById('settingAudioInputSelect');
+  const outputSelect = document.getElementById('settingAudioOutputSelect');
+  if (inputSelect && inputSelect.value) {
+    localStorage.setItem('taiyoani_audio_input_id', inputSelect.value);
+  }
+  if (outputSelect && outputSelect.value) {
+    localStorage.setItem('taiyoani_audio_output_id', outputSelect.value);
+  }
+  if (isMicTesting) {
+    stopMicTest();
+    startMicTest();
+  }
+};
+
+window.toggleMicTest = function() {
+  AudioFX.click();
+  if (isMicTesting) {
+    stopMicTest();
+  } else {
+    startMicTest();
+  }
+};
+
+async function startMicTest() {
+  const meterFill = document.getElementById('audioMeterFill');
+  const btn = document.getElementById('btnToggleMicTest');
+  const statusText = document.getElementById('micTestStatusText');
+  const selectedMicId = document.getElementById('settingAudioInputSelect')?.value;
+
+  try {
+    const constraints = {
+      audio: selectedMicId ? { deviceId: { exact: selectedMicId } } : true
+    };
+
+    micTestStream = await navigator.mediaDevices.getUserMedia(constraints);
+    micTestAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = micTestAudioCtx.createMediaStreamSource(micTestStream);
+    micTestAnalyser = micTestAudioCtx.createAnalyser();
+    micTestAnalyser.fftSize = 256;
+    source.connect(micTestAnalyser);
+
+    const bufferLength = micTestAnalyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    isMicTesting = true;
+    if (btn) btn.innerText = '⏹️ หยุดทดสอบ';
+    if (statusText) statusText.innerText = '🟢 ไมค์กำลังทำงาน: ลองพูดเพื่อดูความดังของเสียง';
+
+    function drawMeter() {
+      if (!isMicTesting) return;
+      micTestAnalyser.getByteFrequencyData(dataArray);
+
+      let sum = 0;
+      for (let i = 0; i < bufferLength; i++) {
+        sum += dataArray[i];
+      }
+      let avg = sum / bufferLength;
+      let percent = Math.min(100, Math.round((avg / 128) * 100 * 1.5));
+
+      if (meterFill) meterFill.style.width = `${percent}%`;
+      micTestAnimId = requestAnimationFrame(drawMeter);
+    }
+    drawMeter();
+  } catch (err) {
+    console.error("Mic test error:", err);
+    alert("ไม่สามารถเข้าถึงไมโครโฟนได้ กรุณาตรวจสอบการอนุญาตใช้งานไมค์ในเบราว์เซอร์");
+    stopMicTest();
+  }
+}
+
+function stopMicTest() {
+  isMicTesting = false;
+  if (micTestAnimId) cancelAnimationFrame(micTestAnimId);
+  if (micTestStream) {
+    micTestStream.getTracks().forEach(track => track.stop());
+    micTestStream = null;
+  }
+  if (micTestAudioCtx && micTestAudioCtx.state !== 'closed') {
+    micTestAudioCtx.close();
+    micTestAudioCtx = null;
+  }
+  const meterFill = document.getElementById('audioMeterFill');
+  const btn = document.getElementById('btnToggleMicTest');
+  const statusText = document.getElementById('micTestStatusText');
+  if (meterFill) meterFill.style.width = '0%';
+  if (btn) btn.innerText = '🎙️ เริ่มทดสอบไมค์';
+  if (statusText) statusText.innerText = 'กดเริ่มทดสอบ แล้วลองพูดเพื่อดูการตอบสนองของไมค์';
+}
+
+window.testSpeakerSound = function() {
+  AudioFX.init();
+  if (!AudioFX.ctx) return;
+
+  const now = AudioFX.ctx.currentTime;
+  const osc = AudioFX.ctx.createOscillator();
+  const gain = AudioFX.ctx.createGain();
+
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(523.25, now);
+  osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.12);
+  osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.24);
+  osc.frequency.exponentialRampToValueAtTime(1046.50, now + 0.36);
+
+  gain.gain.setValueAtTime(0.12, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+
+  osc.connect(gain);
+  gain.connect(AudioFX.ctx.destination);
+
+  osc.start(now);
+  osc.stop(now + 0.6);
 };
 
 // ================= ADMIN ROLE MANAGEMENT SYSTEM =================
