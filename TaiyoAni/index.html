@@ -13,6 +13,9 @@
 </head>
 <body class="device-mode-auto">
 
+  <!-- กล่องแสดงป๊อปอัปแจ้งเตือนภายในแอป (In-App Glass Toast) -->
+  <div id="inAppToastContainer" class="in-app-toast-container"></div>
+
   <!-- ================= AUTH GATE OVERLAY ================= -->
   <div class="auth-gate-overlay" id="authGate">
     <div class="auth-card">
@@ -52,7 +55,7 @@
       <div id="registerSection" style="display: none;">
         <form onsubmit="handleRegisterSubmit(event)">
           <div class="form-group">
-            <label>รูปโปรไฟล์ (อัปโหลดจากเครื่อง หรือเลือกสัญลักษณ์ / รองรับ GIF)</label>
+            <label>รูปโปรไฟล์ (อัปโหลดจากเครื่อง หรือเลือก Preset / รองรับ GIF)</label>
             <div class="avatar-upload-wrapper">
               <div class="avatar-preview-box" id="avatarPreviewDisplay">
                 <span>👨‍💻</span>
@@ -106,7 +109,7 @@
     </div>
   </div>
 
-  <!-- Modal กล่องยืนยันรหัส OTP ทางอีเมล -->
+  <!-- Modal ยืนยันรหัส OTP ทางอีเมล -->
   <div class="modal-overlay" id="otpModal">
     <div class="modal" style="max-width: 420px; text-align: center;">
       <div style="font-size: 2.8rem; margin-bottom: 8px;">📩</div>
@@ -156,65 +159,87 @@
         </div>
       </div>
 
-     <!-- ปุ่มตั้งค่าระบบเสียง และ ปุ่มออกจากระบบที่หน้าโฮม -->
+      <div class="home-top-center-clock" id="homeTopCenterClock">
+        <div class="home-clock-time" id="homeClockTimeDisplay">00:00:00</div>
+        <div class="home-clock-date" id="homeClockDateDisplay">วัน... ที่ ...</div>
+      </div>
+
       <div class="home-top-right-actions">
-        <button type="button" class="btn-glass-action-pill" onclick="openSettingsModal()" title="ตั้งค่าระบบและอุปกรณ์เสียง">
-          ⚙️ ตั้งค่าระบบเสียง
+        <button type="button" class="btn-glass-icon-circle" onclick="openTeamMembersModal()" title="รายชื่อสมาชิกในทีม">
+          <span>👥</span>
+          <span class="home-members-badge" id="homeOnlineIndicator">0</span>
         </button>
-        <button type="button" class="btn-glass-action-pill btn-logout-pill" onclick="handleLogout()" title="ออกจากระบบ / สลับบัญชี">
-          🚪 ออกจากระบบ
+        <button type="button" class="btn-glass-icon-circle" onclick="openSettingsModal()" title="ตั้งค่าระบบและอุปกรณ์เสียง">
+          <span>⚙️</span>
+        </button>
+        <button type="button" class="btn-glass-icon-circle btn-logout-circle" onclick="handleLogout()" title="ออกจากระบบ / สลับบัญชี">
+          <span>🚪</span>
         </button>
       </div>
 
       <div class="home-center-stage">
-        <div class="home-glass-clock-card">
-          <div class="home-clock-time" id="homeClockTimeDisplay">00:00:00</div>
-          <div class="home-clock-date" id="homeClockDateDisplay">วัน... ที่ ...</div>
-        </div>
+        <div class="home-banner-wrapper">
+          <div class="home-banner-admin-bar" id="homeBannerAdminBar" style="display: none;">
+            <button type="button" class="btn-admin-add-banner" onclick="openAddBannerModal()">
+              👑 ➕ เพิ่มแบนเนอร์ใหม่ (Admin)
+            </button>
+          </div>
 
-        <button type="button" class="btn-home-members-trigger" onclick="openTeamMembersModal()">
-          <span>👥</span>
-          <span>สมาชิกในทีม</span>
-          <span class="online-indicator-pill" id="homeOnlineIndicator">0</span>
-        </button>
+          <div class="home-banner-carousel" id="homeBannerCarousel">
+            <div class="home-banner-track" id="homeBannerTrack"></div>
+            <button type="button" class="banner-nav-btn prev" onclick="prevBannerSlide()" title="แบนเนอร์ก่อนหน้า">❮</button>
+            <button type="button" class="banner-nav-btn next" onclick="nextBannerSlide()" title="แบนเนอร์ถัดไป">❯</button>
+            <div class="banner-dots-container" id="bannerDotsContainer"></div>
+          </div>
+        </div>
       </div>
     </section>
 
-    <!-- 2. หน้าคอมมูนิตี้ & ระดมความคิด (COMMUNITY VIEW) - เข้าถึงได้ทุกคน -->
+    <!-- 2. หน้าคอมมูนิตี้ (COMMUNITY VIEW) -->
     <section class="app-view-section" id="viewCommunity">
       <div class="community-fullscreen-card">
-        <div class="community-header">
-          <div class="community-title-box">
-            <span class="community-header-icon">💡</span>
-            <div>
-              <h2>คอมมูนิตี้ & เสนอไอเดีย (Community Hub)</h2>
-              <p>พื้นที่แลกเปลี่ยนความคิดเห็น เสนอไอเดียสร้างสรรค์ และพูดคุยสำหรับทุกคน</p>
+        <div class="community-header-compact">
+          <div class="community-title-mini">
+            <span class="community-mini-icon">💡</span>
+            <div class="community-mini-text">
+              <h2>คอมมูนิตี้</h2>
+              <p>แลกเปลี่ยนไอเดีย & พูดคุย</p>
             </div>
           </div>
-          <button type="button" class="btn-community-post" onclick="openCommunityPostModal()">
-            <span>✨</span> <span>ตั้งกระทู้ / เสนอไอเดีย</span>
-          </button>
+
+          <div class="community-header-actions">
+            <button type="button" class="btn-search-trigger" id="btnOpenSearchFilter" onclick="openCommunitySearchModal()" title="ค้นหาและกรองกระทู้">
+              <span>🔍</span>
+              <span class="search-btn-text">ค้นหา / กรอง</span>
+              <span class="filter-active-dot" id="filterActiveDot" style="display: none;"></span>
+            </button>
+
+            <button type="button" class="btn-community-post-compact" onclick="openCommunityPostModal()" title="สร้างกระทู้ใหม่">
+              <span>✨</span>
+              <span>ตั้งกระทู้</span>
+            </button>
+          </div>
         </div>
 
-        <div class="community-filter-bar">
-          <div class="community-tags-scroll">
-            <button type="button" class="community-filter-pill active" onclick="filterCommunity('all')">🌟 ทั้งหมด</button>
-            <button type="button" class="community-filter-pill" onclick="filterCommunity('idea')">💡 ไอเดียใหม่</button>
-            <button type="button" class="community-filter-pill" onclick="filterCommunity('discussion')">💬 พูดคุยทั่วไป</button>
-            <button type="button" class="community-filter-pill" onclick="filterCommunity('art')">🎨 อาร์ต & สไตล์</button>
-            <button type="button" class="community-filter-pill" onclick="filterCommunity('qa')">❓ สอบถาม / เสนอแนะ</button>
+        <div class="community-stories-tray" id="communityStoriesTray">
+          <div class="story-item story-create-item" onclick="openCreateStoryModal()">
+            <div class="story-avatar-ring add-story-ring">
+              <div class="story-avatar-inner" id="currentUserStoryAvatar">
+                <span>➕</span>
+              </div>
+              <div class="story-add-badge">+</div>
+            </div>
+            <span class="story-username">สตอรี่ของคุณ</span>
           </div>
-          <div class="community-search-box">
-            <span class="community-search-icon">🔍</span>
-            <input type="text" id="communitySearchInput" class="community-search-input" placeholder="ค้นหาไอเดียหรือหัวข้อ...">
-          </div>
+
+          <div class="stories-feed-list" id="storiesFeedList"></div>
         </div>
 
         <div class="community-feed-container" id="communityPostsFeed"></div>
       </div>
     </section>
 
-    <!-- 3. หน้าโปรเจกต์ (PROJECTS VIEW) - เฉพาะแอดมินและทีมงาน -->
+    <!-- 3. หน้าโปรเจกต์ (PROJECTS VIEW) - สิทธิ์แอดมินและทีมงาน -->
     <section class="app-view-section" id="viewProjects">
       <aside class="sidebar" id="appSidebar">
         <div class="sidebar-header-row">
@@ -257,9 +282,7 @@
       <main class="main-window">
         <header class="window-header">
           <div class="header-left">
-            <button type="button" class="btn-hamburger" onclick="toggleMobileSidebar()" title="เปิดเมนูโปรเจกต์">
-              ☰
-            </button>
+            <button type="button" class="btn-hamburger" onclick="toggleMobileSidebar()" title="เปิดเมนูโปรเจกต์">☰</button>
             <div>
               <h1 id="currentProjectTitle">เลือกโปรเจกต์</h1>
               <p id="currentProjectDesc">จัดการงาน สตอรี่รายละเอียด และลิ้งก์ส่งงาน</p>
@@ -270,15 +293,12 @@
             <button type="button" class="btn-notes-action" onclick="openProjectNotesModal()" id="btnProjectNotes" title="สมุดโน้ตบันทึกข้อมูลประจำโปรเจกต์">
               <span>📝</span> <span class="action-text">โน้ต</span>
             </button>
-            
             <button type="button" class="btn-script-header" onclick="openNewScriptModal()" id="btnNewScript" title="สร้างสคริปต์บทพากย์/เนื้อเรื่องใหม่">
               <span>📜</span> <span class="action-text">สคริปต์</span>
             </button>
-
             <button type="button" class="btn-idea-action" onclick="openAddIdeaModal()" id="btnNewIdea">
               <span>💡</span> <span class="action-text">ไอเดีย</span>
             </button>
-            
             <button type="button" class="btn-create-task" onclick="openAddTaskModal()" id="btnNewTask">
               <span>+</span> <span class="action-text">งานใหม่</span>
             </button>
@@ -291,10 +311,9 @@
       </main>
     </section>
 
-<!-- 4. หน้ารายได้ (REVENUE VIEW) - เฉพาะแอดมินและทีมงาน -->
+    <!-- 4. หน้ารายได้ (REVENUE VIEW) - สิทธิ์แอดมินและทีมงาน -->
     <section class="app-view-section" id="viewRevenue">
       <div class="revenue-fullscreen-card">
-        
         <div class="revenue-widget-header">
           <div class="revenue-header-title">
             <div class="revenue-header-icon-box">💎</div>
@@ -367,9 +386,7 @@
                   <span class="payout-sub">ข้อมูลทางการสำหรับทีมงาน ประกาศโดยแอดมิน</span>
                 </div>
               </div>
-              <div id="revenueTransferStatusBadge" class="payout-status-badge status-pending">
-                ⏳ กำลังสรุปยอด
-              </div>
+              <div id="revenueTransferStatusBadge" class="payout-status-badge status-pending">⏳ กำลังสรุปยอด</div>
             </div>
 
             <div class="payout-info-grid">
@@ -390,16 +407,13 @@
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </section>
 
-    <!-- 5. หน้าแชท (CHAT VIEW - DISCORD STYLE) -->
+    <!-- 5. หน้าแชท (CHAT VIEW) -->
     <section class="app-view-section" id="viewChat">
       <div class="discord-chat-layout">
-        
-        <!-- Sidebar ช่องแชท & สมาชิก (Channels & DMs Sidebar) -->
         <aside class="discord-sidebar" id="discordSidebar">
           <div class="discord-sidebar-header">
             <span class="discord-server-icon">⚡</span>
@@ -411,7 +425,6 @@
           </div>
 
           <div class="discord-channels-scroll">
-            <!-- 1. หมวดห้องแชทหลัก (Main Channels) -->
             <div class="discord-category-title">
               <span>📢 ห้องแชทหลัก (MAIN)</span>
             </div>
@@ -421,14 +434,12 @@
               <span class="discord-badge-count" id="mainChatBadgeCounter">0</span>
             </div>
 
-            <!-- 2. หมวดกลุ่มแชทส่วนตัว (Private Groups) -->
             <div class="discord-category-title" style="margin-top: 14px;">
               <span>👥 กลุ่มส่วนตัว (GROUPS)</span>
               <button type="button" class="btn-discord-add" onclick="openCreateGroupModal()" title="สร้างกลุ่มใหม่">➕</button>
             </div>
             <div class="discord-group-list" id="discordGroupList"></div>
 
-            <!-- 3. หมวดแชทส่วนตัว 1-on-1 (Direct Messages) -->
             <div class="discord-category-title" style="margin-top: 14px;">
               <span>💬 แชทส่วนตัว (DIRECT MESSAGES)</span>
             </div>
@@ -436,26 +447,38 @@
           </div>
         </aside>
 
-        <!-- พื้นที่ห้องแชทหลัก (Chat Main Stage) -->
         <main class="discord-chat-main">
           <header class="discord-chat-header">
             <div class="discord-header-left">
-              <button type="button" class="btn-discord-hamburger" onclick="toggleDiscordSidebar()" title="เปิดรายชื่อห้อง">
-                ☰
-              </button>
+              <button type="button" class="btn-discord-hamburger" onclick="toggleDiscordSidebar()" title="เปิดรายชื่อห้อง">☰</button>
               <span class="discord-header-prefix" id="discordHeaderPrefix">#</span>
               <div class="discord-header-title-box">
                 <h3 id="discordChatHeaderTitle">ห้องแชทรวมทีม (Main Chat)</h3>
-                <span id="discordChatHeaderDesc">พื้นที่พูดคุยรวมทุกคนในทีม (ไม่รองรับการโทร)</span>
+                <span id="discordChatHeaderDesc">พื้นที่พูดคุยรวมทุกคนในทีม</span>
               </div>
             </div>
 
             <div class="discord-header-actions">
-              <!-- ปุ่มโทรเสียง: ซ่อนในห้องรวม และจะแสดงเฉพาะเมื่ออยู่แชทส่วนตัวหรือกลุ่ม -->
+              <!-- แถบโปรไฟล์ผู้ที่อยู่ในห้องสนทนาเสียง (แสดงเฉพาะแชทกลุ่ม) -->
+              <div class="voice-room-participants-bar" id="voiceRoomParticipantsBar" style="display: none;"></div>
+
+              <!-- ปุ่มเข้าร่วม/ออกจากห้องเสียง (แสดงเฉพาะแชทกลุ่ม) -->
+              <button type="button" class="btn-voice-room-toggle" id="btnToggleVoiceRoom" onclick="toggleVoiceRoom()" style="display: none;" title="เข้าร่วม/ออกจากห้องเสียง">
+                <span id="voiceRoomBtnIcon">🎧</span>
+                <span id="voiceRoomBtnText">เข้าร่วมเสียง</span>
+              </button>
+
+              <!-- ปุ่มโทรด้วยเสียงแบบ 1-on-1 (แสดงเฉพาะแชทส่วนตัว DM) -->
               <button type="button" class="btn-voice-call" id="btnVoiceCall" onclick="startVoiceCall()" style="display: none;" title="โทรคุยด้วยเสียง">
                 <span>📞</span>
                 <span class="voice-call-text">โทรเสียง</span>
               </button>
+
+              <!-- ปุ่มลบกลุ่มแชท -->
+              <button type="button" class="btn-delete-group-header" id="btnDeleteCurrentGroup" onclick="handleDeleteCurrentGroup()" style="display: none;" title="ลบกลุ่มแชทนี้">
+                🗑️ ลบกลุ่ม
+              </button>
+
               <button type="button" class="btn-chat-control" id="btnClearChat" onclick="handleClearChat()" title="ล้างประวัติแชท (เฉพาะแอดมิน)" style="display: none;">🗑️</button>
             </div>
           </header>
@@ -471,25 +494,20 @@
           </div>
 
           <form class="chat-input-row" onsubmit="handleSendChatMessage(event)">
-            <button type="button" class="btn-chat-tool" id="btnChatEmojiToggle" onclick="toggleChatEmojiPicker()" title="ใส่อิโมจิ">
-              😊
-            </button>
-
+            <button type="button" class="btn-chat-tool" id="btnChatEmojiToggle" onclick="toggleChatEmojiPicker()" title="ใส่อิโมจิ">😊</button>
             <label class="btn-chat-tool" title="แนบรูปภาพส่งในแชท">
               📷
               <input type="file" id="chatFileInput" accept="image/*" style="display: none;" onchange="handleChatImageSelect(event)">
             </label>
-
             <input type="text" id="chatTextInput" class="chat-input" placeholder="พิมพ์ข้อความ... (กด Enter เพื่อส่ง)" autocomplete="off">
             <button type="submit" class="btn-chat-send" title="ส่งข้อความ">🚀</button>
-
             <div class="chat-emoji-popover" id="chatEmojiPickerPopover"></div>
           </form>
         </main>
       </div>
     </section>
 
-    <!-- ================= BOTTOM CURVED FLOATING DOCK NAV ================= -->
+    <!-- ================= BOTTOM DOCK NAV ================= -->
     <nav class="bottom-dock-nav">
       <button type="button" class="bottom-nav-item active" id="navBtnHome" onclick="switchAppView('home')">
         <span class="bottom-nav-icon">🏠</span>
@@ -521,7 +539,205 @@
     </nav>
   </div>
 
-  <!-- ================= COMMUNITY POST MODAL ================= -->
+  <!-- ================= INCOMING CALL POPUP MODAL (สำหรับแชทส่วนตัว) ================= -->
+  <div class="modal-overlay" id="incomingCallModal" style="z-index: 1320;">
+    <div class="modal voice-call-card incoming-card">
+      <div class="voice-call-avatar-pulse ringing" id="incomingCallAvatarPulse">
+        <div class="voice-call-avatar" id="incomingCallAvatarDisplay">📞</div>
+      </div>
+      <h3 class="voice-call-target-name" id="incomingCallerNameDisplay">สายเรียกเข้า...</h3>
+      <p class="voice-call-status-text">📞 มีสมาชิกกำลังโทรหาคุณ...</p>
+
+      <div class="voice-call-actions" style="margin-top: 14px;">
+        <button type="button" class="btn-voice-action accept" onclick="acceptIncomingCall()" title="รับสาย">
+          🟢 รับสาย
+        </button>
+        <button type="button" class="btn-voice-action end" onclick="declineIncomingCall()" title="ปฏิเสธสาย">
+          🔴 วางสาย
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= VOICE CALL ACTIVE MODAL (สำหรับแชทส่วนตัว) ================= -->
+  <div class="modal-overlay" id="voiceCallModal" style="z-index: 1250;">
+    <div class="modal voice-call-card">
+      <div class="voice-call-avatar-pulse" id="voiceCallAvatarPulse">
+        <div class="voice-call-avatar" id="voiceCallAvatarDisplay">📞</div>
+      </div>
+      <h3 class="voice-call-target-name" id="voiceCallTargetNameDisplay">กำลังสนทนาสาย...</h3>
+      <p class="voice-call-status-text" id="voiceCallStatusText">กำลังเชื่อมต่อสัญญาณเสียง...</p>
+      <div class="voice-call-timer" id="voiceCallTimerDisplay" style="display: none;">00:00</div>
+
+      <div class="voice-call-actions">
+        <button type="button" class="btn-voice-action mute" id="btnVoiceMute" onclick="toggleVoiceMute()" title="ปิด/เปิดไมค์">
+          🎤 ปิดไมค์
+        </button>
+        <button type="button" class="btn-voice-action settings" onclick="openSettingsModal()" title="ตั้งค่าไมโครโฟน/ลำโพง">
+          ⚙️ ตั้งค่า
+        </button>
+        <button type="button" class="btn-voice-action end" onclick="endVoiceCall()" title="วางสาย">
+          🔴 วางสาย
+        </button>
+      </div>
+
+      <audio id="remoteVoiceAudio" autoplay playsinline></audio>
+    </div>
+  </div>
+
+  <!-- ================= MODALS อื่นๆ ================= -->
+
+  <!-- ADD HOME BANNER MODAL -->
+  <div class="modal-overlay" id="homeBannerModal" style="z-index: 1270;">
+    <div class="modal" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">👑 เพิ่มแบนเนอร์โฆษณา / โปรเจกต์ล่าสุด</h3>
+        <button type="button" class="close-btn" onclick="closeModal('homeBannerModal')">✕</button>
+      </div>
+      <form onsubmit="handleSaveHomeBanner(event)">
+        <div class="form-group">
+          <label>หัวข้อโฆษณา / ชื่องาน *</label>
+          <input type="text" id="bannerTitleInput" class="form-control" placeholder="เช่น โปรเจกต์ Animation EP.1 กำลังจะมา!" required>
+        </div>
+
+        <div class="form-group">
+          <label>คำอธิบายสั้นๆ / ไฮไลท์</label>
+          <input type="text" id="bannerSubtitleInput" class="form-control" placeholder="เช่น ติดตามรับชมผลงานใหม่ของทีมงานเร็วๆ นี้...">
+        </div>
+
+        <div class="form-group">
+          <label>ลิ้งก์ปลายทางเมื่อคลิก (Optional):</label>
+          <input type="url" id="bannerLinkInput" class="form-control" placeholder="https://youtube.com/... หรือ ลิ้งก์ภายนอก">
+        </div>
+
+        <div class="form-group">
+          <label>อัปโหลดไฟล์สื่อ (ภาพ / GIF / วิดีโอสั้นไม่เกิน 1 นาที และไฟล์ < 750KB) *</label>
+          <input type="file" id="bannerFileInput" class="form-control" accept="image/*,video/mp4,video/webm" onchange="handleBannerMediaSelect(event)" required>
+          <input type="hidden" id="bannerMediaDataInput">
+          <input type="hidden" id="bannerMediaTypeInput" value="image">
+          
+          <div id="bannerMediaPreviewContainer" class="banner-upload-preview-box">
+            <span style="font-size: 0.8rem; color: var(--text-muted);">ตัวอย่างไฟล์สื่อจะแสดงที่นี่</span>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('homeBannerModal')">ยกเลิก</button>
+          <button type="submit" class="btn-create-task" id="btnSubmitBanner" style="background: linear-gradient(135deg, rgba(251, 191, 36, 0.4), rgba(245, 158, 11, 0.6)); border-color: var(--amber); color: #fff;">
+            🚀 โพสต์ขึ้นแบนเนอร์
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- COMMUNITY SEARCH MODAL -->
+  <div class="modal-overlay" id="communitySearchModal" style="z-index: 1245;">
+    <div class="modal" style="max-width: 460px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">🔍 ค้นหา & กรองกระทู้</h3>
+        <button type="button" class="close-btn" onclick="closeModal('communitySearchModal')">✕</button>
+      </div>
+      
+      <div class="form-group">
+        <label>คำค้นหา (ค้นจากชื่อเรื่อง, เนื้อหา, ชื่อผู้โพสต์ หรือแท็ก):</label>
+        <input type="text" id="modalSearchInput" class="form-control" placeholder="พิมพ์ข้อความที่ต้องการค้นหา...">
+      </div>
+
+      <div class="form-group">
+        <label>หมวดหมู่กระทู้:</label>
+        <div class="search-category-grid">
+          <button type="button" class="category-select-pill active" data-cat="all" onclick="selectSearchCategory('all')">🌟 ทั้งหมด</button>
+          <button type="button" class="category-select-pill" data-cat="idea" onclick="selectSearchCategory('idea')">💡 ไอเดีย</button>
+          <button type="button" class="category-select-pill" data-cat="discussion" onclick="selectSearchCategory('discussion')">💬 พูดคุย</button>
+          <button type="button" class="category-select-pill" data-cat="art" onclick="selectSearchCategory('art')">🎨 อาร์ต</button>
+          <button type="button" class="category-select-pill" data-cat="qa" onclick="selectSearchCategory('qa')">❓ Q&A</button>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="justify-content: space-between; margin-top: 20px;">
+        <button type="button" class="btn-sm delete" onclick="handleResetSearchFilter()">ล้างการค้นหา</button>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn-sm" onclick="closeModal('communitySearchModal')">ปิด</button>
+          <button type="button" class="btn-create-task" onclick="handleApplySearchFilter()">ค้นหาเลย 🚀</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CREATE STORY MODAL -->
+  <div class="modal-overlay" id="createStoryModal" style="z-index: 1260;">
+    <div class="modal" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">📸 เพิ่มสตอรี่ใหม่ (อยู่ได้ 24 ชม.)</h3>
+        <button type="button" class="close-btn" onclick="closeModal('createStoryModal')">✕</button>
+      </div>
+      <form onsubmit="handleCreateStorySubmit(event)">
+        <div class="form-group">
+          <label>ข้อความสตอรี่ / อัปเดตสั้นๆ *</label>
+          <textarea id="storyTextInput" class="form-control" style="min-height: 85px;" placeholder="กำลังทำอะไรอยู่? หรือแชร์เรื่องราวสั้นๆ..." required></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>เลือกโทนสีพื้นหลัง:</label>
+          <div class="story-bg-picker">
+            <label class="bg-color-opt active" style="background: linear-gradient(135deg, #38bdf8, #818cf8);">
+              <input type="radio" name="storyBg" value="linear-gradient(135deg, #38bdf8, #818cf8)" checked>
+            </label>
+            <label class="bg-color-opt" style="background: linear-gradient(135deg, #f43f5e, #fb923c);">
+              <input type="radio" name="storyBg" value="linear-gradient(135deg, #f43f5e, #fb923c)">
+            </label>
+            <label class="bg-color-opt" style="background: linear-gradient(135deg, #10b981, #3b82f6);">
+              <input type="radio" name="storyBg" value="linear-gradient(135deg, #10b981, #3b82f6)">
+            </label>
+            <label class="bg-color-opt" style="background: linear-gradient(135deg, #c084fc, #ec4899);">
+              <input type="radio" name="storyBg" value="linear-gradient(135deg, #c084fc, #ec4899)">
+            </label>
+            <label class="bg-color-opt" style="background: linear-gradient(135deg, #1e293b, #0f172a);">
+              <input type="radio" name="storyBg" value="linear-gradient(135deg, #1e293b, #0f172a)">
+            </label>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('createStoryModal')">ยกเลิก</button>
+          <button type="submit" class="btn-create-task">🚀 โพสต์สตอรี่</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- STORY VIEWER MODAL -->
+  <div class="modal-overlay" id="storyViewerModal" style="z-index: 1300;" onclick="handleStoryViewerBgClick(event)">
+    <div class="story-viewer-card" id="storyViewerCard">
+      <div class="story-progress-bar-track">
+        <div class="story-progress-bar-fill" id="storyProgressBarFill"></div>
+      </div>
+
+      <div class="story-viewer-header">
+        <div class="story-author-info">
+          <div class="story-author-avatar" id="storyViewerAvatar"></div>
+          <div>
+            <div class="story-author-name" id="storyViewerAuthorName">Username</div>
+            <div class="story-time-ago" id="storyViewerTimeAgo">เมื่อสักครู่</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button type="button" class="btn-delete-story" id="btnDeleteCurrentStory" onclick="handleDeleteCurrentStory()" title="ลบสตอรี่นี้" style="display: none;">🗑️</button>
+          <button type="button" class="story-close-btn" onclick="closeStoryViewer()">✕</button>
+        </div>
+      </div>
+
+      <div class="story-viewer-content" id="storyViewerContent">
+        <p id="storyViewerTextDisplay"></p>
+      </div>
+
+      <div class="story-nav-btn prev" onclick="prevStorySlide()">❮</div>
+      <div class="story-nav-btn next" onclick="nextStorySlide()">❯</div>
+    </div>
+  </div>
+
+  <!-- COMMUNITY POST MODAL -->
   <div class="modal-overlay" id="communityPostModal" style="z-index: 1240;">
     <div class="modal" style="max-width: 540px;">
       <div class="modal-header">
@@ -562,7 +778,26 @@
     </div>
   </div>
 
-  <!-- ================= ACCESS DENIED MODAL ================= -->
+  <!-- COMMUNITY POST DETAIL MODAL -->
+  <div class="modal-overlay" id="communityDetailModal" style="z-index: 1250;">
+    <div class="modal" style="max-width: 600px; max-height: 90vh; max-height: 90dvh; display: flex; flex-direction: column; padding: 20px;">
+      <div class="modal-header" style="margin-bottom: 12px;">
+        <div id="detailModalCategoryBox"></div>
+        <button type="button" class="close-btn" onclick="closeModal('communityDetailModal')">✕</button>
+      </div>
+
+      <div id="communityDetailBody" style="flex: 1 1 auto; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 14px;"></div>
+
+      <div style="padding-top: 12px; border-top: 1px solid var(--glass-border); margin-top: 8px;">
+        <form class="ig-comment-input-bar" id="detailModalCommentForm" onsubmit="handleModalAddComment(event)">
+          <input type="text" id="detailModalCommentInput" class="ig-comment-input" placeholder="แสดงความคิดเห็นเพิ่มเติม..." autocomplete="off" required>
+          <button type="submit" class="btn-ig-submit-comment">โพสต์</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACCESS DENIED MODAL -->
   <div class="modal-overlay" id="accessDeniedModal" style="z-index: 1350;">
     <div class="modal" style="max-width: 400px; text-align: center; padding: 26px 20px;">
       <div style="font-size: 3rem; margin-bottom: 8px;">🔒</div>
@@ -577,7 +812,7 @@
     </div>
   </div>
 
-  <!-- ================= ADMIN ROLE MANAGEMENT MODAL ================= -->
+  <!-- ADMIN ROLE MODAL -->
   <div class="modal-overlay" id="adminRoleModal" style="z-index: 1220;">
     <div class="modal" style="max-width: 440px;">
       <div class="modal-header">
@@ -615,61 +850,12 @@
     </div>
   </div>
 
- <!-- ================= INCOMING CALL POPUP MODAL ================= -->
-  <div class="modal-overlay" id="incomingCallModal" style="z-index: 1320;">
-    <div class="modal voice-call-card incoming-card">
-      <div class="voice-call-avatar-pulse ringing" id="incomingCallAvatarPulse">
-        <div class="voice-call-avatar" id="incomingCallAvatarDisplay">📞</div>
-      </div>
-      <h3 class="voice-call-target-name" id="incomingCallerNameDisplay">สายเรียกเข้า...</h3>
-      <p class="voice-call-status-text">📞 มีสมาชิกกำลังโทรหาคุณ...</p>
-
-      <div class="voice-call-actions" style="margin-top: 14px;">
-        <button type="button" class="btn-voice-action accept" onclick="acceptIncomingCall()" title="รับสาย">
-          🟢 รับสาย
-        </button>
-        <button type="button" class="btn-voice-action end" onclick="declineIncomingCall()" title="ปฏิเสธสาย">
-          🔴 วางสาย
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ================= VOICE CALL ACTIVE MODAL ================= -->
-  <div class="modal-overlay" id="voiceCallModal" style="z-index: 1250;">
-    <div class="modal voice-call-card">
-      <div class="voice-call-avatar-pulse" id="voiceCallAvatarPulse">
-        <div class="voice-call-avatar" id="voiceCallAvatarDisplay">📞</div>
-      </div>
-      <h3 class="voice-call-target-name" id="voiceCallTargetNameDisplay">ห้องแชทรวมทีม</h3>
-      <p class="voice-call-status-text" id="voiceCallStatusText">กำลังเชื่อมต่อสัญญาณเสียง...</p>
-      <div class="voice-call-timer" id="voiceCallTimerDisplay" style="display: none;">00:00</div>
-
-      <div class="voice-call-actions">
-        <button type="button" class="btn-voice-action mute" id="btnVoiceMute" onclick="toggleVoiceMute()" title="ปิด/เปิดไมค์">
-          🎤 ปิดไมค์
-        </button>
-        <button type="button" class="btn-voice-action settings" onclick="openSettingsModal()" title="ตั้งค่าไมโครโฟน/ลำโพง">
-          ⚙️ ตั้งค่า
-        </button>
-        <button type="button" class="btn-voice-action end" onclick="endVoiceCall()" title="วางสาย">
-          🔴 วางสาย
-        </button>
-      </div>
-
-      <!-- แท็กสำหรับเล่นเสียง WebRTC จากคู่สนทนา -->
-      <audio id="remoteVoiceAudio" autoplay playsinline></audio>
-    </div>
-  </div>
-
-  <!-- ================= LIGHTBOX IMAGE MODAL ================= -->
+  <!-- LIGHTBOX IMAGE MODAL -->
   <div class="image-lightbox-modal" id="imageLightboxModal" onclick="closeLightbox()">
     <img src="" class="image-lightbox-content" id="imageLightboxImg" alt="Full View">
   </div>
 
-  <!-- ================= MODALS ================= -->
-
-  <!-- MODAL รายชื่อสมาชิกทีม (TEAM MEMBERS MODAL) -->
+  <!-- TEAM MEMBERS MODAL -->
   <div class="modal-overlay" id="teamMembersModal">
     <div class="modal team-members-modal-box">
       <div class="modal-header">
@@ -739,7 +925,7 @@
         </div>
 
         <div class="form-group">
-          <label>รูปโปรไฟล์ (อัปโหลดจากเครื่อง หรือเลือกสัญลักษณ์ / รองรับ GIF):</label>
+          <label>รูปโปรไฟล์ (อัปโหลดจากเครื่อง หรือเลือก Preset / รองรับ GIF):</label>
           <div class="avatar-upload-wrapper">
             <div class="avatar-preview-box" id="editAvatarPreviewDisplay">
               <span>👤</span>
@@ -789,7 +975,7 @@
     </div>
   </div>
 
-  <!-- POPUP หลอดโหลดบันทึกข้อมูล (LOADING PROGRESS MODAL) -->
+  <!-- LOADING PROGRESS MODAL -->
   <div class="modal-overlay" id="loadingModal" style="z-index: 1200;">
     <div class="modal save-loading-card">
       <div class="save-loading-icon" id="saveLoadingIcon">⏳</div>
@@ -861,26 +1047,20 @@
           <button type="button" class="word-tool-btn" onclick="execWordCmd('undo')" title="เลิกทำ">↩️</button>
           <button type="button" class="word-tool-btn" onclick="execWordCmd('redo')" title="ทำซ้ำ">↪️</button>
         </div>
-
         <div class="word-toolbar-divider"></div>
-
         <div class="word-toolbar-group">
           <button type="button" class="word-tool-btn" onclick="execWordCmd('formatBlock', '<h1>')"><b>H1</b></button>
           <button type="button" class="word-tool-btn" onclick="execWordCmd('formatBlock', '<h2>')"><b>H2</b></button>
           <button type="button" class="word-tool-btn" onclick="execWordCmd('formatBlock', '<p>')">¶</button>
         </div>
-
         <div class="word-toolbar-divider"></div>
-
         <div class="word-toolbar-group">
           <button type="button" class="word-tool-btn" onclick="execWordCmd('bold')"><b>B</b></button>
           <button type="button" class="word-tool-btn" onclick="execWordCmd('italic')"><i>I</i></button>
           <button type="button" class="word-tool-btn" onclick="execWordCmd('underline')"><u>U</u></button>
           <button type="button" class="word-tool-btn" onclick="execWordCmd('strikeThrough')"><s>S</s></button>
         </div>
-
         <div class="word-toolbar-divider"></div>
-
         <div class="word-toolbar-group">
           <label class="word-color-picker-label" title="สีตัวอักษร">
             <span style="font-weight: bold; border-bottom: 3px solid #38bdf8;">A</span>
@@ -891,21 +1071,17 @@
             <input type="color" onchange="execWordCmd('hiliteColor', this.value)" value="#fbbf24">
           </label>
         </div>
-
         <div class="word-toolbar-divider"></div>
-
         <div class="word-toolbar-group">
           <button type="button" class="word-tool-btn" onclick="execWordCmd('justifyLeft')">⇤</button>
           <button type="button" class="word-tool-btn" onclick="execWordCmd('justifyCenter')">≡</button>
           <button type="button" class="word-tool-btn" onclick="execWordCmd('justifyRight')">⇥</button>
         </div>
-
         <div class="word-toolbar-divider"></div>
-
         <div class="word-toolbar-group">
           <button type="button" class="word-tool-btn" onclick="execWordCmd('insertUnorderedList')">• List</button>
           <button type="button" class="word-tool-btn" onclick="execWordCmd('insertOrderedList')">1. List</button>
-          <button type="button" class="word-tool-btn" onclick="execWordCmd('removeFormat')">🧹</button>
+          <button type="button" class="word-tool-btn" onclick="removeFormat()">🧹</button>
         </div>
       </div>
 
@@ -960,7 +1136,7 @@
   </div>
 
   <!-- REVENUE MODAL -->
- <div class="modal-overlay" id="revenueModal" style="z-index: 1260;">
+  <div class="modal-overlay" id="revenueModal" style="z-index: 1260;">
     <div class="modal" style="max-width: 560px;">
       <div class="modal-header">
         <h3 style="display: flex; align-items: center; gap: 8px;">👑 จัดการงบประมาณและข้อมูลโอนเงิน (Admin Only)</h3>
@@ -1030,6 +1206,7 @@
       </form>
     </div>
   </div>
+
   <!-- PROJECT NOTES MODAL -->
   <div class="modal-overlay" id="projectNotesModal">
     <div class="modal" style="max-width: 650px;">
@@ -1142,9 +1319,7 @@
     </div>
   </div>
 
-  <script type="module" src="app.js"></script>
-
-<!-- ================= CREATE GROUP CHAT MODAL ================= -->
+  <!-- CREATE GROUP CHAT MODAL -->
   <div class="modal-overlay" id="createGroupChatModal" style="z-index: 1270;">
     <div class="modal" style="max-width: 480px;">
       <div class="modal-header">
@@ -1169,8 +1344,8 @@
       </form>
     </div>
   </div>
-  
-<!-- ================= SETTINGS & AUDIO HARDWARE MODAL ================= -->
+
+  <!-- SETTINGS & AUDIO HARDWARE MODAL -->
   <div class="modal-overlay" id="settingsModal" style="z-index: 1280;">
     <div class="modal" style="max-width: 520px;">
       <div class="modal-header">
@@ -1180,10 +1355,9 @@
       
       <div class="settings-body">
         <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px;">
-          ระบบจะตรวจจับไมโครโฟนและลำโพงในอุปกรณ์ของคุณอัตโนมัติ เพื่อให้พร้อมสำหรับการโทรคุยด้วยเสียง
+          ระบบจะตรวจจับไมโครโฟนและลำโพงในอุปกรณ์ของคุณอัตโนมัติ เพื่อให้พร้อมสำหรับการคุยด้วยเสียง
         </p>
 
-        <!-- ตรวจจับและเลือกไมโครโฟน -->
         <div class="form-group">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
             <label style="margin-bottom: 0;">🎙️ อุปกรณ์รับเสียง (Microphone Input):</label>
@@ -1192,7 +1366,6 @@
           <select id="settingAudioInputSelect" class="form-control" onchange="handleAudioDeviceChange()"></select>
         </div>
 
-        <!-- กล่องทดสอบไมค์และหลอดระดับเสียงแบบเรียลไทม์ -->
         <div class="audio-test-box">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <span style="font-size: 0.8rem; font-weight: 600; color: #f8fafc;">ระดับเสียงไมโครโฟน (Live Mic Meter):</span>
@@ -1204,13 +1377,11 @@
           <div id="micTestStatusText" style="font-size: 0.72rem; color: var(--text-muted); margin-top: 6px;">กดเริ่มทดสอบ แล้วลองพูดเพื่อดูการตอบสนองของไมค์</div>
         </div>
 
-        <!-- ตรวจจับและเลือกลำโพง/หูฟัง -->
         <div class="form-group" style="margin-top: 14px;">
           <label>🔊 อุปกรณ์ส่งออกเสียง (Speaker / Output):</label>
           <select id="settingAudioOutputSelect" class="form-control" onchange="handleAudioDeviceChange()"></select>
         </div>
 
-        <!-- กล่องทดสอบลำโพง -->
         <div class="audio-test-box">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
@@ -1230,5 +1401,6 @@
     </div>
   </div>
 
+  <script type="module" src="app.js"></script>
 </body>
 </html>
