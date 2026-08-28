@@ -395,61 +395,97 @@
       </div>
     </section>
 
-    <!-- 5. หน้าแชท (CHAT VIEW) -->
+    <!-- 5. หน้าแชท (CHAT VIEW - DISCORD STYLE) -->
     <section class="app-view-section" id="viewChat">
-      <div class="chat-fullscreen-layout">
-        <div class="dock-chat-header">
-          <div class="chat-header-left">
-            <button type="button" class="btn-chat-nav-back" onclick="handleChatHeaderBack()" title="เลือกผู้ที่จะคุยด้วย / สลับห้อง">
-              <span id="chatBackIcon">👥</span>
-              <span class="chat-nav-back-text" id="chatBackText">สลับห้อง/สมาชิก</span>
+      <div class="discord-chat-layout">
+        
+        <!-- Sidebar ช่องแชท & สมาชิก (Channels & DMs Sidebar) -->
+        <aside class="discord-sidebar" id="discordSidebar">
+          <div class="discord-sidebar-header">
+            <span class="discord-server-icon">⚡</span>
+            <div class="discord-server-info">
+              <h3>TaiyoAni Hub</h3>
+              <span>Workspace Server</span>
+            </div>
+            <button type="button" class="btn-discord-mobile-close" onclick="toggleDiscordSidebar()">✕</button>
+          </div>
+
+          <div class="discord-channels-scroll">
+            <!-- 1. หมวดห้องแชทหลัก (Main Channels) -->
+            <div class="discord-category-title">
+              <span>📢 ห้องแชทหลัก (MAIN)</span>
+            </div>
+            <div class="discord-channel-item active" id="channelItemMain" onclick="switchChatChannel('team')">
+              <span class="channel-hash">#</span>
+              <span class="channel-name">ห้องแชทรวมทีม (Main Chat)</span>
+              <span class="discord-badge-count" id="mainChatBadgeCounter">0</span>
+            </div>
+
+            <!-- 2. หมวดกลุ่มแชทส่วนตัว (Private Groups) -->
+            <div class="discord-category-title" style="margin-top: 14px;">
+              <span>👥 กลุ่มส่วนตัว (GROUPS)</span>
+              <button type="button" class="btn-discord-add" onclick="openCreateGroupModal()" title="สร้างกลุ่มใหม่">➕</button>
+            </div>
+            <div class="discord-group-list" id="discordGroupList"></div>
+
+            <!-- 3. หมวดแชทส่วนตัว 1-on-1 (Direct Messages) -->
+            <div class="discord-category-title" style="margin-top: 14px;">
+              <span>💬 แชทส่วนตัว (DIRECT MESSAGES)</span>
+            </div>
+            <div class="discord-dm-list" id="discordDmList"></div>
+          </div>
+        </aside>
+
+        <!-- พื้นที่ห้องแชทหลัก (Chat Main Stage) -->
+        <main class="discord-chat-main">
+          <header class="discord-chat-header">
+            <div class="discord-header-left">
+              <button type="button" class="btn-discord-hamburger" onclick="toggleDiscordSidebar()" title="เปิดรายชื่อห้อง">
+                ☰
+              </button>
+              <span class="discord-header-prefix" id="discordHeaderPrefix">#</span>
+              <div class="discord-header-title-box">
+                <h3 id="discordChatHeaderTitle">ห้องแชทรวมทีม (Main Chat)</h3>
+                <span id="discordChatHeaderDesc">พื้นที่พูดคุยรวมทุกคนในทีม (ไม่รองรับการโทร)</span>
+              </div>
+            </div>
+
+            <div class="discord-header-actions">
+              <!-- ปุ่มโทรเสียง: ซ่อนในห้องรวม และจะแสดงเฉพาะเมื่ออยู่แชทส่วนตัวหรือกลุ่ม -->
+              <button type="button" class="btn-voice-call" id="btnVoiceCall" onclick="startVoiceCall()" style="display: none;" title="โทรคุยด้วยเสียง">
+                <span>📞</span>
+                <span class="voice-call-text">โทรเสียง</span>
+              </button>
+              <button type="button" class="btn-chat-control" id="btnClearChat" onclick="handleClearChat()" title="ล้างประวัติแชท (เฉพาะแอดมิน)" style="display: none;">🗑️</button>
+            </div>
+          </header>
+
+          <div class="chat-messages-body" id="chatMessagesBody"></div>
+
+          <div class="chat-image-preview-wrapper" id="chatImagePreviewWrapper">
+            <div class="chat-image-preview-thumb">
+              <img src="" id="chatImagePreviewImg" alt="Preview">
+            </div>
+            <span style="font-size: 0.8rem; color: #cbd5e1; flex: 1;">แนบรูปภาพพร้อมส่ง</span>
+            <button type="button" class="btn-sm delete" onclick="removeChatImageAttachment()">✕ ลบรูป</button>
+          </div>
+
+          <form class="chat-input-row" onsubmit="handleSendChatMessage(event)">
+            <button type="button" class="btn-chat-tool" id="btnChatEmojiToggle" onclick="toggleChatEmojiPicker()" title="ใส่อิโมจิ">
+              😊
             </button>
-          </div>
 
-          <div class="dock-chat-title-center">
-            <span class="chat-live-dot" id="chatHeaderLiveDot"></span>
-            <span id="chatHeaderTitleText">💬 ห้องแชทรวมทีม</span>
-          </div>
+            <label class="btn-chat-tool" title="แนบรูปภาพส่งในแชท">
+              📷
+              <input type="file" id="chatFileInput" accept="image/*" style="display: none;" onchange="handleChatImageSelect(event)">
+            </label>
 
-          <div class="chat-header-right">
-            <button type="button" class="btn-voice-call" id="btnVoiceCall" onclick="startVoiceCall()" title="โทรคุยด้วยเสียง">
-              <span>📞</span>
-              <span class="voice-call-text">โทรเสียง</span>
-            </button>
-            <button type="button" class="btn-chat-control" id="btnClearChat" onclick="handleClearChat()" title="ล้างประวัติแชท (เฉพาะแอดมิน)" style="display: none;">🗑️</button>
-          </div>
-        </div>
+            <input type="text" id="chatTextInput" class="chat-input" placeholder="พิมพ์ข้อความ... (กด Enter เพื่อส่ง)" autocomplete="off">
+            <button type="submit" class="btn-chat-send" title="ส่งข้อความ">🚀</button>
 
-        <div class="dm-status-banner" id="dmStatusBanner" style="display: none;">
-          <span>🔒 สนทนาส่วนตัวกับ <strong id="dmTargetNameDisplay"></strong></span>
-          <button type="button" class="btn-switch-to-team" onclick="switchToTeamChat()">สลับห้องรวม</button>
-        </div>
-
-        <div class="chat-messages-body" id="chatMessagesBody"></div>
-
-        <div class="chat-image-preview-wrapper" id="chatImagePreviewWrapper">
-          <div class="chat-image-preview-thumb">
-            <img src="" id="chatImagePreviewImg" alt="Preview">
-          </div>
-          <span style="font-size: 0.8rem; color: #cbd5e1; flex: 1;">แนบรูปภาพพร้อมส่ง</span>
-          <button type="button" class="btn-sm delete" onclick="removeChatImageAttachment()">✕ ลบรูป</button>
-        </div>
-
-        <form class="chat-input-row" onsubmit="handleSendChatMessage(event)">
-          <button type="button" class="btn-chat-tool" id="btnChatEmojiToggle" onclick="toggleChatEmojiPicker()" title="ใส่อิโมจิ">
-            😊
-          </button>
-
-          <label class="btn-chat-tool" title="แนบรูปภาพส่งในแชท">
-            📷
-            <input type="file" id="chatFileInput" accept="image/*" style="display: none;" onchange="handleChatImageSelect(event)">
-          </label>
-
-          <input type="text" id="chatTextInput" class="chat-input" placeholder="พิมพ์ข้อความ... (กด Enter เพื่อส่ง)" autocomplete="off">
-          <button type="submit" class="btn-chat-send" title="ส่งข้อความ">🚀</button>
-
-          <div class="chat-emoji-popover" id="chatEmojiPickerPopover"></div>
-        </form>
+            <div class="chat-emoji-popover" id="chatEmojiPickerPopover"></div>
+          </form>
+        </main>
       </div>
     </section>
 
@@ -1107,6 +1143,32 @@
   </div>
 
   <script type="module" src="app.js"></script>
+
+<!-- ================= CREATE GROUP CHAT MODAL ================= -->
+  <div class="modal-overlay" id="createGroupChatModal" style="z-index: 1270;">
+    <div class="modal" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">👥 สร้างกลุ่มแชทส่วนตัวใหม่</h3>
+        <button type="button" class="close-btn" onclick="closeModal('createGroupChatModal')">✕</button>
+      </div>
+      <form onsubmit="handleCreateGroupChat(event)">
+        <div class="form-group">
+          <label>ชื่อกลุ่มแชท (Group Name) *</label>
+          <input type="text" id="createGroupNameInput" class="form-control" placeholder="เช่น ทีมพากย์เสียงหลัก, ฝ่ายทำ 3D Rigging" required>
+        </div>
+
+        <div class="form-group">
+          <label>เลือกสมาชิกที่ต้องการดึงเข้ากลุ่ม (เลือกได้หลายคน):</label>
+          <div class="group-members-select-list" id="groupMembersSelectList"></div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('createGroupChatModal')">ยกเลิก</button>
+          <button type="submit" class="btn-create-task">🚀 สร้างกลุ่มแชท</button>
+        </div>
+      </form>
+    </div>
+  </div>
   
 <!-- ================= SETTINGS & AUDIO HARDWARE MODAL ================= -->
   <div class="modal-overlay" id="settingsModal" style="z-index: 1280;">
