@@ -155,17 +155,40 @@ let pendingVerificationUser = null;
 let activeCommunityFilter = 'all';
 let communitySearchQuery = '';
 
-let activeChatMode = 'team';
+// Discord Chat States
+let activeChatMode = 'team'; // 'team' | 'dm' | 'group'
 let activeDmTargetUser = null;
+let activeGroupId = null;
+let activeGroupData = null;
+let groupChats = [];
+let groupUnsubscribe = null;
+let groupChatMessages = [];
 let dmUnsubscribe = null;
 let selectedChatImageBase64 = null;
 
-// Voice Call States
+// Voice Call & Hardware States
 let isVoiceCallActive = false;
 let isVoiceMuted = false;
 let voiceCallTimerInterval = null;
 let voiceCallSeconds = 0;
 let callRingtoneInterval = null;
+let activeCallDocId = null;
+let currentPeerConnection = null;
+let localVoiceStream = null;
+let incomingCallData = null;
+
+let isMicTesting = false;
+let micTestStream = null;
+let micTestAudioCtx = null;
+let micTestAnalyser = null;
+let micTestAnimId = null;
+
+const RTC_CONFIG = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
+  ]
+};
 
 let activeScriptTaskId = null;
 let currentScriptPages = [''];
@@ -219,7 +242,6 @@ window.switchAppView = function(viewName) {
   AudioFX.click();
   const currentUser = getCurrentUser();
 
-  // กฎการเข้าถึง: หน้าโปรเจกต์และหน้ารายได้ เข้าได้เฉพาะ แอดมิน และ ทีมงาน เท่านั้น
   if ((viewName === 'projects' || viewName === 'revenue') && !isAdmin(currentUser) && !isStaff(currentUser)) {
     AudioFX.delete();
     openAccessDeniedModal();
@@ -238,6 +260,7 @@ window.switchAppView = function(viewName) {
   localStorage.setItem('taiyoani_active_view', viewName);
 
   if (viewName === 'chat') {
+    renderDiscordSidebarChannels();
     renderChatMessages();
     scrollChatToBottom();
   } else if (viewName === 'community') {
@@ -298,7 +321,9 @@ window.openTeamMembersModal = function() {
   document.getElementById('teamMembersModal').style.display = 'flex';
 };
 
-// ================= COMMUNITY HUB SYSTEM (ALL ROLES) =================
+// ================= COMMUNITY HUB SYSTEM (IG STYLE) =================
+let openCommentPostIds = new Set();
+
 window.openCommunityPostModal = function() {
   AudioFX.click();
   document.getElementById('communityCategorySelect').value = 'idea';
@@ -334,6 +359,7 @@ window.handleCreateCommunityPost = async function(e) {
     tags,
     likes: 0,
     likedBy: [],
+    comments: [],
     authorId: currentUser.id,
     authorName: currentUser.name,
     authorAvatar: currentUser.avatar,
@@ -405,9 +431,6 @@ window.deleteCommunityPost = async function(postId) {
     await deleteDoc(doc(db, "community_posts", postId));
   }
 };
-
-// ================= COMMUNITY POSTS & COMMENTS (IG STYLE) =================
-let openCommentPostIds = new Set();
 
 window.togglePostComments = function(postId) {
   AudioFX.click();
@@ -535,7 +558,6 @@ function renderCommunityPosts() {
     const card = document.createElement('div');
     card.className = 'community-post-card';
     card.innerHTML = `
-      <!-- 1. Header: Avatar with Story Ring + Username + Tag -->
       <div class="ig-post-header">
         <div class="ig-author-wrapper">
           <div class="ig-avatar-ring clickable-profile" onclick="openUserProfile('${post.authorId}')" title="ดูโปรไฟล์">
@@ -559,7 +581,6 @@ function renderCommunityPosts() {
         </div>
       </div>
 
-      <!-- 2. Post Body: Title & Caption -->
       <div class="ig-post-body">
         <h3 class="ig-post-title">${escapeHtml(post.title)}</h3>
         <p class="ig-post-caption">${escapeHtml(post.content)}</p>
@@ -568,7 +589,6 @@ function renderCommunityPosts() {
         </div>
       </div>
 
-      <!-- 3. Action Bar: Like, Comment, DM -->
       <div class="ig-action-bar">
         <div class="ig-action-left">
           <button type="button" class="ig-btn-icon ${isLiked ? 'is-liked' : ''}" onclick="handleLikeCommunityPost('${post.id}')" title="ถูกใจ">
@@ -588,7 +608,6 @@ function renderCommunityPosts() {
         </div>
       </div>
 
-      <!-- 4. Comments Accordion Drawer -->
       ${isCommentOpen ? `
         <div class="ig-comments-drawer">
           <div class="ig-comments-list">
@@ -632,36 +651,338 @@ function renderCommunityPosts() {
   });
 }
 
-// ================= CHAT HEADER ACTIONS & NAVIGATION =================
-window.handleChatHeaderBack = function() {
+// ================= DISCORD-STYLE CHANNELS & GROUPS =================
+window.toggleDiscordSidebar = function() {
   AudioFX.click();
-  if (activeChatMode === 'dm') {
-    window.switchToTeamChat();
+  const sidebar = document.getElementById('discordSidebar');
+  if (sidebar) sidebar.classList.toggle('open');
+};
+
+window.switchChatChannel = function(mode, targetId = null) {
+  AudioFX.click();
+  const sidebar = document.getElementById('discordSidebar');
+  if (sidebar) sidebar.classList.remove('open');
+
+  activeChatMode = mode;
+
+  if (dmUnsubscribe) { dmUnsubscribe(); dmUnsubscribe = null; }
+  if (groupUnsubscribe) { groupUnsubscribe(); groupUnsubscribe = null; }
+
+  const currentUser = getCurrentUser();
+
+  if (mode === 'team') {
+    activeDmTargetUser = null;
+    activeGroupId = null;
+    activeGroupData = null;
+    updateDiscordChatHeader('team');
+    renderChatMessages();
+    scrollChatToBottom();
+  } else if (mode === 'dm') {
+    const targetUser = teamUsers.find(u => u.id === targetId);
+    if (!targetUser) return;
+    activeDmTargetUser = targetUser;
+    activeGroupId = null;
+    activeGroupData = null;
+
+    updateDiscordChatHeader('dm', targetUser.name);
+
+    const currentUid = currentUser ? currentUser.id : 'guest';
+    const roomId = [currentUid, targetUser.id].sort().join('_');
+    const dmQuery = query(collection(db, "direct_chats", roomId, "messages"), orderBy("timestamp", "asc"));
+    
+    dmUnsubscribe = onSnapshot(dmQuery, (snapshot) => {
+      dmChatMessages = [];
+      snapshot.forEach(doc => dmChatMessages.push({ id: doc.id, ...doc.data() }));
+      if (activeChatMode === 'dm') {
+        renderChatMessages();
+        scrollChatToBottom();
+      }
+    });
+  } else if (mode === 'group') {
+    const group = groupChats.find(g => g.id === targetId);
+    if (!group) return;
+    activeGroupId = group.id;
+    activeGroupData = group;
+    activeDmTargetUser = null;
+
+    updateDiscordChatHeader('group', group.name);
+
+    const groupQuery = query(collection(db, "group_chats", group.id, "messages"), orderBy("timestamp", "asc"));
+    groupUnsubscribe = onSnapshot(groupQuery, (snapshot) => {
+      groupChatMessages = [];
+      snapshot.forEach(doc => groupChatMessages.push({ id: doc.id, ...doc.data() }));
+      if (activeChatMode === 'group') {
+        renderChatMessages();
+        scrollChatToBottom();
+      }
+    });
+  }
+
+  highlightActiveChannelItem();
+};
+
+function updateDiscordChatHeader(mode, titleName = '') {
+  const prefixEl = document.getElementById('discordHeaderPrefix');
+  const titleEl = document.getElementById('discordChatHeaderTitle');
+  const descEl = document.getElementById('discordChatHeaderDesc');
+  const callBtn = document.getElementById('btnVoiceCall');
+  const clearBtn = document.getElementById('btnClearChat');
+
+  if (mode === 'team') {
+    if (prefixEl) prefixEl.innerText = '#';
+    if (titleEl) titleEl.innerText = 'ห้องแชทรวมทีม (Main Chat)';
+    if (descEl) descEl.innerText = 'พื้นที่พูดคุยรวมทุกคนในทีม (ไม่รองรับการโทร)';
+    if (callBtn) callBtn.style.display = 'none';
+    if (clearBtn) clearBtn.style.display = isAdmin() ? 'inline-flex' : 'none';
+  } else if (mode === 'dm') {
+    if (prefixEl) prefixEl.innerText = '@';
+    if (titleEl) titleEl.innerText = titleName;
+    if (descEl) descEl.innerText = 'แชทส่วนตัว 1-on-1 (รองรับการโทรเสียง)';
+    if (callBtn) callBtn.style.display = 'inline-flex';
+    if (clearBtn) clearBtn.style.display = 'none';
+  } else if (mode === 'group') {
+    if (prefixEl) prefixEl.innerText = '👥';
+    if (titleEl) titleEl.innerText = titleName;
+    if (descEl) descEl.innerText = 'กลุ่มแชทส่วนตัว (รองรับการโทรเสียงประจำกลุ่ม)';
+    if (callBtn) callBtn.style.display = 'inline-flex';
+    if (clearBtn) clearBtn.style.display = 'none';
+  }
+}
+
+function highlightActiveChannelItem() {
+  document.querySelectorAll('.discord-channel-item').forEach(el => el.classList.remove('active'));
+  if (activeChatMode === 'team') {
+    document.getElementById('channelItemMain')?.classList.add('active');
+  } else if (activeChatMode === 'dm' && activeDmTargetUser) {
+    document.getElementById(`channelDm-${activeDmTargetUser.id}`)?.classList.add('active');
+  } else if (activeChatMode === 'group' && activeGroupId) {
+    document.getElementById(`channelGroup-${activeGroupId}`)?.classList.add('active');
+  }
+}
+
+function renderDiscordSidebarChannels() {
+  const groupListEl = document.getElementById('discordGroupList');
+  const dmListEl = document.getElementById('discordDmList');
+  const currentUser = getCurrentUser();
+
+  if (groupListEl) {
+    groupListEl.innerHTML = '';
+    const myGroups = groupChats.filter(g => Array.isArray(g.members) && currentUser && g.members.includes(currentUser.id));
+    if (myGroups.length === 0) {
+      groupListEl.innerHTML = '<div style="font-size:0.72rem; color:var(--text-muted); padding:4px 8px;">ยังไม่มีกลุ่มส่วนตัว</div>';
+    } else {
+      myGroups.forEach(g => {
+        const item = document.createElement('div');
+        item.className = `discord-channel-item ${activeChatMode === 'group' && activeGroupId === g.id ? 'active' : ''}`;
+        item.id = `channelGroup-${g.id}`;
+        item.onclick = () => switchChatChannel('group', g.id);
+        item.innerHTML = `
+          <span class="channel-hash">👥</span>
+          <span class="channel-name">${escapeHtml(g.name)}</span>
+        `;
+        groupListEl.appendChild(item);
+      });
+    }
+  }
+
+  if (dmListEl) {
+    dmListEl.innerHTML = '';
+    const otherMembers = teamUsers.filter(u => currentUser && u.id !== currentUser.id);
+    if (otherMembers.length === 0) {
+      dmListEl.innerHTML = '<div style="font-size:0.72rem; color:var(--text-muted); padding:4px 8px;">ไม่มีสมาชิกอื่น</div>';
+    } else {
+      otherMembers.forEach(u => {
+        const item = document.createElement('div');
+        item.className = `discord-channel-item ${activeChatMode === 'dm' && activeDmTargetUser?.id === u.id ? 'active' : ''}`;
+        item.id = `channelDm-${u.id}`;
+        item.onclick = () => switchChatChannel('dm', u.id);
+        item.innerHTML = `
+          <div class="discord-dm-avatar">${renderAvatarHtml(u.avatar)}</div>
+          <span class="channel-name">${escapeHtml(u.name)} ${isAdmin(u) ? '👑' : ''}</span>
+        `;
+        dmListEl.appendChild(item);
+      });
+    }
+  }
+}
+
+window.openCreateGroupModal = function() {
+  AudioFX.click();
+  const listEl = document.getElementById('groupMembersSelectList');
+  const currentUser = getCurrentUser();
+  if (!listEl) return;
+
+  listEl.innerHTML = '';
+  document.getElementById('createGroupNameInput').value = '';
+
+  const otherMembers = teamUsers.filter(u => currentUser && u.id !== currentUser.id);
+  if (otherMembers.length === 0) {
+    listEl.innerHTML = '<div style="font-size:0.78rem; color:var(--text-muted); padding:6px;">ยังไม่มีสมาชิกคนอื่นในระบบ</div>';
   } else {
-    window.openTeamMembersModal();
+    otherMembers.forEach(u => {
+      const row = document.createElement('label');
+      row.className = 'group-member-opt-row';
+      row.innerHTML = `
+        <input type="checkbox" name="groupMemberCheckbox" value="${u.id}">
+        <div class="discord-dm-avatar">${renderAvatarHtml(u.avatar)}</div>
+        <span style="font-size: 0.82rem; color: #fff; font-weight: 600;">${escapeHtml(u.name)}</span>
+        <span style="font-size: 0.7rem; color: var(--text-muted);">(${escapeHtml(u.role || 'สมาชิก')})</span>
+      `;
+      listEl.appendChild(row);
+    });
+  }
+
+  document.getElementById('createGroupChatModal').style.display = 'flex';
+};
+
+window.handleCreateGroupChat = async function(e) {
+  e.preventDefault();
+  const currentUser = getCurrentUser();
+  if (!currentUser) return;
+
+  const groupName = document.getElementById('createGroupNameInput').value.trim();
+  if (!groupName) return;
+
+  const checkboxes = document.querySelectorAll('input[name="groupMemberCheckbox"]:checked');
+  const selectedUserIds = Array.from(checkboxes).map(cb => cb.value);
+
+  selectedUserIds.push(currentUser.id);
+
+  if (selectedUserIds.length < 2) {
+    alert('กรุณาเลือกสมาชิกอย่างน้อย 1 คนเพื่อตั้งกลุ่ม');
+    return;
+  }
+
+  AudioFX.success();
+  const newGroupDoc = await addDoc(collection(db, "group_chats"), {
+    name: groupName,
+    members: selectedUserIds,
+    createdById: currentUser.id,
+    createdByName: currentUser.name,
+    createdAt: serverTimestamp()
+  });
+
+  closeModal('createGroupChatModal');
+  switchChatChannel('group', newGroupDoc.id);
+};
+
+// ================= MESSAGE SEND & RENDER =================
+window.handleSendChatMessage = async function(e) {
+  e.preventDefault();
+  const input = document.getElementById('chatTextInput');
+  const text = input.value.trim();
+  const imageBase64ToSend = selectedChatImageBase64;
+
+  if (!text && !imageBase64ToSend) return;
+
+  const currentUser = getCurrentUser();
+  if (!currentUser) return;
+
+  AudioFX.sendChat();
+  input.value = '';
+  removeChatImageAttachment();
+
+  const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const payload = {
+    senderId: currentUser.id,
+    senderName: currentUser.name,
+    senderAvatar: currentUser.avatar,
+    text: text,
+    image: imageBase64ToSend || null,
+    time: nowStr,
+    timestamp: serverTimestamp()
+  };
+
+  if (activeChatMode === 'team') {
+    await addDoc(collection(db, "chats"), payload);
+  } else if (activeChatMode === 'dm' && activeDmTargetUser) {
+    const roomId = [currentUser.id, activeDmTargetUser.id].sort().join('_');
+    await addDoc(collection(db, "direct_chats", roomId, "messages"), {
+      ...payload,
+      receiverId: activeDmTargetUser.id
+    });
+  } else if (activeChatMode === 'group' && activeGroupId) {
+    await addDoc(collection(db, "group_chats", activeGroupId, "messages"), payload);
   }
 };
 
-// ================= REAL-TIME WEBRTC VOICE CALL & HARDWARE SYSTEM =================
-let activeCallDocId = null;
-let currentPeerConnection = null;
-let localVoiceStream = null;
-let incomingCallData = null;
+window.handleClearChat = async function() {
+  if (!isAdmin()) {
+    AudioFX.delete();
+    alert('เฉพาะแอดมิน (TaiyoAni) เท่านั้นที่มีสิทธิ์ล้างประวัติแชท');
+    return;
+  }
 
-let isMicTesting = false;
-let micTestStream = null;
-let micTestAudioCtx = null;
-let micTestAnalyser = null;
-let micTestAnimId = null;
-
-const RTC_CONFIG = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' }
-  ]
+  if (confirm('คุณแน่ใจหรือไม่ว่าต้องการล้างประวัติแชทห้องทีมทั้งหมด?')) {
+    AudioFX.delete();
+    const snap = await getDocs(collection(db, "chats"));
+    snap.forEach(async (d) => await deleteDoc(doc(db, "chats", d.id)));
+  }
 };
 
-// 1. ระบบดักฟังสัญญาณสายเรียกเข้าแบบ Realtime
+function renderChatMessages() {
+  const body = document.getElementById('chatMessagesBody');
+  const mainCounter = document.getElementById('mainChatBadgeCounter');
+  const dockCounter = document.getElementById('chatBadgeCounter');
+  if (mainCounter) mainCounter.innerText = chatMessages.length;
+  if (dockCounter) dockCounter.innerText = chatMessages.length;
+  if (!body) return;
+
+  body.innerHTML = '';
+  const currentUser = getCurrentUser();
+  
+  let msgsToRender = chatMessages;
+  if (activeChatMode === 'dm') msgsToRender = dmChatMessages;
+  if (activeChatMode === 'group') msgsToRender = groupChatMessages;
+
+  if (msgsToRender.length === 0) {
+    let emptyNotice = '💬 ยังไม่มีข้อความในห้องแชทหลัก';
+    if (activeChatMode === 'dm') emptyNotice = `🔒 ยังไม่มีข้อความคุยกับ ${activeDmTargetUser?.name || 'สมาชิก'} เริ่มทักทายได้เลย!`;
+    if (activeChatMode === 'group') emptyNotice = `👥 ยังไม่มีข้อความในกลุ่ม ${activeGroupData?.name || ''} เริ่มเปิดบทสนทนาเลย!`;
+    body.innerHTML = `<div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 40px;">${emptyNotice}</div>`;
+    return;
+  }
+
+  msgsToRender.forEach(msg => {
+    const isMine = currentUser && msg.senderId === currentUser.id;
+    const row = document.createElement('div');
+    row.className = `chat-message-row ${isMine ? 'is-mine' : ''}`;
+
+    let imageAttachmentHtml = '';
+    if (msg.image) {
+      imageAttachmentHtml = `
+        <div class="chat-attached-image-box" onclick="openLightboxImage('${msg.image}')" title="คลิกเพื่อดูรูปภาพขนาดเต็ม">
+          <img src="${msg.image}" alt="รูปภาพแนบ">
+        </div>
+      `;
+    }
+
+    row.innerHTML = `
+      <div class="chat-msg-avatar clickable-profile" onclick="openUserProfile('${msg.senderId}')" title="คลิกเพื่อดูโปรไฟล์">${renderAvatarHtml(msg.senderAvatar)}</div>
+      <div class="chat-msg-content">
+        <div class="chat-msg-author clickable-profile" onclick="openUserProfile('${msg.senderId}')">${escapeHtml(msg.senderName)}</div>
+        <div class="chat-msg-bubble">
+          ${msg.text ? `<div>${escapeHtml(msg.text)}</div>` : ''}
+          ${imageAttachmentHtml}
+        </div>
+        <div class="chat-msg-time">${escapeHtml(msg.time || '')}</div>
+      </div>
+    `;
+    body.appendChild(row);
+  });
+}
+
+function scrollChatToBottom() {
+  const body = document.getElementById('chatMessagesBody');
+  if (body) {
+    setTimeout(() => { 
+      body.scrollTop = body.scrollHeight; 
+    }, 60);
+  }
+}
+
+// ================= REAL-TIME WEBRTC VOICE CALL SYSTEM =================
 function startIncomingCallListener() {
   if (!currentUserId) return;
   
@@ -670,14 +991,12 @@ function startIncomingCallListener() {
     snapshot.docChanges().forEach((change) => {
       const call = { id: change.doc.id, ...change.doc.data() };
       
-      // มีสายโทรเข้ามาหาเรา
       if (call.receiverId === currentUserId && call.status === 'ringing') {
         if (!isVoiceCallActive && !incomingCallData) {
           showIncomingCallPopup(call);
         }
       }
 
-      // สายปัจจุบันถูกวาง หรือปลายทางรับสาย
       if (activeCallDocId && call.id === activeCallDocId) {
         if (call.status === 'ended') {
           handleRemoteHangup();
@@ -689,7 +1008,6 @@ function startIncomingCallListener() {
   });
 }
 
-// 2. แสดงป๊อปอัพสายเรียกเข้า
 function showIncomingCallPopup(call) {
   incomingCallData = call;
   const modal = document.getElementById('incomingCallModal');
@@ -708,7 +1026,6 @@ function showIncomingCallPopup(call) {
   }, 2400);
 }
 
-// 3. กดรับสาย (Receiver)
 window.acceptIncomingCall = async function() {
   if (!incomingCallData) return;
   AudioFX.click();
@@ -727,7 +1044,6 @@ window.acceptIncomingCall = async function() {
   incomingCallData = null;
 };
 
-// 4. กดปฏิเสธสาย / วางสายเรียกเข้า
 window.declineIncomingCall = async function() {
   AudioFX.delete();
   if (callRingtoneInterval) clearInterval(callRingtoneInterval);
@@ -743,32 +1059,39 @@ window.declineIncomingCall = async function() {
   }
 };
 
-// 5. กดเริ่มโทรเสียงจากหน้าแชท (Caller)
 window.startVoiceCall = async function() {
   AudioFX.click();
   const currentUser = getCurrentUser();
   if (!currentUser) return;
 
-  let targetUser = activeDmTargetUser;
-  if (!targetUser) {
-    alert('กรุณาเลือกทักแชท (DM) กับสมาชิกที่ต้องการโทรหาโดยตรง');
-    window.openTeamMembersModal();
+  if (activeChatMode === 'team') {
+    alert('ห้องแชทรวมหลักไม่รองรับการโทรเสียง กรุณาสร้างกลุ่มหรือทักแชทส่วนตัวเพื่อโทรคุย');
     return;
   }
 
-  if (targetUser.id === currentUser.id) {
-    alert('ไม่สามารถโทรหาตนเองได้');
-    return;
+  let callTargetName = '';
+  let callAvatar = '';
+  let callReceiverId = '';
+
+  if (activeChatMode === 'dm' && activeDmTargetUser) {
+    callTargetName = activeDmTargetUser.name;
+    callAvatar = activeDmTargetUser.avatar;
+    callReceiverId = activeDmTargetUser.id;
+  } else if (activeChatMode === 'group' && activeGroupData) {
+    callTargetName = `กลุ่ม: ${activeGroupData.name}`;
+    callAvatar = '👥';
+    callReceiverId = activeGroupData.id;
   }
 
-  openVoiceCallUI(targetUser.name, targetUser.avatar);
+  openVoiceCallUI(callTargetName, callAvatar);
 
   const callDocRef = await addDoc(collection(db, "voice_calls"), {
     callerId: currentUser.id,
     callerName: currentUser.name,
     callerAvatar: currentUser.avatar,
-    receiverId: targetUser.id,
-    receiverName: targetUser.name,
+    receiverId: callReceiverId,
+    receiverName: callTargetName,
+    isGroupCall: (activeChatMode === 'group'),
     status: 'ringing',
     timestamp: serverTimestamp()
   });
@@ -784,7 +1107,6 @@ window.startVoiceCall = async function() {
   await setupWebRTCPeer(true, callDocRef);
 };
 
-// 6. เชื่อมต่อ WebRTC และส่งผ่านเสียงไมโครโฟน
 async function setupWebRTCPeer(isCaller, callDocRef) {
   try {
     currentPeerConnection = new RTCPeerConnection(RTC_CONFIG);
@@ -954,7 +1276,7 @@ window.toggleVoiceMute = function() {
   }
 };
 
-// ================= AUDIO HARDWARE & SETTINGS SYSTEM =================
+// ================= AUDIO HARDWARE & SETTINGS =================
 window.openSettingsModal = async function() {
   AudioFX.click();
   document.getElementById('settingsModal').style.display = 'flex';
@@ -1493,6 +1815,13 @@ function startRealtimeSync() {
     populateAssigneeDropdown();
     updateCurrentUserDisplay();
     renderMembersPresenceList();
+    renderDiscordSidebarChannels();
+  });
+
+  onSnapshot(collection(db, "group_chats"), (snapshot) => {
+    groupChats = [];
+    snapshot.forEach(doc => groupChats.push({ id: doc.id, ...doc.data() }));
+    renderDiscordSidebarChannels();
   });
 
   onSnapshot(collection(db, "projects"), (snapshot) => {
@@ -1551,7 +1880,6 @@ function renderRevenueWidget() {
   const other = Number(revenueData.other) || 0;
   const total = voice + anim + audio + other;
 
-  // แสดงยอดเงิน
   const voiceEl = document.getElementById('revenueVoiceDisplay');
   const animEl = document.getElementById('revenueAnimDisplay');
   const audioEl = document.getElementById('revenueAudioDisplay');
@@ -1564,13 +1892,11 @@ function renderRevenueWidget() {
   if (otherEl) otherEl.innerText = formatCurrency(other);
   if (totalEl) totalEl.innerText = formatCurrency(total);
 
-  // แสดงหมายเหตุงวด
   const noteEl = document.getElementById('revenueNoteDisplay');
   if (noteEl) {
     noteEl.innerText = revenueData.note ? `งวด: ${revenueData.note}` : 'งบประมาณและผลตอบแทนรวมทุกฝ่าย';
   }
 
-  // ป้ายวันเวลาอัปเดต
   const badge = document.getElementById('revenueUpdatedBadge');
   if (badge) {
     if (revenueData.updatedTime) {
@@ -1580,7 +1906,6 @@ function renderRevenueWidget() {
     }
   }
 
-  // กำหนดการและรายละเอียดการโอนเงิน (Payout Details)
   const transferDateEl = document.getElementById('revenueTransferDateDisplay');
   const transferDetailsEl = document.getElementById('revenueTransferDetailsDisplay');
   const statusBadgeEl = document.getElementById('revenueTransferStatusBadge');
@@ -1920,6 +2245,7 @@ function initAuth() {
   startLiveClock();
   renderChatEmojiPicker();
   startRealtimeSync();
+  startIncomingCallListener();
   
   const searchInput = document.getElementById('communitySearchInput');
   if (searchInput) {
@@ -2388,7 +2714,7 @@ function renderMembersPresenceList() {
   if (dockOnlineCount) dockOnlineCount.innerText = `${onlineCount} ออนไลน์`;
 }
 
-// ================= DIRECT MESSAGING =================
+// ================= DIRECT MESSAGING SHORTCUT =================
 window.startDirectChat = function(targetUserId) {
   const targetUser = teamUsers.find(u => u.id === targetUserId);
   if (!targetUser) return;
@@ -2396,56 +2722,8 @@ window.startDirectChat = function(targetUserId) {
   closeModal('teamMembersModal');
   closeModal('viewProfileModal');
 
-  activeChatMode = 'dm';
-  activeDmTargetUser = targetUser;
-
   window.switchAppView('chat');
-  updateChatHeaderUI();
-
-  const dmBanner = document.getElementById('dmStatusBanner');
-  if (dmBanner) dmBanner.style.display = 'flex';
-  
-  const dmTargetName = document.getElementById('dmTargetNameDisplay');
-  if (dmTargetName) dmTargetName.innerText = targetUser.name;
-
-  const currentUid = currentUserId || 'guest';
-  const roomId = [currentUid, targetUser.id].sort().join('_');
-
-  if (dmUnsubscribe) dmUnsubscribe();
-
-  const dmQuery = query(collection(db, "direct_chats", roomId, "messages"), orderBy("timestamp", "asc"));
-  dmUnsubscribe = onSnapshot(dmQuery, (snapshot) => {
-    dmChatMessages = [];
-    snapshot.forEach(doc => dmChatMessages.push({ id: doc.id, ...doc.data() }));
-    if (activeChatMode === 'dm') {
-      renderChatMessages();
-      scrollChatToBottom();
-    }
-  });
-
-  setTimeout(() => {
-    const input = document.getElementById('chatTextInput');
-    if (input) input.focus();
-  }, 100);
-};
-
-window.switchToTeamChat = function() {
-  AudioFX.click();
-  activeChatMode = 'team';
-  activeDmTargetUser = null;
-
-  if (dmUnsubscribe) {
-    dmUnsubscribe();
-    dmUnsubscribe = null;
-  }
-
-  updateChatHeaderUI();
-  
-  const dmBanner = document.getElementById('dmStatusBanner');
-  if (dmBanner) dmBanner.style.display = 'none';
-
-  renderChatMessages();
-  scrollChatToBottom();
+  window.switchChatChannel('dm', targetUser.id);
 };
 
 // ================= PROJECT NOTES =================
@@ -2486,7 +2764,7 @@ window.handleSaveProjectNotes = async function(e) {
   closeModal('projectNotesModal');
 };
 
-// ================= EDIT PROFILE MODAL (WITH LOADING POPUP) =================
+// ================= EDIT PROFILE MODAL =================
 window.openEditProfileModal = function() {
   const user = getCurrentUser();
   if (!user) return;
@@ -2873,116 +3151,6 @@ window.handleLikeTask = async function(taskId) {
   await updateDoc(doc(db, "projects", activeProjectId), { tasks: updatedTasks });
 };
 
-// ================= TEAM CHAT LOGIC (TEXT, EMOJI & IMAGE) =================
-window.handleSendChatMessage = async function(e) {
-  e.preventDefault();
-  const input = document.getElementById('chatTextInput');
-  const text = input.value.trim();
-  const imageBase64ToSend = selectedChatImageBase64;
-
-  if (!text && !imageBase64ToSend) return;
-
-  const currentUser = getCurrentUser();
-  if (!currentUser) return;
-
-  AudioFX.sendChat();
-  input.value = '';
-  removeChatImageAttachment();
-
-  const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-  const payload = {
-    senderId: currentUser.id,
-    senderName: currentUser.name,
-    senderAvatar: currentUser.avatar,
-    text: text,
-    image: imageBase64ToSend || null,
-    time: nowStr,
-    timestamp: serverTimestamp()
-  };
-
-  if (activeChatMode === 'team') {
-    await addDoc(collection(db, "chats"), payload);
-  } else if (activeChatMode === 'dm' && activeDmTargetUser) {
-    const roomId = [currentUser.id, activeDmTargetUser.id].sort().join('_');
-    await addDoc(collection(db, "direct_chats", roomId, "messages"), {
-      ...payload,
-      receiverId: activeDmTargetUser.id
-    });
-  }
-};
-
-window.handleClearChat = async function() {
-  if (!isAdmin()) {
-    AudioFX.delete();
-    alert('เฉพาะแอดมิน (TaiyoAni) เท่านั้นที่มีสิทธิ์ล้างประวัติแชท');
-    return;
-  }
-
-  if (confirm('คุณแน่ใจหรือไม่ว่าต้องการล้างประวัติแชทห้องทีมทั้งหมด?')) {
-    AudioFX.delete();
-    const snap = await getDocs(collection(db, "chats"));
-    snap.forEach(async (d) => await deleteDoc(doc(db, "chats", d.id)));
-  }
-};
-
-function renderChatMessages() {
-  const body = document.getElementById('chatMessagesBody');
-  const counter = document.getElementById('chatBadgeCounter');
-  if (counter) counter.innerText = chatMessages.length;
-  if (!body) return;
-
-  body.innerHTML = '';
-  const currentUser = getCurrentUser();
-  const msgsToRender = activeChatMode === 'dm' ? dmChatMessages : chatMessages;
-
-  if (msgsToRender.length === 0) {
-    body.innerHTML = `
-      <div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 40px;">
-        ${activeChatMode === 'dm' ? '🔒 ยังไม่มีข้อความคุยส่วนตัว เริ่มทักทายได้เลย!' : '💬 ยังไม่มีข้อความในห้องทีม'}
-      </div>
-    `;
-    return;
-  }
-
-  msgsToRender.forEach(msg => {
-    const isMine = currentUser && msg.senderId === currentUser.id;
-    const row = document.createElement('div');
-    row.className = `chat-message-row ${isMine ? 'is-mine' : ''}`;
-
-    let imageAttachmentHtml = '';
-    if (msg.image) {
-      imageAttachmentHtml = `
-        <div class="chat-attached-image-box" onclick="openLightboxImage('${msg.image}')" title="คลิกเพื่อดูรูปภาพขนาดเต็ม">
-          <img src="${msg.image}" alt="รูปภาพแนบ">
-        </div>
-      `;
-    }
-
-    row.innerHTML = `
-      <div class="chat-msg-avatar clickable-profile" onclick="openUserProfile('${msg.senderId}')" title="คลิกเพื่อดูโปรไฟล์">${renderAvatarHtml(msg.senderAvatar)}</div>
-      <div class="chat-msg-content">
-        <div class="chat-msg-author clickable-profile" onclick="openUserProfile('${msg.senderId}')">${escapeHtml(msg.senderName)}</div>
-        <div class="chat-msg-bubble">
-          ${msg.text ? `<div>${escapeHtml(msg.text)}</div>` : ''}
-          ${imageAttachmentHtml}
-        </div>
-        <div class="chat-msg-time">${escapeHtml(msg.time || '')}</div>
-      </div>
-    `;
-    body.appendChild(row);
-  });
-}
-
-function scrollChatToBottom() {
-  const body = document.getElementById('chatMessagesBody');
-  if (body) {
-    setTimeout(() => { 
-      body.scrollTop = body.scrollHeight; 
-    }, 60);
-  }
-}
-
 // ================= RENDER WORKSPACE UI =================
 function updateCurrentUserDisplay() {
   const user = getCurrentUser();
@@ -3001,8 +3169,6 @@ function updateCurrentUserDisplay() {
     if (homeAvatar) homeAvatar.innerHTML = renderAvatarHtml(user.avatar);
     if (homeName) homeName.innerText = `${user.name}${adminTag}`;
     if (homeRole) homeRole.innerText = displayRole;
-
-    updateChatHeaderUI();
 
     const editRevenueBtn = document.getElementById('btnAdminEditRevenue');
     if (editRevenueBtn) {
