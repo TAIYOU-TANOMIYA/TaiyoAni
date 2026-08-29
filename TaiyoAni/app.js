@@ -1,4374 +1,1459 @@
-// ================= FIREBASE SDK IMPORTS (CDN) =================
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { 
-  getFirestore, collection, doc, setDoc, getDocs, 
-  onSnapshot, query, orderBy, addDoc, deleteDoc, updateDoc, serverTimestamp 
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyBsf2pAoaT0OB9cgMBksB2igZGp7y4yWAI",
-  authDomain: "taiyoani.firebaseapp.com",
-  projectId: "taiyoani",
-  storageBucket: "taiyoani.firebasestorage.app",
-  messagingSenderId: "900402723577",
-  appId: "1:900402723577:web:90c5b93dcac66ea7930028",
-  measurementId: "G-J76JT5GJJY"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-// ================= EMAIL CONFIGURATION (EmailJS) =================
-const EMAILJS_PUBLIC_KEY = "7V9Ht6H8soo45HjeR";
-const EMAILJS_SERVICE_ID = "service_02kcs7q";
-const EMAILJS_TEMPLATE_ID = "template_0x0kyls";
-
-if (EMAILJS_PUBLIC_KEY && window.emailjs) {
-  try {
-    window.emailjs.init({
-      publicKey: EMAILJS_PUBLIC_KEY
-    });
-  } catch (e) {
-    console.warn("EmailJS init warning:", e);
-  }
-}
-
-async function sendOtpEmail(targetEmail, userName, otpCode, introMessage = "รหัสยืนยันตัวตนของคุณคือ:", subject = "รหัสยืนยัน OTP - TaiyoAni UI Hub") {
-  if (!targetEmail) return false;
-
-  const templateParams = {
-    to_email: targetEmail,
-    email: targetEmail,
-    reply_to: targetEmail,
-    to_name: userName || "สมาชิก",
-    name: userName || "สมาชิก",
-    from_name: "TaiyoAni UI Hub",
-    otp_code: otpCode,
-    message_intro: introMessage,
-    message: `${introMessage} ${otpCode}`,
-    subject: subject,
-    system_name: "TaiyoAni UI Hub"
-  };
-
-  if (EMAILJS_PUBLIC_KEY && EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID && window.emailjs) {
-    try {
-      const res = await window.emailjs.send(
-        EMAILJS_SERVICE_ID,
-        EMAILJS_TEMPLATE_ID,
-        templateParams,
-        { publicKey: EMAILJS_PUBLIC_KEY }
-      );
-      console.log("EmailJS Success:", res.status, res.text);
-      return true;
-    } catch (err) {
-      console.error("EmailJS sending failed:", err);
-      const errMsg = err?.text || err?.message || JSON.stringify(err);
-      alert(`⚠️ ส่งอีเมลไม่สำเร็จ (${errMsg})\n\nรหัส OTP สำหรับทดสอบของคุณคือ: ${otpCode}\n(กรุณาตรวจเช็กการตั้งค่า EmailJS หรือดูในโฟลเดอร์สแปม/จดหมายขยะ)`);
-      return false;
-    }
-  } else {
-    alert(`[โหมดจำลองส่งเมลไปยัง: ${targetEmail}]\n\nรหัสยืนยัน OTP คือ: ${otpCode}`);
-    return true;
-  }
-}
-
-// ================= WEB AUDIO API =================
-const AudioFX = {
-  ctx: null,
-  init() {
-    if (!this.ctx) {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (AudioCtx) this.ctx = new AudioCtx();
-    }
-    if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
-    }
-  },
-  playTone(freqStart, freqEnd, type, duration, vol = 0.08) {
-    try {
-      this.init();
-      if (!this.ctx) return;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = type;
-      osc.frequency.setValueAtTime(freqStart, this.ctx.currentTime);
-      if (freqEnd) {
-        osc.frequency.exponentialRampToValueAtTime(freqEnd, this.ctx.currentTime + duration);
-      }
-      gain.gain.setValueAtTime(vol, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      osc.start();
-      osc.stop(this.ctx.currentTime + duration);
-    } catch (e) {}
-  },
-  click() { this.playTone(700, 350, 'sine', 0.04, 0.06); },
-  sendChat() { this.playTone(380, 920, 'sine', 0.08, 0.12); },
-  newIncomingMsg() { this.playTone(600, 1200, 'sine', 0.1, 0.14); },
-  submitWork() { this.playTone(400, 1000, 'sine', 0.15, 0.12); },
-  pageFlip() { this.playTone(550, 750, 'triangle', 0.08, 0.08); },
-  ringtone() {
-    try {
-      this.init();
-      if (!this.ctx) return;
-      const now = this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(440, now);
-      osc.frequency.setValueAtTime(480, now + 0.1);
-      gain.gain.setValueAtTime(0.1, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.4);
-    } catch (e) {}
-  },
-  like() {
-    try {
-      this.init();
-      if (!this.ctx) return;
-      const now = this.ctx.currentTime;
-      const osc1 = this.ctx.createOscillator();
-      const gain1 = this.ctx.createGain();
-      osc1.type = 'triangle';
-      osc1.frequency.setValueAtTime(523.25, now);
-      gain1.gain.setValueAtTime(0.08, now);
-      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-      osc1.connect(gain1);
-      gain1.connect(this.ctx.destination);
-      osc1.start(now);
-      osc1.stop(now + 0.12);
-
-      const osc2 = this.ctx.createOscillator();
-      const gain2 = this.ctx.createGain();
-      osc2.type = 'triangle';
-      osc2.frequency.setValueAtTime(1046.50, now + 0.06);
-      gain2.gain.setValueAtTime(0.08, now + 0.06);
-      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-      osc2.connect(gain2);
-      gain2.connect(this.ctx.destination);
-      osc2.start(now + 0.06);
-      osc2.stop(now + 0.22);
-    } catch (e) {}
-  },
-  success() { this.playTone(440, 880, 'sine', 0.12, 0.1); },
-  delete() { this.playTone(280, 120, 'sine', 0.07, 0.08); }
-};
-
-document.addEventListener('click', (e) => {
-  if (e.target.closest('button') || e.target.closest('.avatar-opt') || e.target.closest('.project-item') || e.target.closest('.word-tool-btn') || e.target.closest('.emoji-btn-opt') || e.target.closest('.category-select-pill')) {
-    AudioFX.click();
-  }
-});
-
-// ================= APP STATES =================
-const AVATAR_PRESETS = ['👨‍💻', '👩‍💻', '🐱', '🦊', '🚀', '🎨', '🎬', '⚡', '🐉', '✨'];
-const EMOJI_LIST = ['😀', '😂', '😍', '😎', '🥳', '🔥', '🎉', '👍', '❤️', '✨', '🎬', '🎨', '🚀', '💡', '🙌', '💯', '⭐', '☕', '🐱', '🌸', '👏', '💬', '👀', '📌'];
-const MAX_PAGES = 50;
-const STORY_EXPIRATION_HOURS = 24;
-
-let teamUsers = [];
-let projects = [];
-let communityPosts = [];
-let communityStories = [];
-let chatMessages = [];
-let dmChatMessages = [];
-let currentUserId = localStorage.getItem('taiyoani_active_user_id') || null;
-let activeProjectId = null;
-let isMobileSidebarOpen = false;
-let initialChatLoadDone = false;
-let pendingVerificationUser = null;
-
-// Home Banner States
-let homeBanners = [];
-let currentBannerSlideIndex = 0;
-let bannerAutoSlideTimer = null;
-const BANNER_AUTO_SLIDE_INTERVAL = 6000;
-
-// Search & Filter States
-let activeCommunityFilter = 'all';
-let modalTempSearchCategory = 'all';
-let communitySearchQuery = '';
-let activeDetailPostId = null;
-
-// Story Player States
-let storyViewerQueue = [];
-let currentStorySlideIndex = 0;
-let storyTimerInterval = null;
-let storyProgressStep = 0;
-const STORY_DURATION_MS = 5000;
-
-// Discord Chat & Voice Call / Voice Room States
-let activeChatMode = 'team'; // 'team' | 'dm' | 'group'
-let activeDmTargetUser = null;
-let activeGroupId = null;
-let activeGroupData = null;
-let groupChats = [];
-let groupUnsubscribe = null;
-let groupChatMessages = [];
-let dmUnsubscribe = null;
-let selectedChatImageBase64 = null;
-
-// Voice Call 1-on-1 States (สำหรับแชทส่วนตัว DM)
-let isVoiceCallActive = false;
-let isVoiceMuted = false;
-let voiceCallTimerInterval = null;
-let voiceCallSeconds = 0;
-let callRingtoneInterval = null;
-let activeCallDocId = null;
-let currentPeerConnection = null;
-let localVoiceStream = null;
-let incomingCallData = null;
-
-// Voice Room States (สำหรับแชทกลุ่มส่วนตัว Group Chat)
-let activeVoiceRoomId = null;
-let voiceRoomUnsubscribe = null;
-let isUserInVoiceRoom = false;
-
-// Audio Hardware States
-let isMicTesting = false;
-let micTestStream = null;
-let micTestAudioCtx = null;
-let micTestAnalyser = null;
-let micTestAnimId = null;
-
-const RTC_CONFIG = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' }
-  ]
-};
-
-let activeScriptTaskId = null;
-let currentScriptPages = [''];
-let activePageIndex = 0;
-
-let revenueData = {
-  voice: 0,
-  animation: 0,
-  audio: 0,
-  other: 0,
-  note: '',
-  transferDate: '',
-  transferStatus: 'pending',
-  transferDetails: '',
-  updatedBy: '',
-  updatedTime: ''
-};
-
-function getCurrentUser() {
-  return teamUsers.find(u => u && u.id === currentUserId) || null;
-}
-
-function isAdmin(user = getCurrentUser()) {
-  if (!user || !user.name) return false;
-  return user.name.trim().toLowerCase() === 'taiyoani';
-}
-
-function isStaff(user = getCurrentUser()) {
-  if (!user) return false;
-  if (isAdmin(user)) return true;
-  return user.rankType === 'ทีมงาน' || (user.role && user.role.includes('ทีมงาน'));
-}
-
-function renderAvatarHtml(avatarData, customClass = '') {
-  if (!avatarData || typeof avatarData !== 'string') {
-    return `<span class="avatar-chip ${customClass}">👤</span>`;
-  }
-  if (avatarData.startsWith('data:image') || avatarData.startsWith('http') || avatarData.startsWith('./') || avatarData.startsWith('/')) {
-    return `<span class="avatar-chip ${customClass}"><img src="${escapeHtml(avatarData)}" alt="avatar"></span>`;
-  }
-  return `<span class="avatar-chip ${customClass}">${escapeHtml(avatarData)}</span>`;
-}
-
-function formatCurrency(amount) {
-  const num = Number(amount) || 0;
-  return '฿ ' + num.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-}
-
-// ================= SYSTEM & HARDWARE NOTIFICATION MANAGER =================
-async function requestNotificationPermission() {
-  if ('Notification' in window && Notification.permission !== 'granted') {
-    try {
-      await Notification.requestPermission();
-    } catch (e) {}
-  }
-}
-
-function triggerHardwareAlert(title, body, iconUrl = './Tanomiya.png', onClickCallback = null) {
-  if ('vibrate' in navigator) {
-    navigator.vibrate([180, 80, 180]);
-  }
-
-  AudioFX.newIncomingMsg();
-
-  if ('Notification' in window && Notification.permission === 'granted') {
-    try {
-      const notif = new Notification(title, {
-        body: body,
-        icon: iconUrl,
-        badge: './Tanomiya.png',
-        silent: false
-      });
-      if (onClickCallback) {
-        notif.onclick = () => {
-          window.focus();
-          onClickCallback();
-        };
-      }
-    } catch (e) {}
-  }
-
-  showInAppToast(title, body, iconUrl, onClickCallback);
-}
-
-function showInAppToast(title, body, iconUrl, onClick) {
-  const container = document.getElementById('inAppToastContainer');
-  if (!container) return;
-
-  const toast = document.createElement('div');
-  toast.className = 'in-app-toast';
-  toast.onclick = () => {
-    if (onClick) onClick();
-    toast.remove();
-  };
-
-  toast.innerHTML = `
-    <div class="in-app-toast-avatar">${renderAvatarHtml(iconUrl)}</div>
-    <div class="in-app-toast-content">
-      <div class="in-app-toast-title">${escapeHtml(title)}</div>
-      <div class="in-app-toast-body">${escapeHtml(body)}</div>
-    </div>
-  `;
-
-  container.appendChild(toast);
-  setTimeout(() => {
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateY(-10px)';
-    toast.style.transition = 'all 0.3s ease';
-    setTimeout(() => toast.remove(), 300);
-  }, 4500);
-}
-
-// ================= SECTION VIEW ROUTER =================
-window.switchAppView = function(viewName) {
-  AudioFX.click();
-  const currentUser = getCurrentUser();
-
-  if ((viewName === 'projects' || viewName === 'revenue') && !isAdmin(currentUser) && !isStaff(currentUser)) {
-    AudioFX.delete();
-    openAccessDeniedModal();
-    return;
-  }
-
-  document.querySelectorAll('.app-view-section').forEach(sec => sec.classList.remove('active'));
-  document.querySelectorAll('.bottom-nav-item').forEach(btn => btn.classList.remove('active'));
-
-  const targetSection = document.getElementById(`view${viewName.charAt(0).toUpperCase() + viewName.slice(1)}`);
-  const targetBtn = document.getElementById(`navBtn${viewName.charAt(0).toUpperCase() + viewName.slice(1)}`);
-
-  if (targetSection) targetSection.classList.add('active');
-  if (targetBtn) targetBtn.classList.add('active');
-
-  localStorage.setItem('taiyoani_active_view', viewName);
-
-  if (viewName === 'chat') {
-    renderDiscordSidebarChannels();
-    renderChatMessages();
-    scrollChatToBottom();
-  } else if (viewName === 'community') {
-    renderStoriesTray();
-    renderCommunityPosts();
-  } else if (viewName === 'home') {
-    renderHomeBanners();
-  }
-};
-
-window.openAccessDeniedModal = function() {
-  const modal = document.getElementById('accessDeniedModal');
-  if (modal) {
-    modal.style.display = 'flex';
-  } else {
-    alert('⚠️ เฉพาะยศแอดมินและทีมงานเท่านั้นที่มีสิทธิ์เข้าถึงหน้านี้');
-    window.switchAppView('home');
-  }
-};
-
-window.closeAccessDeniedModal = function() {
-  const modal = document.getElementById('accessDeniedModal');
-  if (modal) modal.style.display = 'none';
-  window.switchAppView('home');
-};
-
-function initAppView() {
-  const savedView = localStorage.getItem('taiyoani_active_view') || 'home';
-  const currentUser = getCurrentUser();
-  if ((savedView === 'projects' || savedView === 'revenue') && !isAdmin(currentUser) && !isStaff(currentUser)) {
-    window.switchAppView('home');
-  } else {
-    window.switchAppView(savedView);
-  }
-}
-
-// ================= LIVE CLOCK SYSTEM FOR HOME =================
-function startLiveClock() {
-  function updateClock() {
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString('th-TH', { hour12: false });
-    const dateStr = now.toLocaleDateString('th-TH', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    });
-
-    const timeEl = document.getElementById('homeClockTimeDisplay');
-    const dateEl = document.getElementById('homeClockDateDisplay');
-    if (timeEl) timeEl.innerText = timeStr;
-    if (dateEl) dateEl.innerText = dateStr;
-  }
-  updateClock();
-  setInterval(updateClock, 1000);
-}
-
-window.openTeamMembersModal = function() {
-  AudioFX.click();
-  renderMembersPresenceList();
-  document.getElementById('teamMembersModal').style.display = 'flex';
-};
-
-// ================= HOME BANNER CAROUSEL SYSTEM =================
-window.openAddBannerModal = function() {
-  if (!isAdmin()) {
-    AudioFX.delete();
-    alert('เฉพาะแอดมิน (TaiyoAni) เท่านั้นที่มีสิทธิ์ลงแบนเนอร์');
-    return;
-  }
-  AudioFX.click();
-  document.getElementById('bannerTitleInput').value = '';
-  document.getElementById('bannerSubtitleInput').value = '';
-  document.getElementById('bannerLinkInput').value = '';
-  document.getElementById('bannerFileInput').value = '';
-  document.getElementById('bannerMediaDataInput').value = '';
-  document.getElementById('bannerMediaTypeInput').value = 'image';
-  document.getElementById('bannerMediaPreviewContainer').innerHTML = '<span style="font-size: 0.8rem; color: var(--text-muted);">ตัวอย่างไฟล์สื่อจะแสดงที่นี่</span>';
-  document.getElementById('homeBannerModal').style.display = 'flex';
-};
-
-window.handleBannerMediaSelect = function(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  const isVideo = file.type.startsWith('video/');
-  const previewBox = document.getElementById('bannerMediaPreviewContainer');
-
-  if (isVideo) {
-    if (file.size > 750 * 1024) {
-      AudioFX.delete();
-      alert('⚠️ ไฟล์วิดีโอมีขนาดใหญ่เกินไป (จำกัดไม่เกิน 750 KB)\nแนะนำให้บีบอัดไฟล์วิดีโอก่อน หรือใช้ไฟล์ภาพ GIF แทน');
-      event.target.value = '';
-      return;
-    }
-
-    const videoEl = document.createElement('video');
-    videoEl.preload = 'metadata';
-    videoEl.src = URL.createObjectURL(file);
-
-    videoEl.onloadedmetadata = function() {
-      URL.revokeObjectURL(videoEl.src);
-      if (videoEl.duration > 60) {
-        AudioFX.delete();
-        alert('⚠️ วิดีโอมีความยาวเกิน 1 นาที (จำกัดไม่เกิน 60 วินาที)');
-        event.target.value = '';
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const base64 = e.target.result;
-        document.getElementById('bannerMediaDataInput').value = base64;
-        document.getElementById('bannerMediaTypeInput').value = 'video';
-        if (previewBox) {
-          previewBox.innerHTML = `<video src="${base64}" autoplay muted loop playsinline></video>`;
-        }
-      };
-      reader.readAsDataURL(file);
-    };
-  } else {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      const img = new Image();
-      img.onload = function() {
-        const canvas = document.createElement('canvas');
-        const maxDim = 1200;
-        let width = img.width, height = img.height;
-
-        if (width > height && width > maxDim) {
-          height = Math.round((height * maxDim) / width);
-          width = maxDim;
-        } else if (height > maxDim) {
-          width = Math.round((width * maxDim) / height);
-          height = maxDim;
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-
-        const base64 = canvas.toDataURL(file.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.85);
-        document.getElementById('bannerMediaDataInput').value = base64;
-        document.getElementById('bannerMediaTypeInput').value = 'image';
-        if (previewBox) {
-          previewBox.innerHTML = `<img src="${base64}" alt="Banner Preview">`;
-        }
-      };
-      img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
-  }
-};
-
-window.handleSaveHomeBanner = async function(e) {
-  e.preventDefault();
-  if (!isAdmin()) return;
-
-  const title = document.getElementById('bannerTitleInput').value.trim();
-  const subtitle = document.getElementById('bannerSubtitleInput').value.trim();
-  const link = document.getElementById('bannerLinkInput').value.trim();
-  const mediaData = document.getElementById('bannerMediaDataInput').value;
-  const mediaType = document.getElementById('bannerMediaTypeInput').value;
-
-  if (!mediaData) {
-    alert('กรุณาเลือกไฟล์ภาพหรือวิดีโอ');
-    return;
-  }
-
-  const currentUser = getCurrentUser();
-  AudioFX.success();
-
-  try {
-    await addDoc(collection(db, "home_banners"), {
-      title,
-      subtitle,
-      link,
-      mediaData,
-      mediaType,
-      createdBy: currentUser ? currentUser.name : 'TaiyoAni',
-      createdAt: Date.now(),
-      timestamp: serverTimestamp()
-    });
-    closeModal('homeBannerModal');
-  } catch (err) {
-    console.error("Save banner error:", err);
-    AudioFX.delete();
-    alert("เกิดข้อผิดพลาดในการบันทึกแบนเนอร์: ขนาดไฟล์สื่ออาจใหญ่เกินขีดจำกัด");
-  }
-};
-
-window.handleDeleteBanner = async function(bannerId) {
-  if (!isAdmin()) return;
-  if (confirm('คุณต้องการลบแบนเนอร์นี้ใช่หรือไม่?')) {
-    AudioFX.delete();
-    await deleteDoc(doc(db, "home_banners", bannerId));
-  }
-};
-
-function renderHomeBanners() {
-  const track = document.getElementById('homeBannerTrack');
-  const dotsContainer = document.getElementById('bannerDotsContainer');
-  const adminBar = document.getElementById('homeBannerAdminBar');
-  if (!track || !dotsContainer) return;
-
-  if (adminBar) {
-    adminBar.style.display = isAdmin() ? 'flex' : 'none';
-  }
-
-  track.innerHTML = '';
-  dotsContainer.innerHTML = '';
-
-  const bannersToRender = homeBanners.length > 0 ? homeBanners : [{
-    id: 'default-banner',
-    title: '✨ ยินดีต้อนรับสู่ TaiyoAni Hub',
-    subtitle: 'พื้นที่แสดงผลงาน ความคืบหน้าโปรเจกต์ และข่าวสารทางการของทีม',
-    mediaType: 'image',
-    mediaData: './Tanomiya.png',
-    isDefault: true
-  }];
-
-  if (currentBannerSlideIndex >= bannersToRender.length) {
-    currentBannerSlideIndex = 0;
-  }
-
-  bannersToRender.forEach((banner, index) => {
-    const isActive = index === currentBannerSlideIndex;
-    const slide = document.createElement('div');
-    slide.className = `home-banner-slide ${isActive ? 'active' : ''}`;
-
-    let mediaHtml = '';
-    if (banner.mediaType === 'video') {
-      mediaHtml = `<video src="${banner.mediaData}" autoplay muted loop playsinline></video>`;
-    } else {
-      mediaHtml = `<img src="${banner.mediaData}" alt="${escapeHtml(banner.title)}">`;
-    }
-
-    const deleteBtnHtml = (isAdmin() && !banner.isDefault) ? `
-      <button type="button" class="btn-delete-banner-admin" onclick="handleDeleteBanner('${banner.id}')" title="ลบแบนเนอร์">
-        🗑️ ลบแบนเนอร์
-      </button>
-    ` : '';
-
-    const linkBtnHtml = banner.link ? `
-      <a href="${escapeHtml(banner.link)}" target="_blank" rel="noopener noreferrer" class="btn-banner-link">
-        ดูรายละเอียด ↗
-      </a>
-    ` : '';
-
-    slide.innerHTML = `
-      ${deleteBtnHtml}
-      ${mediaHtml}
-      <div class="home-banner-overlay">
-        <div class="banner-info-box">
-          <h3>${escapeHtml(banner.title)}</h3>
-          <p>${escapeHtml(banner.subtitle || '')}</p>
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>TaiyoAni UI - Task & Team Hub</title>
+  <link rel="icon" type="image/png" href="./Tanomiya.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="device-mode-auto">
+
+  <!-- กล่องแสดงป๊อปอัปแจ้งเตือนภายในแอป (In-App Glass Toast) -->
+  <div id="inAppToastContainer" class="in-app-toast-container"></div>
+
+  <!-- ================= AUTH GATE OVERLAY ================= -->
+  <div class="auth-gate-overlay" id="authGate">
+    <div class="auth-card">
+      <div class="auth-header">
+        <div class="brand-icon">
+          <img src="./Tanomiya.png" alt="TaiyoAni Logo" class="brand-img">
         </div>
-        ${linkBtnHtml}
+        <h2>TaiyoAni UI</h2>
+        <p>ระบบจัดการงานและโปรเจกต์ทีม</p>
       </div>
-    `;
-    track.appendChild(slide);
 
-    const dot = document.createElement('div');
-    dot.className = `banner-dot ${isActive ? 'active' : ''}`;
-    dot.onclick = () => goToBannerSlide(index);
-    dotsContainer.appendChild(dot);
-  });
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab-btn active" id="tabBtnLogin" onclick="switchAuthTab('login')">เข้าสู่ระบบ</button>
+        <button type="button" class="auth-tab-btn" id="tabBtnRegister" onclick="switchAuthTab('register')">สมัครสมาชิกใหม่</button>
+      </div>
 
-  resetBannerAutoSlide(bannersToRender.length);
-}
-
-window.nextBannerSlide = function() {
-  const total = homeBanners.length > 0 ? homeBanners.length : 1;
-  currentBannerSlideIndex = (currentBannerSlideIndex + 1) % total;
-  updateBannerSlidesUI();
-};
-
-window.prevBannerSlide = function() {
-  const total = homeBanners.length > 0 ? homeBanners.length : 1;
-  currentBannerSlideIndex = (currentBannerSlideIndex - 1 + total) % total;
-  updateBannerSlidesUI();
-};
-
-window.goToBannerSlide = function(index) {
-  currentBannerSlideIndex = index;
-  updateBannerSlidesUI();
-};
-
-function updateBannerSlidesUI() {
-  AudioFX.click();
-  const slides = document.querySelectorAll('.home-banner-slide');
-  const dots = document.querySelectorAll('.banner-dot');
-
-  slides.forEach((s, idx) => {
-    s.classList.toggle('active', idx === currentBannerSlideIndex);
-  });
-  dots.forEach((d, idx) => {
-    d.classList.toggle('active', idx === currentBannerSlideIndex);
-  });
-
-  resetBannerAutoSlide(slides.length);
-}
-
-function resetBannerAutoSlide(totalSlides) {
-  if (bannerAutoSlideTimer) clearInterval(bannerAutoSlideTimer);
-  if (totalSlides <= 1) return;
-
-  bannerAutoSlideTimer = setInterval(() => {
-    currentBannerSlideIndex = (currentBannerSlideIndex + 1) % totalSlides;
-    const slides = document.querySelectorAll('.home-banner-slide');
-    const dots = document.querySelectorAll('.banner-dot');
-    slides.forEach((s, idx) => s.classList.toggle('active', idx === currentBannerSlideIndex));
-    dots.forEach((d, idx) => d.classList.toggle('active', idx === currentBannerSlideIndex));
-  }, BANNER_AUTO_SLIDE_INTERVAL);
-}
-
-// ================= UNIFIED SEARCH & FILTER MODAL SYSTEM =================
-window.openCommunitySearchModal = function() {
-  AudioFX.click();
-  const searchInput = document.getElementById('modalSearchInput');
-  if (searchInput) searchInput.value = communitySearchQuery;
-  
-  modalTempSearchCategory = activeCommunityFilter;
-  updateSearchPillsUI();
-  document.getElementById('communitySearchModal').style.display = 'flex';
-};
-
-window.selectSearchCategory = function(cat) {
-  AudioFX.click();
-  modalTempSearchCategory = cat;
-  updateSearchPillsUI();
-};
-
-function updateSearchPillsUI() {
-  document.querySelectorAll('.category-select-pill').forEach(pill => {
-    if (pill.getAttribute('data-cat') === modalTempSearchCategory) {
-      pill.classList.add('active');
-    } else {
-      pill.classList.remove('active');
-    }
-  });
-}
-
-window.handleApplySearchFilter = function() {
-  AudioFX.success();
-  activeCommunityFilter = modalTempSearchCategory;
-  const input = document.getElementById('modalSearchInput');
-  communitySearchQuery = input ? input.value.trim() : '';
-
-  updateFilterActiveIndicator();
-  closeModal('communitySearchModal');
-  renderCommunityPosts();
-};
-
-window.handleResetSearchFilter = function() {
-  AudioFX.delete();
-  activeCommunityFilter = 'all';
-  modalTempSearchCategory = 'all';
-  communitySearchQuery = '';
-  const input = document.getElementById('modalSearchInput');
-  if (input) input.value = '';
-
-  updateSearchPillsUI();
-  updateFilterActiveIndicator();
-  closeModal('communitySearchModal');
-  renderCommunityPosts();
-};
-
-function updateFilterActiveIndicator() {
-  const dot = document.getElementById('filterActiveDot');
-  if (!dot) return;
-  if (activeCommunityFilter !== 'all' || communitySearchQuery !== '') {
-    dot.style.display = 'block';
-  } else {
-    dot.style.display = 'none';
-  }
-}
-
-// ================= 24-HOUR COMMUNITY STORIES SYSTEM =================
-window.openCreateStoryModal = function() {
-  AudioFX.click();
-  document.getElementById('storyTextInput').value = '';
-  document.getElementById('createStoryModal').style.display = 'flex';
-};
-
-window.handleCreateStorySubmit = async function(e) {
-  e.preventDefault();
-  const currentUser = getCurrentUser();
-  if (!currentUser) return;
-
-  const text = document.getElementById('storyTextInput').value.trim();
-  if (!text) return;
-
-  const selectedBg = document.querySelector('input[name="storyBg"]:checked')?.value || 'linear-gradient(135deg, #38bdf8, #818cf8)';
-
-  const newStory = {
-    authorId: currentUser.id,
-    authorName: currentUser.name,
-    authorAvatar: currentUser.avatar,
-    text: text,
-    bg: selectedBg,
-    createdAt: Date.now(),
-    timestamp: serverTimestamp()
-  };
-
-  AudioFX.success();
-  await addDoc(collection(db, "community_stories"), newStory);
-  closeModal('createStoryModal');
-};
-
-function getActiveStories() {
-  const now = Date.now();
-  const lifetimeMs = STORY_EXPIRATION_HOURS * 60 * 60 * 1000;
-  return communityStories.filter(story => {
-    const createdTime = story.createdAt || (story.timestamp?.toDate ? story.timestamp.toDate().getTime() : now);
-    return (now - createdTime) < lifetimeMs;
-  });
-}
-
-function renderStoriesTray() {
-  const feedList = document.getElementById('storiesFeedList');
-  const userStoryAvatar = document.getElementById('currentUserStoryAvatar');
-  const currentUser = getCurrentUser();
-
-  if (userStoryAvatar && currentUser) {
-    userStoryAvatar.innerHTML = renderAvatarHtml(currentUser.avatar);
-  }
-
-  if (!feedList) return;
-  feedList.innerHTML = '';
-
-  const activeStories = getActiveStories();
-  const groupedByUser = {};
-
-  activeStories.forEach(s => {
-    if (!groupedByUser[s.authorId]) {
-      groupedByUser[s.authorId] = [];
-    }
-    groupedByUser[s.authorId].push(s);
-  });
-
-  const userIds = Object.keys(groupedByUser);
-
-  if (userIds.length === 0) {
-    feedList.innerHTML = '<div style="font-size:0.75rem; color:var(--text-muted); padding-left: 6px; white-space:nowrap;">ยังไม่มีสตอรี่ใน 24 ชม. นี้</div>';
-    return;
-  }
-
-  userIds.forEach(uid => {
-    const userStories = groupedByUser[uid];
-    const latestStory = userStories[userStories.length - 1];
-    
-    const item = document.createElement('div');
-    item.className = 'story-item';
-    item.onclick = () => openStoryViewer(uid);
-    item.innerHTML = `
-      <div class="story-avatar-ring">
-        <div class="story-avatar-inner">
-          ${renderAvatarHtml(latestStory.authorAvatar)}
+      <!-- ส่วนเข้าสู่ระบบ -->
+      <!-- ✅ โค้ดใหม่ (ใช้ช่องกรอก Username/Email + ดึงเฉพาะบัญชีในเครื่อง) -->
+<div id="loginSection">
+  <form onsubmit="handleLoginSubmit(event)">
+    <div class="form-group">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <label style="margin-bottom: 0;">ชื่อผู้ใช้ หรือ อีเมล *</label>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn-forget-link" style="color: var(--accent);" onclick="openForgotPasswordModal()">❓ ลืมรหัสผ่าน?</button>
+          <button type="button" class="btn-forget-link" onclick="handleClearDeviceSavedAccounts()" title="ล้างประวัติชื่อที่จำไว้บนเครื่องนี้">🧹 ล้างประวัติในเครื่อง</button>
         </div>
       </div>
-      <span class="story-username">${escapeHtml(latestStory.authorName)}</span>
-    `;
-    feedList.appendChild(item);
-  });
-}
-
-window.openStoryViewer = function(authorId) {
-  const activeStories = getActiveStories();
-  storyViewerQueue = activeStories.filter(s => s.authorId === authorId);
-  if (storyViewerQueue.length === 0) return;
-
-  currentStorySlideIndex = 0;
-  AudioFX.click();
-  document.getElementById('storyViewerModal').style.display = 'flex';
-  showCurrentStorySlide();
-};
-
-function showCurrentStorySlide() {
-  if (storyTimerInterval) clearInterval(storyTimerInterval);
-
-  const story = storyViewerQueue[currentStorySlideIndex];
-  if (!story) {
-    closeStoryViewer();
-    return;
-  }
-
-  const card = document.getElementById('storyViewerCard');
-  const avatar = document.getElementById('storyViewerAvatar');
-  const authorName = document.getElementById('storyViewerAuthorName');
-  const timeAgo = document.getElementById('storyViewerTimeAgo');
-  const textDisplay = document.getElementById('storyViewerTextDisplay');
-  const delBtn = document.getElementById('btnDeleteCurrentStory');
-  const fill = document.getElementById('storyProgressBarFill');
-
-  if (card) card.style.background = story.bg || 'linear-gradient(135deg, #38bdf8, #818cf8)';
-  if (avatar) avatar.innerHTML = renderAvatarHtml(story.authorAvatar);
-  if (authorName) authorName.innerText = story.authorName;
-  if (textDisplay) textDisplay.innerText = story.text;
-
-  const now = Date.now();
-  const createdTime = story.createdAt || (story.timestamp?.toDate ? story.timestamp.toDate().getTime() : now);
-  const diffHours = Math.max(0, Math.floor((now - createdTime) / (1000 * 60 * 60)));
-  const diffMins = Math.max(0, Math.floor((now - createdTime) / (1000 * 60)));
-
-  if (timeAgo) {
-    if (diffMins < 1) timeAgo.innerText = 'เมื่อสักครู่';
-    else if (diffMins < 60) timeAgo.innerText = `${diffMins} นาทีที่แล้ว`;
-    else timeAgo.innerText = `${diffHours} ชม. ที่แล้ว`;
-  }
-
-  const currentUser = getCurrentUser();
-  const canDelete = currentUser && (isAdmin(currentUser) || currentUser.id === story.authorId);
-  if (delBtn) delBtn.style.display = canDelete ? 'flex' : 'none';
-
-  storyProgressStep = 0;
-  if (fill) fill.style.width = '0%';
-
-  const intervalStep = 50;
-  const totalSteps = STORY_DURATION_MS / intervalStep;
-
-  storyTimerInterval = setInterval(() => {
-    storyProgressStep++;
-    const percent = (storyProgressStep / totalSteps) * 100;
-    if (fill) fill.style.width = `${percent}%`;
-
-    if (storyProgressStep >= totalSteps) {
-      clearInterval(storyTimerInterval);
-      nextStorySlide();
-    }
-  }, intervalStep);
-}
-
-window.nextStorySlide = function() {
-  if (currentStorySlideIndex < storyViewerQueue.length - 1) {
-    currentStorySlideIndex++;
-    showCurrentStorySlide();
-  } else {
-    closeStoryViewer();
-  }
-};
-
-window.prevStorySlide = function() {
-  if (currentStorySlideIndex > 0) {
-    currentStorySlideIndex--;
-    showCurrentStorySlide();
-  }
-};
-
-window.closeStoryViewer = function() {
-  if (storyTimerInterval) clearInterval(storyTimerInterval);
-  const modal = document.getElementById('storyViewerModal');
-  if (modal) modal.style.display = 'none';
-};
-
-window.handleStoryViewerBgClick = function(event) {
-  if (event.target.id === 'storyViewerModal') {
-    closeStoryViewer();
-  }
-};
-
-window.handleDeleteCurrentStory = async function() {
-  const story = storyViewerQueue[currentStorySlideIndex];
-  if (!story) return;
-
-  const currentUser = getCurrentUser();
-  if (!currentUser || (!isAdmin(currentUser) && currentUser.id !== story.authorId)) {
-    alert('คุณไม่มีสิทธิ์ลบสตอรี่นี้');
-    return;
-  }
-
-  if (confirm('คุณต้องการลบสตอรี่นี้ใช่หรือไม่?')) {
-    AudioFX.delete();
-    await deleteDoc(doc(db, "community_stories", story.id));
-    closeStoryViewer();
-  }
-};
-
-// ================= COMMUNITY POSTS HUB SYSTEM =================
-window.openCommunityPostModal = function() {
-  AudioFX.click();
-  document.getElementById('communityCategorySelect').value = 'idea';
-  document.getElementById('communityTitleInput').value = '';
-  document.getElementById('communityContentInput').value = '';
-  document.getElementById('communityTagsInput').value = '';
-  document.getElementById('communityPostModal').style.display = 'flex';
-};
-
-window.handleCreateCommunityPost = async function(e) {
-  e.preventDefault();
-  const currentUser = getCurrentUser();
-  if (!currentUser) return;
-
-  const category = document.getElementById('communityCategorySelect').value;
-  const title = document.getElementById('communityTitleInput').value.trim();
-  const content = document.getElementById('communityContentInput').value.trim();
-  const rawTags = document.getElementById('communityTagsInput').value.trim();
-
-  if (!title || !content) return;
-
-  const tags = rawTags
-    ? rawTags.split(/\s+/).filter(t => t.length > 0).map(t => t.startsWith('#') ? t : `#${t}`)
-    : [];
-
-  const nowStr = new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) + ' ' + 
-                 new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-  const newPost = {
-    title,
-    content,
-    category,
-    tags,
-    likes: 0,
-    likedBy: [],
-    comments: [],
-    authorId: currentUser.id,
-    authorName: currentUser.name,
-    authorAvatar: currentUser.avatar,
-    authorRole: isAdmin(currentUser) ? 'แอดมิน' : (currentUser.role || 'สมาชิกทั่วไป'),
-    time: nowStr,
-    timestamp: serverTimestamp()
-  };
-
-  AudioFX.success();
-  await addDoc(collection(db, "community_posts"), newPost);
-  closeModal('communityPostModal');
-};
-
-window.handleLikeCommunityPost = async function(postId) {
-  const currentUser = getCurrentUser();
-  if (!currentUser) return;
-
-  const post = communityPosts.find(p => p.id === postId);
-  if (!post) return;
-
-  const likedBy = Array.isArray(post.likedBy) ? [...post.likedBy] : [];
-  const hasLiked = likedBy.includes(currentUser.id);
-
-  AudioFX.like();
-  if (hasLiked) {
-    const updatedLikedBy = likedBy.filter(id => id !== currentUser.id);
-    await updateDoc(doc(db, "community_posts", postId), {
-      likes: Math.max(0, (post.likes || 1) - 1),
-      likedBy: updatedLikedBy
-    });
-  } else {
-    likedBy.push(currentUser.id);
-    await updateDoc(doc(db, "community_posts", postId), {
-      likes: (post.likes || 0) + 1,
-      likedBy: likedBy
-    });
-  }
-};
-
-window.deleteCommunityPost = async function(postId) {
-  const post = communityPosts.find(p => p.id === postId);
-  if (!post) return;
-
-  const currentUser = getCurrentUser();
-  const isAuthor = currentUser && post.authorId === currentUser.id;
-  if (!isAdmin(currentUser) && !isAuthor) {
-    AudioFX.delete();
-    alert('คุณไม่มีสิทธิ์ลบกระทู้นี้');
-    return;
-  }
-
-  if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบกระทู้นี้?')) {
-    AudioFX.delete();
-    await deleteDoc(doc(db, "community_posts", postId));
-    if (activeDetailPostId === postId) {
-      closeModal('communityDetailModal');
-    }
-  }
-};
-
-window.openCommunityPostDetail = function(postId) {
-  const post = communityPosts.find(p => p.id === postId);
-  if (!post) return;
-
-  activeDetailPostId = postId;
-  AudioFX.click();
-  renderCommunityDetailModal();
-  document.getElementById('communityDetailModal').style.display = 'flex';
-};
-
-function renderCommunityDetailModal() {
-  const post = communityPosts.find(p => p.id === activeDetailPostId);
-  const container = document.getElementById('communityDetailBody');
-  const catBox = document.getElementById('detailModalCategoryBox');
-  if (!post || !container) return;
-
-  const currentUser = getCurrentUser();
-  const likedBy = Array.isArray(post.likedBy) ? post.likedBy : [];
-  const isLiked = currentUser && likedBy.includes(currentUser.id);
-  const isAuthor = currentUser && post.authorId === currentUser.id;
-  const isPostAdmin = post.authorRole === 'แอดมิน' || (post.authorName && post.authorName.toLowerCase() === 'taiyoani');
-  const canDelete = isAdmin(currentUser) || isAuthor;
-  const commentsList = Array.isArray(post.comments) ? post.comments : [];
-
-  const categoryMap = {
-    idea: { text: '💡 Idea', class: 'tag-idea' },
-    discussion: { text: '💬 Chat', class: 'tag-discussion' },
-    art: { text: '🎨 Art', class: 'tag-art' },
-    qa: { text: '❓ Q&A', class: 'tag-qa' }
-  };
-  const catInfo = categoryMap[post.category] || categoryMap.idea;
-
-  if (catBox) {
-    catBox.innerHTML = `<span class="post-category-tag ${catInfo.class}">${catInfo.text}</span>`;
-  }
-
-  container.innerHTML = `
-    <div class="ig-post-header">
-      <div class="ig-author-wrapper">
-        <div class="ig-avatar-ring clickable-profile" onclick="closeModal('communityDetailModal'); openUserProfile('${post.authorId}')">
-          <div class="ig-avatar-inner">
-            ${renderAvatarHtml(post.authorAvatar)}
-          </div>
-        </div>
-        <div class="ig-author-meta">
-          <div class="ig-author-name clickable-profile" onclick="closeModal('communityDetailModal'); openUserProfile('${post.authorId}')">
-            ${escapeHtml(post.authorName)} ${isPostAdmin ? '👑' : ''}
-          </div>
-          <span class="ig-post-time">${escapeHtml(post.time || '')}</span>
-        </div>
-      </div>
-      ${canDelete ? `
-        <button type="button" class="btn-delete-comment" onclick="deleteCommunityPost('${post.id}')" title="ลบโพสต์" style="font-size: 0.85rem;">ลบโพสต์</button>
-      ` : ''}
+      <input type="text" id="loginUsernameInput" class="form-control" placeholder="กรอกชื่อผู้ใช้ หรือ อีเมลของคุณ" list="deviceAccountsList" required autocomplete="username">
+      <datalist id="deviceAccountsList"></datalist>
     </div>
 
-    <div class="ig-post-body">
-      <h2 style="font-size: 1.25rem; font-weight: 700; color: #fff;">${escapeHtml(post.title)}</h2>
-      <p style="font-size: 0.92rem; color: #cbd5e1; line-height: 1.6; white-space: pre-wrap; margin-top: 6px;">${escapeHtml(post.content)}</p>
-      <div class="ig-tags-container" style="margin-top: 8px;">
-        ${(post.tags || []).map(t => `<span class="ig-tag-chip">${escapeHtml(t)}</span>`).join('')}
-      </div>
+    <div class="form-group">
+      <label>รหัสผ่าน *</label>
+      <input type="password" id="loginPasswordInput" class="form-control" placeholder="กรอกรหัสผ่านของคุณ" required autocomplete="current-password">
     </div>
+    <div id="loginErrorMsg" class="auth-error-msg" style="display: none;"></div>
+    <button type="submit" class="btn-primary-auth">เข้าสู่ระบบ</button>
+  </form>
+</div>
 
-    <div class="ig-action-bar">
-      <div class="ig-action-left">
-        <button type="button" class="ig-btn-icon ${isLiked ? 'is-liked' : ''}" onclick="handleLikeCommunityPost('${post.id}')">
-          <span>${isLiked ? '❤️' : '🤍'}</span>
-        </button>
-        <span class="ig-likes-text">ถูกใจ ${post.likes || 0} คน</span>
-      </div>
-      <span style="font-size: 0.8rem; color: var(--text-muted);">ทั้งหมด ${commentsList.length} ความคิดเห็น</span>
-    </div>
-
-    <div style="display: flex; direction: column; gap: 8px;">
-      <h4 style="font-size: 0.88rem; color: #94a3b8;">ความคิดเห็นทั้งหมด:</h4>
-      ${commentsList.length === 0 ? `
-        <div style="font-size: 0.82rem; color: var(--text-muted); text-align: center; padding: 14px;">ยังไม่มีความคิดเห็นในโพสต์นี้</div>
-      ` : commentsList.map(c => {
-          const isMine = currentUser && c.authorId === currentUser.id;
-          const canDel = isAdmin(currentUser) || isMine;
-          return `
-            <div class="ig-comment-row">
-              <div class="ig-comment-avatar clickable-profile" onclick="closeModal('communityDetailModal'); openUserProfile('${c.authorId}')">
-                ${renderAvatarHtml(c.authorAvatar)}
+      <!-- ส่วนสมัครสมาชิกใหม่ -->
+      <div id="registerSection" style="display: none;">
+        <form onsubmit="handleRegisterSubmit(event)">
+          <div class="form-group">
+            <label>รูปโปรไฟล์ (อัปโหลดจากเครื่อง หรือเลือก Preset / รองรับ GIF)</label>
+            <div class="avatar-upload-wrapper">
+              <div class="avatar-preview-box" id="avatarPreviewDisplay">
+                <span>👨‍💻</span>
               </div>
-              <div class="ig-comment-content">
+              <div class="avatar-upload-controls">
+                <label class="btn-file-upload">
+                  📁 เลือกรูปจากเครื่อง
+                  <input type="file" id="avatarFileInput" accept="image/*" onchange="handleAvatarFileSelect(event, 'reg')">
+                </label>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">หรือเลือก Preset:</div>
+              </div>
+            </div>
+            <div class="avatar-picker" id="authAvatarPicker"></div>
+            <input type="hidden" id="authAvatarDataInput" value="👨‍💻">
+          </div>
+
+          <div class="form-group">
+            <label>ชื่อผู้ใช้งาน / ฉายาในทีม *</label>
+            <input type="text" id="regNameInput" class="form-control" placeholder="เช่น Taiyo, พี่ยอด, นนนี่" required>
+          </div>
+
+          <div class="form-group">
+            <label>อีเมลส่วนตัว (ใช้รับรหัสยืนยัน OTP) *</label>
+            <input type="email" id="regEmailInput" class="form-control" placeholder="example@gmail.com" required>
+          </div>
+
+          <div class="form-group">
+            <label>ตำแหน่ง / หน้าที่ในทีม</label>
+            <input type="text" id="regRoleInput" class="form-control" placeholder="เช่น 3D Animator, Graphic Designer, Lead">
+          </div>
+
+          <div class="form-group">
+            <label>คำแนะนำตัว / Bio (แนะนำตัวสั้นๆ)</label>
+            <textarea id="regBioInput" class="form-control" placeholder="เขียนแนะนำตัว สไตล์งาน หรือสิ่งที่สนใจ..."></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>ตั้งรหัสผ่าน (อย่างน้อย 4 ตัวอักษร) *</label>
+            <input type="password" id="regPasswordInput" class="form-control" placeholder="ตั้งรหัสผ่าน" required minlength="4">
+          </div>
+
+          <div class="form-group">
+            <label>ยืนยันรหัสผ่าน *</label>
+            <input type="password" id="regConfirmPasswordInput" class="form-control" placeholder="กรอกรหัสผ่านอีกครั้ง" required minlength="4">
+          </div>
+
+          <div id="regErrorMsg" class="auth-error-msg" style="display: none;"></div>
+          <button type="submit" class="btn-primary-auth">สมัครสมาชิกและรับรหัส OTP</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal ยืนยันรหัส OTP ทางอีเมล -->
+  <div class="modal-overlay" id="otpModal">
+    <div class="modal" style="max-width: 420px; text-align: center;">
+      <div style="font-size: 2.8rem; margin-bottom: 8px;">📩</div>
+      <h3 style="color: #fff; margin-bottom: 6px;">ยืนยันตัวตนผ่านอีเมล</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
+        ระบบได้ส่งรหัสยืนยัน 6 หลักไปที่อีเมล<br>
+        <strong id="otpTargetEmailDisplay" style="color: var(--accent);"></strong>
+      </p>
+
+      <form onsubmit="handleVerifyOtpSubmit(event)">
+        <div class="form-group" id="otpEmailInputGroup" style="display: none; text-align: left;">
+          <label>ระบุอีเมลส่วนตัวของคุณ:</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="email" id="unverifiedAccountEmailInput" class="form-control" placeholder="example@gmail.com">
+            <button type="button" class="btn-sm" onclick="handleSendOtpToExistingUser()" style="white-space: nowrap;">ส่งรหัส</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label style="display: block; text-align: left;">กรอกรหัส OTP (6 หลัก):</label>
+          <input type="text" id="otpCodeInput" class="form-control otp-input-box" placeholder="••••••" maxlength="6" required autocomplete="one-time-code">
+        </div>
+
+        <div id="otpErrorMsg" class="auth-error-msg" style="display: none; margin-bottom: 12px;"></div>
+
+        <button type="submit" class="btn-primary-auth" style="margin-top: 6px;">ยืนยันรหัส OTP</button>
+        <div style="margin-top: 14px; display: flex; justify-content: space-between; align-items: center;">
+          <button type="button" class="btn-forget-link" onclick="handleResendOtp()">🔄 ส่งรหัส OTP อีกครั้ง</button>
+          <button type="button" class="btn-sm" onclick="closeOtpModal()">ยกเลิก</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleMobileSidebar()"></div>
+
+  <!-- ================= APP MAIN CONTAINER ================= -->
+  <div class="app-layout" id="mainAppLayout" style="display: none;">
+
+    <!-- 1. หน้าโฮม (HOME VIEW) -->
+    <section class="app-view-section active" id="viewHome">
+      <div class="home-top-left-profile clickable-profile" onclick="openCurrentUserProfile()" title="คลิกเพื่อดูโปรไฟล์ของคุณ">
+        <div class="home-profile-avatar" id="homeUserAvatarDisplay"></div>
+        <div class="home-profile-info">
+          <div class="home-profile-name" id="homeUserNameDisplay">กำลังโหลด...</div>
+          <div class="home-profile-role" id="homeUserRoleDisplay">สมาชิกทั่วไป</div>
+        </div>
+      </div>
+
+      <div class="home-top-center-clock" id="homeTopCenterClock">
+        <div class="home-clock-time" id="homeClockTimeDisplay">00:00:00</div>
+        <div class="home-clock-date" id="homeClockDateDisplay">วัน... ที่ ...</div>
+      </div>
+
+      <div class="home-top-right-actions">
+        <button type="button" class="btn-glass-icon-circle" onclick="openTeamMembersModal()" title="รายชื่อสมาชิกในทีม">
+          <span>👥</span>
+          <span class="home-members-badge" id="homeOnlineIndicator">0</span>
+        </button>
+        <button type="button" class="btn-glass-icon-circle" onclick="openSettingsModal()" title="ตั้งค่าระบบและอุปกรณ์เสียง">
+          <span>⚙️</span>
+        </button>
+        <button type="button" class="btn-glass-icon-circle btn-logout-circle" onclick="handleLogout()" title="ออกจากระบบ / สลับบัญชี">
+          <span>🚪</span>
+        </button>
+      </div>
+
+      <div class="home-center-stage">
+        <div class="home-banner-wrapper">
+          <div class="home-banner-admin-bar" id="homeBannerAdminBar" style="display: none;">
+            <button type="button" class="btn-admin-add-banner" onclick="openAddBannerModal()">
+              👑 ➕ เพิ่มแบนเนอร์ใหม่ (Admin)
+            </button>
+          </div>
+
+          <div class="home-banner-carousel" id="homeBannerCarousel">
+            <div class="home-banner-track" id="homeBannerTrack"></div>
+            <button type="button" class="banner-nav-btn prev" onclick="prevBannerSlide()" title="แบนเนอร์ก่อนหน้า">❮</button>
+            <button type="button" class="banner-nav-btn next" onclick="nextBannerSlide()" title="แบนเนอร์ถัดไป">❯</button>
+            <div class="banner-dots-container" id="bannerDotsContainer"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. หน้าคอมมูนิตี้ (COMMUNITY VIEW) -->
+    <section class="app-view-section" id="viewCommunity">
+      <div class="community-fullscreen-card">
+        <div class="community-header-compact">
+          <div class="community-title-mini">
+            <span class="community-mini-icon">💡</span>
+            <div class="community-mini-text">
+              <h2>คอมมูนิตี้</h2>
+              <p>แลกเปลี่ยนไอเดีย & พูดคุย</p>
+            </div>
+          </div>
+
+          <div class="community-header-actions">
+            <button type="button" class="btn-search-trigger" id="btnOpenSearchFilter" onclick="openCommunitySearchModal()" title="ค้นหาและกรองกระทู้">
+              <span>🔍</span>
+              <span class="search-btn-text">ค้นหา / กรอง</span>
+              <span class="filter-active-dot" id="filterActiveDot" style="display: none;"></span>
+            </button>
+
+            <button type="button" class="btn-community-post-compact" onclick="openCommunityPostModal()" title="สร้างกระทู้ใหม่">
+              <span>✨</span>
+              <span>ตั้งกระทู้</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="community-stories-tray" id="communityStoriesTray">
+          <div class="story-item story-create-item" onclick="openCreateStoryModal()">
+            <div class="story-avatar-ring add-story-ring">
+              <div class="story-avatar-inner" id="currentUserStoryAvatar">
+                <span>➕</span>
+              </div>
+              <div class="story-add-badge">+</div>
+            </div>
+            <span class="story-username">สตอรี่ของคุณ</span>
+          </div>
+
+          <div class="stories-feed-list" id="storiesFeedList"></div>
+        </div>
+
+        <div class="community-feed-container" id="communityPostsFeed"></div>
+      </div>
+    </section>
+
+    <!-- 3. หน้าโปรเจกต์ (PROJECTS VIEW) - สิทธิ์แอดมินและทีมงาน -->
+    <section class="app-view-section" id="viewProjects">
+      <aside class="sidebar" id="appSidebar">
+        <div class="sidebar-header-row">
+          <div class="brand">
+            <div class="brand-icon">
+              <img src="./Tanomiya.png" alt="TaiyoAni Logo" class="brand-img">
+            </div>
+            <div class="brand-title">TaiyoAni UI</div>
+          </div>
+          <button type="button" class="btn-close-sidebar-mobile" onclick="toggleMobileSidebar()" title="ปิดเมนู">✕</button>
+        </div>
+
+        <div class="device-switcher-box">
+          <div class="device-switcher-title">โหมดการแสดงผล (Device View)</div>
+          <div class="device-switcher-buttons">
+            <button type="button" class="btn-device-opt active" id="devOptAuto" onclick="setDeviceMode('auto')">🔄 Auto</button>
+            <button type="button" class="btn-device-opt" id="devOptDesktop" onclick="setDeviceMode('desktop')">🖥️ PC</button>
+            <button type="button" class="btn-device-opt" id="devOptTablet" onclick="setDeviceMode('tablet')">📱 iPad</button>
+            <button type="button" class="btn-device-opt" id="devOptMobile" onclick="setDeviceMode('mobile')">📲 มือถือ</button>
+          </div>
+        </div>
+
+        <div class="sidebar-section-title">หัวข้อโปรเจกต์ (Projects)</div>
+        <ul class="project-list" id="projectList"></ul>
+
+        <button type="button" class="btn-glass-action" onclick="openAddProjectModal()">+ สร้างโปรเจกต์ใหม่</button>
+
+        <div class="user-profile-card">
+          <div class="user-avatar clickable-profile" id="currentAvatarDisplay" onclick="openCurrentUserProfile()" title="คลิกเพื่อดูโปรไฟล์"></div>
+          <div class="user-info clickable-profile" onclick="openCurrentUserProfile()" title="คลิกเพื่อดูโปรไฟล์">
+            <div class="user-name" id="currentUserNameDisplay">กำลังโหลด...</div>
+            <div class="user-role" id="currentUserRoleDisplay">สมาชิกทั่วไป</div>
+          </div>
+          <div class="user-profile-actions">
+            <button type="button" class="btn-action-icon" onclick="openEditProfileModal()" title="แก้ไขข้อมูลโปรไฟล์">✏️</button>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main-window">
+        <header class="window-header">
+          <div class="header-left">
+            <button type="button" class="btn-hamburger" onclick="toggleMobileSidebar()" title="เปิดเมนูโปรเจกต์">☰</button>
+            <div>
+              <h1 id="currentProjectTitle">เลือกโปรเจกต์</h1>
+              <p id="currentProjectDesc">จัดการงาน สตอรี่รายละเอียด และลิ้งก์ส่งงาน</p>
+            </div>
+          </div>
+          
+          <div class="header-actions">
+            <button type="button" class="btn-notes-action" onclick="openProjectNotesModal()" id="btnProjectNotes" title="สมุดโน้ตบันทึกข้อมูลประจำโปรเจกต์">
+              <span>📝</span> <span class="action-text">โน้ต</span>
+            </button>
+            <button type="button" class="btn-script-header" onclick="openNewScriptModal()" id="btnNewScript" title="สร้างสคริปต์บทพากย์/เนื้อเรื่องใหม่">
+              <span>📜</span> <span class="action-text">สคริปต์</span>
+            </button>
+            <button type="button" class="btn-idea-action" onclick="openAddIdeaModal()" id="btnNewIdea">
+              <span>💡</span> <span class="action-text">ไอเดีย</span>
+            </button>
+            <button type="button" class="btn-create-task" onclick="openAddTaskModal()" id="btnNewTask">
+              <span>+</span> <span class="action-text">งานใหม่</span>
+            </button>
+          </div>
+        </header>
+
+        <section class="board-viewport">
+          <div class="tasks-grid" id="tasksContainer"></div>
+        </section>
+      </main>
+    </section>
+
+    <!-- 4. หน้ารายได้ (REVENUE VIEW) - สิทธิ์แอดมินและทีมงาน -->
+    <section class="app-view-section" id="viewRevenue">
+      <div class="revenue-fullscreen-card">
+        <div class="revenue-widget-header">
+          <div class="revenue-header-title">
+            <div class="revenue-header-icon-box">💎</div>
+            <div>
+              <h2>รายได้และงบประมาณทีม (Team Revenue & Payout Hub)</h2>
+              <p class="revenue-updated-badge" id="revenueUpdatedBadge">อัปเดตล่าสุด: พร้อมใช้งาน</p>
+            </div>
+          </div>
+          <div>
+            <button type="button" class="btn-edit-revenue-gold" id="btnAdminEditRevenue" onclick="openRevenueModal()" style="display: none;">
+              <span>👑</span> จัดการงบ & ข้อมูลโอนเงิน
+            </button>
+          </div>
+        </div>
+
+        <div class="revenue-scroll-viewport">
+          <div class="revenue-hero-card">
+            <div class="revenue-hero-bg-glow"></div>
+            <div class="revenue-hero-content">
+              <div class="revenue-hero-badge">✨ TOTAL BUDGET POOL</div>
+              <div class="revenue-hero-amount" id="revenueTotalDisplay">฿ 0</div>
+              <div class="revenue-hero-subtitle" id="revenueNoteDisplay">งบประมาณและผลตอบแทนรวมทุกฝ่าย</div>
+            </div>
+          </div>
+
+          <div class="revenue-cards-grid-modern">
+            <div class="revenue-card-premium card-voice">
+              <div class="revenue-card-header">
+                <div class="rev-tag-badge voice">🎙️ ทีมพากย์</div>
+                <span class="rev-sub-tag">Voice Over</span>
+              </div>
+              <div class="revenue-amount-modern" id="revenueVoiceDisplay">฿ 0</div>
+              <div class="revenue-card-footer-modern">งานลงเสียง, แคสต์บท & พากย์ตัวละคร</div>
+            </div>
+
+            <div class="revenue-card-premium card-animation">
+              <div class="revenue-card-header">
+                <div class="rev-tag-badge anim">🎬 ทีมแอนิเมชั่น</div>
+                <span class="rev-sub-tag">3D & Rigging</span>
+              </div>
+              <div class="revenue-amount-modern" id="revenueAnimDisplay">฿ 0</div>
+              <div class="revenue-card-footer-modern">โมเดล 3D, แอนิเมชั่น & จัดฉาก</div>
+            </div>
+
+            <div class="revenue-card-premium card-audio">
+              <div class="revenue-card-header">
+                <div class="rev-tag-badge audio">🎵 ทีมงานเสียง</div>
+                <span class="rev-sub-tag">SFX & Music</span>
+              </div>
+              <div class="revenue-amount-modern" id="revenueAudioDisplay">฿ 0</div>
+              <div class="revenue-card-footer-modern">ดนตรีประกอบ, มิกซ์เสียง & Sound FX</div>
+            </div>
+
+            <div class="revenue-card-premium card-other">
+              <div class="revenue-card-header">
+                <div class="rev-tag-badge other">✨ ทีมสนับสนุน</div>
+                <span class="rev-sub-tag">Support & Ops</span>
+              </div>
+              <div class="revenue-amount-modern" id="revenueOtherDisplay">฿ 0</div>
+              <div class="revenue-card-footer-modern">งานกราฟิก, ตัดต่อ & ค่าใช้จ่ายกลาง</div>
+            </div>
+          </div>
+
+          <div class="revenue-payout-panel">
+            <div class="payout-panel-header">
+              <div class="payout-panel-title">
+                <span class="payout-icon">💳</span>
                 <div>
-                  <span class="ig-comment-user clickable-profile" onclick="closeModal('communityDetailModal'); openUserProfile('${c.authorId}')">
-                    ${escapeHtml(c.authorName)}${c.authorRole === 'แอดมิน' ? ' 👑' : ''}
-                  </span>
-                  <span class="ig-comment-text">${escapeHtml(c.text)}</span>
-                </div>
-                <div class="ig-comment-footer">
-                  <span>${escapeHtml(c.time || '')}</span>
-                  ${canDel ? `<button type="button" class="btn-delete-comment" onclick="handleDeleteComment('${post.id}', '${c.id}')">ลบ</button>` : ''}
+                  <h3>กำหนดการและรายละเอียดการโอนเงิน (Payout Schedule & Notice)</h3>
+                  <span class="payout-sub">ข้อมูลทางการสำหรับทีมงาน ประกาศโดยแอดมิน</span>
                 </div>
               </div>
+              <div id="revenueTransferStatusBadge" class="payout-status-badge status-pending">⏳ กำลังสรุปยอด</div>
             </div>
-          `;
-        }).join('')}
-    </div>
-  `;
-}
 
-window.handleModalAddComment = async function(event) {
-  event.preventDefault();
-  const currentUser = getCurrentUser();
-  if (!currentUser || !activeDetailPostId) return;
+            <div class="payout-info-grid">
+              <div class="payout-info-item">
+                <span class="payout-info-label">📅 วันที่กำหนดโอนเงิน:</span>
+                <span class="payout-info-val highlight" id="revenueTransferDateDisplay">ยังไม่ได้กำหนดวันที่</span>
+              </div>
+              <div class="payout-info-item">
+                <span class="payout-info-label">👤 ผู้ดูแลการจ่ายเงิน:</span>
+                <span class="payout-info-val" id="revenuePayerDisplay">TaiyoAni (Admin)</span>
+              </div>
+            </div>
 
-  const inputEl = document.getElementById('detailModalCommentInput');
-  const text = inputEl.value.trim();
-  if (!text) return;
-
-  const post = communityPosts.find(p => p.id === activeDetailPostId);
-  if (!post) return;
-
-  const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const newComment = {
-    id: 'cm-' + Date.now(),
-    text: text,
-    authorId: currentUser.id,
-    authorName: currentUser.name,
-    authorAvatar: currentUser.avatar,
-    authorRole: isAdmin(currentUser) ? 'แอดมิน' : (currentUser.role || 'สมาชิกทั่วไป'),
-    time: nowStr
-  };
-
-  const currentComments = Array.isArray(post.comments) ? [...post.comments] : [];
-  currentComments.push(newComment);
-
-  AudioFX.sendChat();
-  inputEl.value = '';
-
-  await updateDoc(doc(db, "community_posts", activeDetailPostId), {
-    comments: currentComments
-  });
-};
-
-window.handleDeleteComment = async function(postId, commentId) {
-  const post = communityPosts.find(p => p.id === postId);
-  if (!post || !Array.isArray(post.comments)) return;
-
-  const comment = post.comments.find(c => c.id === commentId);
-  if (!comment) return;
-
-  const currentUser = getCurrentUser();
-  const isCommentAuthor = currentUser && comment.authorId === currentUser.id;
-  if (!isAdmin(currentUser) && !isCommentAuthor) {
-    AudioFX.delete();
-    alert('คุณไม่มีสิทธิ์ลบคอมเมนต์นี้');
-    return;
-  }
-
-  if (confirm('คุณต้องการลบคอมเมนต์นี้ใช่หรือไม่?')) {
-    AudioFX.delete();
-    const updatedComments = post.comments.filter(c => c.id !== commentId);
-    await updateDoc(doc(db, "community_posts", postId), {
-      comments: updatedComments
-    });
-  }
-};
-
-function renderCommunityPosts() {
-  const feed = document.getElementById('communityPostsFeed');
-  if (!feed) return;
-  feed.innerHTML = '';
-
-  const currentUser = getCurrentUser();
-  let filtered = [...communityPosts];
-
-  if (activeCommunityFilter !== 'all') {
-    filtered = filtered.filter(p => p.category === activeCommunityFilter);
-  }
-
-  if (communitySearchQuery.trim() !== '') {
-    const queryLower = communitySearchQuery.toLowerCase();
-    filtered = filtered.filter(p => 
-      (p.title && p.title.toLowerCase().includes(queryLower)) ||
-      (p.content && p.content.toLowerCase().includes(queryLower)) ||
-      (p.authorName && p.authorName.toLowerCase().includes(queryLower)) ||
-      (p.tags && p.tags.some(t => t.toLowerCase().includes(queryLower)))
-    );
-  }
-
-  if (filtered.length === 0) {
-    feed.innerHTML = `
-      <div style="text-align: center; padding: 46px 16px; color: var(--text-muted);">
-        <div style="font-size: 2.8rem; margin-bottom: 8px;">💡</div>
-        <h4 style="color: #ffffff; font-size: 1.05rem;">ยังไม่มีกระทู้ตามเงื่อนไขที่ค้นหา</h4>
-        <p style="font-size: 0.82rem; margin-top: 4px;">ลองเปลี่ยนคำค้นหา หรือคลิกปุ่ม "✨ ตั้งกระทู้" ด้านบนเพื่อเริ่มแลกเปลี่ยนไอเดีย!</p>
-      </div>
-    `;
-    return;
-  }
-
-  const categoryMap = {
-    idea: { text: '💡 Idea', class: 'tag-idea' },
-    discussion: { text: '💬 Chat', class: 'tag-discussion' },
-    art: { text: '🎨 Art', class: 'tag-art' },
-    qa: { text: '❓ Q&A', class: 'tag-qa' }
-  };
-
-  filtered.forEach(post => {
-    const catInfo = categoryMap[post.category] || categoryMap.idea;
-    const likedBy = Array.isArray(post.likedBy) ? post.likedBy : [];
-    const isLiked = currentUser && likedBy.includes(currentUser.id);
-    const isAuthor = currentUser && post.authorId === currentUser.id;
-    const isPostAdmin = post.authorRole === 'แอดมิน' || (post.authorName && post.authorName.toLowerCase() === 'taiyoani');
-    const canDelete = isAdmin(currentUser) || isAuthor;
-    const commentsList = Array.isArray(post.comments) ? post.comments : [];
-    
-    const previewComments = commentsList.slice(0, 3);
-    const hasMoreComments = commentsList.length > 3;
-
-    const card = document.createElement('div');
-    card.className = 'community-post-card';
-    card.innerHTML = `
-      <div class="ig-post-header">
-        <div class="ig-author-wrapper">
-          <div class="ig-avatar-ring clickable-profile" onclick="openUserProfile('${post.authorId}')" title="ดูโปรไฟล์">
-            <div class="ig-avatar-inner">
-              ${renderAvatarHtml(post.authorAvatar)}
+            <div class="payout-notes-container">
+              <span class="payout-notes-label">📢 คำชี้แจง / เงื่อนไขการโอนเงิน:</span>
+              <div class="payout-notes-content" id="revenueTransferDetailsDisplay">
+                ยังไม่มีข้อความชี้แจงการโอนเงินจากแอดมิน
+              </div>
             </div>
           </div>
-          <div class="ig-author-meta">
-            <div class="ig-author-name clickable-profile" onclick="openUserProfile('${post.authorId}')">
-              ${escapeHtml(post.authorName)} ${isPostAdmin ? '👑' : ''}
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. หน้าแชท (CHAT VIEW) -->
+    <section class="app-view-section" id="viewChat">
+      <div class="discord-chat-layout">
+        <aside class="discord-sidebar" id="discordSidebar">
+          <div class="discord-sidebar-header">
+            <span class="discord-server-icon">⚡</span>
+            <div class="discord-server-info">
+              <h3>TaiyoAni Hub</h3>
+              <span>Workspace Server</span>
             </div>
-            <span class="ig-post-time">${escapeHtml(post.time || '')}</span>
+            <button type="button" class="btn-discord-mobile-close" onclick="toggleDiscordSidebar()">✕</button>
           </div>
-        </div>
 
-        <div style="display: flex; align-items: center; gap: 6px;">
-          <span class="post-category-tag ${catInfo.class}">${catInfo.text}</span>
-          ${canDelete ? `
-            <button type="button" class="btn-delete-comment" onclick="deleteCommunityPost('${post.id}')" title="ลบโพสต์" style="font-size: 0.9rem; padding: 2px 4px;">✕</button>
-          ` : ''}
-        </div>
-      </div>
-
-      <div class="ig-post-body">
-        <h3 class="ig-post-title clickable-title" onclick="openCommunityPostDetail('${post.id}')" title="คลิกเพื่อดูรายละเอียดโพสต์แบบเต็ม">${escapeHtml(post.title)}</h3>
-        <p class="ig-post-caption">${escapeHtml(post.content)}</p>
-        <div class="ig-tags-container">
-          ${(post.tags || []).map(t => `<span class="ig-tag-chip">${escapeHtml(t)}</span>`).join('')}
-        </div>
-      </div>
-
-      <div class="ig-action-bar">
-        <div class="ig-action-left">
-          <button type="button" class="ig-btn-icon ${isLiked ? 'is-liked' : ''}" onclick="handleLikeCommunityPost('${post.id}')" title="ถูกใจ">
-            <span>${isLiked ? '❤️' : '🤍'}</span>
-          </button>
-          <button type="button" class="ig-btn-icon" onclick="openCommunityPostDetail('${post.id}')" title="ดูรายละเอียดและแสดงความคิดเห็น">
-            <span>💬</span>
-          </button>
-          ${!isAuthor ? `
-            <button type="button" class="ig-btn-icon" onclick="startDirectChat('${post.authorId}')" title="ส่งข้อความส่วนตัว (DM)">
-              <span>✈️</span>
-            </button>
-          ` : ''}
-        </div>
-        <div class="ig-likes-text">
-          ถูกใจ ${post.likes || 0} คน
-        </div>
-      </div>
-
-      ${commentsList.length > 0 ? `
-        <div class="ig-comment-preview-box">
-          ${previewComments.map(c => `
-            <div class="ig-preview-comment-item">
-              <span class="ig-preview-user" onclick="openUserProfile('${c.authorId}')">${escapeHtml(c.authorName)}:</span>
-              <span class="ig-preview-text">${escapeHtml(c.text)}</span>
+          <div class="discord-channels-scroll">
+            <div class="discord-category-title">
+              <span>📢 ห้องแชทหลัก (MAIN)</span>
             </div>
-          `).join('')}
-          
-          <button type="button" class="btn-view-all-comments" onclick="openCommunityPostDetail('${post.id}')">
-            ${hasMoreComments ? `💬 ดูความคิดเห็นทั้งหมด (${commentsList.length} ข้อความ) ❯` : `🔍 ดูรายละเอียดโพสต์แบบเต็ม ❯`}
-          </button>
-        </div>
-      ` : ''}
-    `;
-    feed.appendChild(card);
-  });
-
-  if (activeDetailPostId) {
-    renderCommunityDetailModal();
-  }
-}
-
-// ================= DISCORD-STYLE CHANNELS & GROUPS =================
-window.toggleDiscordSidebar = function() {
-  AudioFX.click();
-  const sidebar = document.getElementById('discordSidebar');
-  if (sidebar) sidebar.classList.toggle('open');
-};
-
-window.switchChatChannel = function(mode, targetId = null) {
-  AudioFX.click();
-  const sidebar = document.getElementById('discordSidebar');
-  if (sidebar) sidebar.classList.remove('open');
-
-  activeChatMode = mode;
-
-  if (dmUnsubscribe) { dmUnsubscribe(); dmUnsubscribe = null; }
-  if (groupUnsubscribe) { groupUnsubscribe(); groupUnsubscribe = null; }
-
-  const currentUser = getCurrentUser();
-
-  if (mode === 'team') {
-    activeDmTargetUser = null;
-    activeGroupId = null;
-    activeGroupData = null;
-    updateDiscordChatHeader('team');
-    renderChatMessages();
-    scrollChatToBottom();
-  } else if (mode === 'dm') {
-    const targetUser = teamUsers.find(u => u.id === targetId);
-    if (!targetUser) return;
-    activeDmTargetUser = targetUser;
-    activeGroupId = null;
-    activeGroupData = null;
-
-    updateDiscordChatHeader('dm', targetUser.name);
-
-    const currentUid = currentUser ? currentUser.id : 'guest';
-    const roomId = [currentUid, targetUser.id].sort().join('_');
-    const dmQuery = query(collection(db, "direct_chats", roomId, "messages"), orderBy("timestamp", "asc"));
-    
-    dmUnsubscribe = onSnapshot(dmQuery, (snapshot) => {
-      dmChatMessages = [];
-      snapshot.forEach(doc => dmChatMessages.push({ id: doc.id, ...doc.data() }));
-      if (activeChatMode === 'dm') {
-        renderChatMessages();
-        scrollChatToBottom();
-      }
-    });
-  } else if (mode === 'group') {
-    const group = groupChats.find(g => g.id === targetId);
-    if (!group) return;
-    activeGroupId = group.id;
-    activeGroupData = group;
-    activeDmTargetUser = null;
-
-    updateDiscordChatHeader('group', group.name);
-
-    const groupQuery = query(collection(db, "group_chats", group.id, "messages"), orderBy("timestamp", "asc"));
-    groupUnsubscribe = onSnapshot(groupQuery, (snapshot) => {
-      groupChatMessages = [];
-      snapshot.forEach(doc => groupChatMessages.push({ id: doc.id, ...doc.data() }));
-      if (activeChatMode === 'group') {
-        renderChatMessages();
-        scrollChatToBottom();
-      }
-    });
-  }
-
-  highlightActiveChannelItem();
-};
-
-function getVoiceRoomId() {
-  if (activeChatMode === 'group' && activeGroupId) {
-    return 'group_' + activeGroupId;
-  }
-  return null;
-}
-
-function updateDiscordChatHeader(mode, titleName = '') {
-  const prefixEl = document.getElementById('discordHeaderPrefix');
-  const titleEl = document.getElementById('discordChatHeaderTitle');
-  const descEl = document.getElementById('discordChatHeaderDesc');
-  const voiceRoomBtn = document.getElementById('btnToggleVoiceRoom');
-  const voiceCallBtn = document.getElementById('btnVoiceCall');
-  const deleteGroupBtn = document.getElementById('btnDeleteCurrentGroup');
-  const clearBtn = document.getElementById('btnClearChat');
-  const currentUser = getCurrentUser();
-
-  const roomId = getVoiceRoomId();
-  listenVoiceRoomParticipants(roomId);
-
-  if (mode === 'team') {
-    if (prefixEl) prefixEl.innerText = '#';
-    if (titleEl) titleEl.innerText = 'ห้องแชทรวมทีม (Main Chat)';
-    if (descEl) descEl.innerText = 'พื้นที่พูดคุยรวมทุกคนในทีม (ไม่รองรับการโทร)';
-    if (voiceRoomBtn) voiceRoomBtn.style.display = 'none';
-    if (voiceCallBtn) voiceCallBtn.style.display = 'none';
-    if (deleteGroupBtn) deleteGroupBtn.style.display = 'none';
-    if (clearBtn) clearBtn.style.display = isAdmin() ? 'inline-flex' : 'none';
-  } else if (mode === 'dm') {
-    if (prefixEl) prefixEl.innerText = '@';
-    if (titleEl) titleEl.innerText = titleName;
-    if (descEl) descEl.innerText = 'แชทส่วนตัว 1-on-1 (รองรับการโทรเสียงแบบตัวต่อตัว)';
-    if (voiceCallBtn) voiceCallBtn.style.display = 'inline-flex';
-    if (voiceRoomBtn) voiceRoomBtn.style.display = 'none';
-    if (deleteGroupBtn) deleteGroupBtn.style.display = 'none';
-    if (clearBtn) clearBtn.style.display = 'none';
-  } else if (mode === 'group') {
-    if (prefixEl) prefixEl.innerText = '👥';
-    if (titleEl) titleEl.innerText = titleName;
-    if (descEl) descEl.innerText = 'กลุ่มแชทส่วนตัว (มีช่องสนทนาเสียงประจำกลุ่ม)';
-    if (voiceRoomBtn) voiceRoomBtn.style.display = 'inline-flex';
-    if (voiceCallBtn) voiceCallBtn.style.display = 'none';
-    if (clearBtn) clearBtn.style.display = 'none';
-
-    const canDeleteGroup = activeGroupData && currentUser && (isAdmin(currentUser) || activeGroupData.createdById === currentUser.id);
-    if (deleteGroupBtn) deleteGroupBtn.style.display = canDeleteGroup ? 'inline-flex' : 'none';
-  }
-}
-
-function highlightActiveChannelItem() {
-  document.querySelectorAll('.discord-channel-item').forEach(el => el.classList.remove('active'));
-  if (activeChatMode === 'team') {
-    document.getElementById('channelItemMain')?.classList.add('active');
-  } else if (activeChatMode === 'dm' && activeDmTargetUser) {
-    document.getElementById(`channelDm-${activeDmTargetUser.id}`)?.classList.add('active');
-  } else if (activeChatMode === 'group' && activeGroupId) {
-    document.getElementById(`channelGroup-${activeGroupId}`)?.classList.add('active');
-  }
-}
-
-function renderDiscordSidebarChannels() {
-  const groupListEl = document.getElementById('discordGroupList');
-  const dmListEl = document.getElementById('discordDmList');
-  const currentUser = getCurrentUser();
-
-  if (groupListEl) {
-    groupListEl.innerHTML = '';
-    const myGroups = groupChats.filter(g => Array.isArray(g.members) && currentUser && g.members.includes(currentUser.id));
-    if (myGroups.length === 0) {
-      groupListEl.innerHTML = '<div style="font-size:0.72rem; color:var(--text-muted); padding:4px 8px;">ยังไม่มีกลุ่มส่วนตัว</div>';
-    } else {
-      myGroups.forEach(g => {
-        const item = document.createElement('div');
-        item.className = `discord-channel-item ${activeChatMode === 'group' && activeGroupId === g.id ? 'active' : ''}`;
-        item.id = `channelGroup-${g.id}`;
-        item.onclick = () => switchChatChannel('group', g.id);
-        item.innerHTML = `
-          <span class="channel-hash">👥</span>
-          <span class="channel-name">${escapeHtml(g.name)}</span>
-        `;
-        groupListEl.appendChild(item);
-      });
-    }
-  }
-
-  if (dmListEl) {
-    dmListEl.innerHTML = '';
-    const otherMembers = teamUsers.filter(u => currentUser && u.id !== currentUser.id);
-    if (otherMembers.length === 0) {
-      dmListEl.innerHTML = '<div style="font-size:0.72rem; color:var(--text-muted); padding:4px 8px;">ไม่มีสมาชิกอื่น</div>';
-    } else {
-      otherMembers.forEach(u => {
-        const item = document.createElement('div');
-        item.className = `discord-channel-item ${activeChatMode === 'dm' && activeDmTargetUser?.id === u.id ? 'active' : ''}`;
-        item.id = `channelDm-${u.id}`;
-        item.onclick = () => switchChatChannel('dm', u.id);
-        item.innerHTML = `
-          <div class="discord-dm-avatar">${renderAvatarHtml(u.avatar)}</div>
-          <span class="channel-name">${escapeHtml(u.name)} ${isAdmin(u) ? '👑' : ''}</span>
-        `;
-        dmListEl.appendChild(item);
-      });
-    }
-  }
-}
-
-window.openCreateGroupModal = function() {
-  AudioFX.click();
-  const listEl = document.getElementById('groupMembersSelectList');
-  const currentUser = getCurrentUser();
-  if (!listEl) return;
-
-  listEl.innerHTML = '';
-  document.getElementById('createGroupNameInput').value = '';
-
-  const otherMembers = teamUsers.filter(u => currentUser && u.id !== currentUser.id);
-  if (otherMembers.length === 0) {
-    listEl.innerHTML = '<div style="font-size:0.78rem; color:var(--text-muted); padding:6px;">ยังไม่มีสมาชิกคนอื่นในระบบ</div>';
-  } else {
-    otherMembers.forEach(u => {
-      const row = document.createElement('label');
-      row.className = 'group-member-opt-row';
-      row.innerHTML = `
-        <input type="checkbox" name="groupMemberCheckbox" value="${u.id}">
-        <div class="discord-dm-avatar">${renderAvatarHtml(u.avatar)}</div>
-        <span style="font-size: 0.82rem; color: #fff; font-weight: 600;">${escapeHtml(u.name)}</span>
-        <span style="font-size: 0.7rem; color: var(--text-muted);">(${escapeHtml(u.role || 'สมาชิก')})</span>
-      `;
-      listEl.appendChild(row);
-    });
-  }
-
-  document.getElementById('createGroupChatModal').style.display = 'flex';
-};
-
-window.handleCreateGroupChat = async function(e) {
-  e.preventDefault();
-  const currentUser = getCurrentUser();
-  if (!currentUser) return;
-
-  const groupName = document.getElementById('createGroupNameInput').value.trim();
-  if (!groupName) return;
-
-  const checkboxes = document.querySelectorAll('input[name="groupMemberCheckbox"]:checked');
-  const selectedUserIds = Array.from(checkboxes).map(cb => cb.value);
-
-  selectedUserIds.push(currentUser.id);
-
-  if (selectedUserIds.length < 2) {
-    alert('กรุณาเลือกสมาชิกอย่างน้อย 1 คนเพื่อตั้งกลุ่ม');
-    return;
-  }
-
-  AudioFX.success();
-  const newGroupDoc = await addDoc(collection(db, "group_chats"), {
-    name: groupName,
-    members: selectedUserIds,
-    createdById: currentUser.id,
-    createdByName: currentUser.name,
-    createdAt: serverTimestamp()
-  });
-
-  closeModal('createGroupChatModal');
-  switchChatChannel('group', newGroupDoc.id);
-};
-
-window.handleDeleteCurrentGroup = async function() {
-  const currentUser = getCurrentUser();
-  if (!activeGroupData || !currentUser) return;
-
-  const isCreator = activeGroupData.createdById === currentUser.id;
-  if (!isAdmin(currentUser) && !isCreator) {
-    AudioFX.delete();
-    alert("เฉพาะผู้สร้างกลุ่มนี้ หรือแอดมินเท่านั้นที่มีสิทธิ์ลบกลุ่ม");
-    return;
-  }
-
-  if (confirm(`คุณต้องการลบกลุ่ม "${activeGroupData.name}" และข้อความทั้งหมดใช่หรือไม่?`)) {
-    AudioFX.delete();
-    const gId = activeGroupData.id;
-    
-    const msgsSnap = await getDocs(collection(db, "group_chats", gId, "messages"));
-    msgsSnap.forEach(async (d) => await deleteDoc(doc(db, "group_chats", gId, "messages", d.id)));
-
-    if (activeVoiceRoomId) await leaveVoiceRoom();
-
-    await deleteDoc(doc(db, "group_chats", gId));
-    
-    switchChatChannel('team');
-    alert("ลบกลุ่มแชทเรียบร้อยแล้ว");
-  }
-};
-
-// ================= 1-ON-1 VOICE CALL SYSTEM (เฉพาะแชทส่วนตัว DM) =================
-function startIncomingCallListener() {
-  if (!currentUserId) return;
-  
-  const callsQuery = query(collection(db, "voice_calls"));
-  onSnapshot(callsQuery, (snapshot) => {
-    snapshot.docChanges().forEach((change) => {
-      const call = { id: change.doc.id, ...change.doc.data() };
-      
-      if (call.receiverId === currentUserId && call.status === 'ringing') {
-        if (!isVoiceCallActive && !incomingCallData) {
-          showIncomingCallPopup(call);
-        }
-      }
-
-      if (activeCallDocId && call.id === activeCallDocId) {
-        if (call.status === 'ended') {
-          handleRemoteHangup();
-        } else if (call.status === 'connected' && !isVoiceCallActive) {
-          onCallConnectedUI();
-        }
-      }
-    });
-  });
-}
-
-function showIncomingCallPopup(call) {
-  incomingCallData = call;
-  const modal = document.getElementById('incomingCallModal');
-  const nameEl = document.getElementById('incomingCallerNameDisplay');
-  const avatarEl = document.getElementById('incomingCallAvatarDisplay');
-
-  if (nameEl) nameEl.innerText = `${call.callerName} กำลังโทรหาคุณ...`;
-  if (avatarEl) avatarEl.innerHTML = renderAvatarHtml(call.callerAvatar);
-
-  if (modal) modal.style.display = 'flex';
-
-  AudioFX.ringtone();
-  if (callRingtoneInterval) clearInterval(callRingtoneInterval);
-  callRingtoneInterval = setInterval(() => {
-    if (incomingCallData) AudioFX.ringtone();
-  }, 2400);
-}
-
-window.acceptIncomingCall = async function() {
-  if (!incomingCallData) return;
-  AudioFX.click();
-  if (callRingtoneInterval) clearInterval(callRingtoneInterval);
-
-  const modal = document.getElementById('incomingCallModal');
-  if (modal) modal.style.display = 'none';
-
-  activeCallDocId = incomingCallData.id;
-  const callDocRef = doc(db, "voice_calls", activeCallDocId);
-
-  await updateDoc(callDocRef, { status: 'connected' });
-
-  openVoiceCallUI(incomingCallData.callerName, incomingCallData.callerAvatar);
-  await setupWebRTCPeer(false, callDocRef);
-  incomingCallData = null;
-};
-
-window.declineIncomingCall = async function() {
-  AudioFX.delete();
-  if (callRingtoneInterval) clearInterval(callRingtoneInterval);
-
-  const modal = document.getElementById('incomingCallModal');
-  if (modal) modal.style.display = 'none';
-
-  if (incomingCallData) {
-    try {
-      await updateDoc(doc(db, "voice_calls", incomingCallData.id), { status: 'ended' });
-    } catch (e) {}
-    incomingCallData = null;
-  }
-};
-
-window.startVoiceCall = async function() {
-  AudioFX.click();
-  const currentUser = getCurrentUser();
-  if (!currentUser) return;
-
-  if (activeChatMode !== 'dm' || !activeDmTargetUser) {
-    alert('การโทรด้วยเสียงใช้ได้เฉพาะในแชทส่วนตัวแบบ 1-on-1 เท่านั้น');
-    return;
-  }
-
-  const callTargetName = activeDmTargetUser.name;
-  const callAvatar = activeDmTargetUser.avatar;
-  const callReceiverId = activeDmTargetUser.id;
-
-  openVoiceCallUI(callTargetName, callAvatar);
-
-  const callDocRef = await addDoc(collection(db, "voice_calls"), {
-    callerId: currentUser.id,
-    callerName: currentUser.name,
-    callerAvatar: currentUser.avatar,
-    receiverId: callReceiverId,
-    receiverName: callTargetName,
-    isGroupCall: false,
-    status: 'ringing',
-    timestamp: serverTimestamp()
-  });
-
-  activeCallDocId = callDocRef.id;
-
-  AudioFX.ringtone();
-  if (callRingtoneInterval) clearInterval(callRingtoneInterval);
-  callRingtoneInterval = setInterval(() => {
-    if (isVoiceCallActive && voiceCallSeconds === 0) AudioFX.ringtone();
-  }, 2400);
-
-  await setupWebRTCPeer(true, callDocRef);
-};
-
-async function setupWebRTCPeer(isCaller, callDocRef) {
-  try {
-    currentPeerConnection = new RTCPeerConnection(RTC_CONFIG);
-
-    const selectedMicId = localStorage.getItem('taiyoani_audio_input_id') || '';
-    const audioConstraints = selectedMicId ? { deviceId: { exact: selectedMicId } } : true;
-    localVoiceStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false });
-
-    localVoiceStream.getTracks().forEach(track => {
-      currentPeerConnection.addTrack(track, localVoiceStream);
-    });
-
-    currentPeerConnection.ontrack = (event) => {
-      const remoteAudio = document.getElementById('remoteVoiceAudio');
-      if (remoteAudio && event.streams[0]) {
-        remoteAudio.srcObject = event.streams[0];
-        const selectedSpeakerId = localStorage.getItem('taiyoani_audio_output_id');
-        if (selectedSpeakerId && typeof remoteAudio.setSinkId === 'function') {
-          remoteAudio.setSinkId(selectedSpeakerId).catch(() => {});
-        }
-      }
-    };
-
-    const candidatesCol = collection(callDocRef, isCaller ? "callerCandidates" : "calleeCandidates");
-    currentPeerConnection.onicecandidate = (event) => {
-      if (event.candidate) {
-        addDoc(candidatesCol, event.candidate.toJSON());
-      }
-    };
-
-    if (isCaller) {
-      const offer = await currentPeerConnection.createOffer();
-      await currentPeerConnection.setLocalDescription(offer);
-      await updateDoc(callDocRef, { offer: { type: offer.type, sdp: offer.sdp } });
-
-      onSnapshot(callDocRef, async (snapshot) => {
-        const data = snapshot.data();
-        if (data && data.answer && !currentPeerConnection.currentRemoteDescription) {
-          const answerDesc = new RTCSessionDescription(data.answer);
-          await currentPeerConnection.setRemoteDescription(answerDesc);
-          onCallConnectedUI();
-        }
-      });
-
-      onSnapshot(collection(callDocRef, "calleeCandidates"), (snap) => {
-        snap.docChanges().forEach(async (change) => {
-          if (change.type === 'added') {
-            await currentPeerConnection.addIceCandidate(new RTCIceCandidate(change.doc.data()));
-          }
-        });
-      });
-    } else {
-      const callData = (await getDocs(query(collection(db, "voice_calls")))).docs.find(d => d.id === callDocRef.id)?.data();
-      if (callData && callData.offer) {
-        await currentPeerConnection.setRemoteDescription(new RTCSessionDescription(callData.offer));
-        const answer = await currentPeerConnection.createAnswer();
-        await currentPeerConnection.setLocalDescription(answer);
-        await updateDoc(callDocRef, { answer: { type: answer.type, sdp: answer.sdp } });
-        onCallConnectedUI();
-      }
-
-      onSnapshot(collection(callDocRef, "callerCandidates"), (snap) => {
-        snap.docChanges().forEach(async (change) => {
-          if (change.type === 'added') {
-            await currentPeerConnection.addIceCandidate(new RTCIceCandidate(change.doc.data()));
-          }
-        });
-      });
-    }
-  } catch (err) {
-    console.error("WebRTC Error:", err);
-    alert("ไม่สามารถเข้าถึงไมโครโฟนได้ กรุณาตรวจสอบการอนุญาตใช้งานไมค์");
-    endVoiceCall();
-  }
-}
-
-function openVoiceCallUI(targetName, avatarData) {
-  isVoiceCallActive = true;
-  isVoiceMuted = false;
-  voiceCallSeconds = 0;
-
-  const modal = document.getElementById('voiceCallModal');
-  const targetNameEl = document.getElementById('voiceCallTargetNameDisplay');
-  const avatarEl = document.getElementById('voiceCallAvatarDisplay');
-  const statusEl = document.getElementById('voiceCallStatusText');
-  const timerEl = document.getElementById('voiceCallTimerDisplay');
-
-  if (targetNameEl) targetNameEl.innerText = targetName;
-  if (statusEl) statusEl.innerText = 'กำลังส่งสัญญาณเรียกสาย...';
-  if (avatarEl) avatarEl.innerHTML = renderAvatarHtml(avatarData);
-  if (timerEl) {
-    timerEl.style.display = 'none';
-    timerEl.innerText = '00:00';
-  }
-
-  if (modal) modal.style.display = 'flex';
-}
-
-function onCallConnectedUI() {
-  if (callRingtoneInterval) clearInterval(callRingtoneInterval);
-  AudioFX.success();
-
-  const statusEl = document.getElementById('voiceCallStatusText');
-  const timerEl = document.getElementById('voiceCallTimerDisplay');
-  if (statusEl) statusEl.innerText = '🟢 กำลังสนทนาเสียง (Connected)';
-  if (timerEl) timerEl.style.display = 'block';
-
-  if (voiceCallTimerInterval) clearInterval(voiceCallTimerInterval);
-  voiceCallTimerInterval = setInterval(() => {
-    voiceCallSeconds++;
-    const mins = String(Math.floor(voiceCallSeconds / 60)).padStart(2, '0');
-    const secs = String(voiceCallSeconds % 60).padStart(2, '0');
-    if (timerEl) timerEl.innerText = `${mins}:${secs}`;
-  }, 1000);
-}
-
-function handleRemoteHangup() {
-  AudioFX.delete();
-  cleanupCallResources();
-  alert('คู่สนทนาวางสายแล้ว');
-}
-
-window.endVoiceCall = async function() {
-  AudioFX.delete();
-  if (activeCallDocId) {
-    try {
-      await updateDoc(doc(db, "voice_calls", activeCallDocId), { status: 'ended' });
-    } catch (e) {}
-  }
-  cleanupCallResources();
-};
-
-function cleanupCallResources() {
-  isVoiceCallActive = false;
-  activeCallDocId = null;
-  if (callRingtoneInterval) clearInterval(callRingtoneInterval);
-  if (voiceCallTimerInterval) clearInterval(voiceCallTimerInterval);
-
-  if (localVoiceStream) {
-    localVoiceStream.getTracks().forEach(t => t.stop());
-    localVoiceStream = null;
-  }
-  if (currentPeerConnection) {
-    currentPeerConnection.close();
-    currentPeerConnection = null;
-  }
-
-  const remoteAudio = document.getElementById('remoteVoiceAudio');
-  if (remoteAudio) remoteAudio.srcObject = null;
-
-  const modal = document.getElementById('voiceCallModal');
-  if (modal) modal.style.display = 'none';
-}
-
-window.toggleVoiceMute = function() {
-  AudioFX.click();
-  isVoiceMuted = !isVoiceMuted;
-  if (localVoiceStream) {
-    localVoiceStream.getAudioTracks().forEach(track => {
-      track.enabled = !isVoiceMuted;
-    });
-  }
-  const btn = document.getElementById('btnVoiceMute');
-  if (btn) {
-    btn.classList.toggle('active', isVoiceMuted);
-    btn.innerText = isVoiceMuted ? '🔇 เปิดไมค์' : '🎤 ปิดไมค์';
-  }
-};
-
-// ================= VOICE ROOM LOGIC (เฉพาะแชทกลุ่มส่วนตัว Group Chat) =================
-window.toggleVoiceRoom = async function() {
-  AudioFX.click();
-  const currentUser = getCurrentUser();
-  const roomId = getVoiceRoomId();
-  if (!currentUser || !roomId) return;
-
-  if (isUserInVoiceRoom) {
-    await leaveVoiceRoom();
-  } else {
-    await joinVoiceRoom(roomId, currentUser);
-  }
-};
-
-async function joinVoiceRoom(roomId, user) {
-  try {
-    localVoiceStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    isUserInVoiceRoom = true;
-    activeVoiceRoomId = roomId;
-
-    await setDoc(doc(db, "voice_rooms", roomId, "participants", user.id), {
-      userId: user.id,
-      name: user.name,
-      avatar: user.avatar,
-      joinedAt: serverTimestamp()
-    });
-
-    updateVoiceRoomButtonUI(true);
-    triggerHardwareAlert("🔊 เข้าร่วมห้องเสียงแล้ว", `คุณกำลังอยู่ในช่องสนทนาเสียงของกลุ่ม`, user.avatar);
-  } catch (err) {
-    alert("ไม่สามารถเข้าถึงไมโครโฟนได้ กรุณาอนุญาตการใช้งานไมค์");
-  }
-}
-
-async function leaveVoiceRoom() {
-  const currentUser = getCurrentUser();
-  if (activeVoiceRoomId && currentUser) {
-    try {
-      await deleteDoc(doc(db, "voice_rooms", activeVoiceRoomId, "participants", currentUser.id));
-    } catch (e) {}
-  }
-
-  if (localVoiceStream) {
-    localVoiceStream.getTracks().forEach(t => t.stop());
-    localVoiceStream = null;
-  }
-
-  isUserInVoiceRoom = false;
-  activeVoiceRoomId = null;
-  updateVoiceRoomButtonUI(false);
-}
-
-function updateVoiceRoomButtonUI(inRoom) {
-  const btn = document.getElementById('btnToggleVoiceRoom');
-  const icon = document.getElementById('voiceRoomBtnIcon');
-  const text = document.getElementById('voiceRoomBtnText');
-  if (!btn) return;
-
-  btn.classList.toggle('in-room', inRoom);
-  if (icon) icon.innerText = inRoom ? '🔴' : '🎧';
-  if (text) text.innerText = inRoom ? 'ออกจากห้องเสียง' : 'เข้าร่วมเสียง';
-}
-
-function listenVoiceRoomParticipants(roomId) {
-  if (voiceRoomUnsubscribe) {
-    voiceRoomUnsubscribe();
-    voiceRoomUnsubscribe = null;
-  }
-
-  const bar = document.getElementById('voiceRoomParticipantsBar');
-  if (!bar) return;
-  bar.innerHTML = '';
-
-  if (!roomId) {
-    bar.style.display = 'none';
-    return;
-  }
-  bar.style.display = 'flex';
-
-  voiceRoomUnsubscribe = onSnapshot(collection(db, "voice_rooms", roomId, "participants"), (snap) => {
-    bar.innerHTML = '';
-    snap.forEach((d) => {
-      const p = d.data();
-      const chip = document.createElement('div');
-      chip.className = 'voice-participant-chip';
-      chip.title = `${p.name} (กำลังอยู่ในห้องเสียง)`;
-      chip.innerHTML = renderAvatarHtml(p.avatar);
-      bar.appendChild(chip);
-    });
-  });
-}
-
-// ================= MESSAGE SEND & UNSEND =================
-window.handleSendChatMessage = async function(e) {
-  e.preventDefault();
-  const input = document.getElementById('chatTextInput');
-  const text = input.value.trim();
-  const imageBase64ToSend = selectedChatImageBase64;
-
-  if (!text && !imageBase64ToSend) return;
-
-  const currentUser = getCurrentUser();
-  if (!currentUser) return;
-
-  AudioFX.sendChat();
-  input.value = '';
-  removeChatImageAttachment();
-
-  const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-  const payload = {
-    senderId: currentUser.id,
-    senderName: currentUser.name,
-    senderAvatar: currentUser.avatar,
-    text: text,
-    image: imageBase64ToSend || null,
-    time: nowStr,
-    timestamp: serverTimestamp()
-  };
-
-  if (activeChatMode === 'team') {
-    await addDoc(collection(db, "chats"), payload);
-  } else if (activeChatMode === 'dm' && activeDmTargetUser) {
-    const roomId = [currentUser.id, activeDmTargetUser.id].sort().join('_');
-    await addDoc(collection(db, "direct_chats", roomId, "messages"), {
-      ...payload,
-      receiverId: activeDmTargetUser.id
-    });
-  } else if (activeChatMode === 'group' && activeGroupId) {
-    await addDoc(collection(db, "group_chats", activeGroupId, "messages"), payload);
-  }
-};
-
-window.handleUnsendMessage = async function(messageId) {
-  const currentUser = getCurrentUser();
-  if (!currentUser || !messageId) return;
-
-  if (confirm("คุณต้องการยกเลิกข้อความนี้ใช่หรือไม่?")) {
-    AudioFX.delete();
-    if (activeChatMode === 'team') {
-      await deleteDoc(doc(db, "chats", messageId));
-    } else if (activeChatMode === 'dm' && activeDmTargetUser) {
-      const roomId = [currentUser.id, activeDmTargetUser.id].sort().join('_');
-      await deleteDoc(doc(db, "direct_chats", roomId, "messages", messageId));
-    } else if (activeChatMode === 'group' && activeGroupId) {
-      await deleteDoc(doc(db, "group_chats", activeGroupId, "messages", messageId));
-    }
-  }
-};
-
-window.handleClearChat = async function() {
-  if (!isAdmin()) {
-    AudioFX.delete();
-    alert('เฉพาะแอดมิน (TaiyoAni) เท่านั้นที่มีสิทธิ์ล้างประวัติแชท');
-    return;
-  }
-
-  if (confirm('คุณแน่ใจหรือไม่ว่าต้องการล้างประวัติแชทห้องทีมทั้งหมด?')) {
-    AudioFX.delete();
-    const snap = await getDocs(collection(db, "chats"));
-    snap.forEach(async (d) => await deleteDoc(doc(db, "chats", d.id)));
-  }
-};
-
-function renderChatMessages() {
-  const body = document.getElementById('chatMessagesBody');
-  const mainCounter = document.getElementById('mainChatBadgeCounter');
-  const dockCounter = document.getElementById('chatBadgeCounter');
-  if (mainCounter) mainCounter.innerText = chatMessages.length;
-  if (dockCounter) dockCounter.innerText = chatMessages.length;
-  if (!body) return;
-
-  body.innerHTML = '';
-  const currentUser = getCurrentUser();
-  
-  let msgsToRender = chatMessages;
-  if (activeChatMode === 'dm') msgsToRender = dmChatMessages;
-  if (activeChatMode === 'group') msgsToRender = groupChatMessages;
-
-  if (msgsToRender.length === 0) {
-    let emptyNotice = '💬 ยังไม่มีข้อความในห้องนี้';
-    body.innerHTML = `<div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 40px;">${emptyNotice}</div>`;
-    return;
-  }
-
-  msgsToRender.forEach(msg => {
-    const isMine = currentUser && msg.senderId === currentUser.id;
-    const canUnsend = isMine || isAdmin(currentUser);
-    const row = document.createElement('div');
-    row.className = `chat-message-row ${isMine ? 'is-mine' : ''}`;
-
-    let imageAttachmentHtml = '';
-    if (msg.image) {
-      imageAttachmentHtml = `
-        <div class="chat-attached-image-box" onclick="openLightboxImage('${msg.image}')" title="คลิกเพื่อดูรูปภาพ">
-          <img src="${msg.image}" alt="รูปภาพแนบ">
-        </div>
-      `;
-    }
-
-    row.innerHTML = `
-      <div class="chat-msg-avatar clickable-profile" onclick="openUserProfile('${msg.senderId}')" title="ดูโปรไฟล์">${renderAvatarHtml(msg.senderAvatar)}</div>
-      <div class="chat-msg-content">
-        <div class="chat-msg-author clickable-profile" onclick="openUserProfile('${msg.senderId}')">${escapeHtml(msg.senderName)}</div>
-        <div class="chat-msg-bubble">
-          ${msg.text ? `<div>${escapeHtml(msg.text)}</div>` : ''}
-          ${imageAttachmentHtml}
-        </div>
-        <div style="display: flex; align-items: center; gap: 6px;">
-          <span class="chat-msg-time">${escapeHtml(msg.time || '')}</span>
-          ${canUnsend ? `<button type="button" class="btn-unsend-msg" onclick="handleUnsendMessage('${msg.id}')" title="ยกเลิกข้อความนี้">ยกเลิกข้อความ</button>` : ''}
-        </div>
+            <div class="discord-channel-item active" id="channelItemMain" onclick="switchChatChannel('team')">
+              <span class="channel-hash">#</span>
+              <span class="channel-name">ห้องแชทรวมทีม (Main Chat)</span>
+              <span class="discord-badge-count" id="mainChatBadgeCounter">0</span>
+            </div>
+
+            <div class="discord-category-title" style="margin-top: 14px;">
+              <span>👥 กลุ่มส่วนตัว (GROUPS)</span>
+              <button type="button" class="btn-discord-add" onclick="openCreateGroupModal()" title="สร้างกลุ่มใหม่">➕</button>
+            </div>
+            <div class="discord-group-list" id="discordGroupList"></div>
+
+            <div class="discord-category-title" style="margin-top: 14px;">
+              <span>💬 แชทส่วนตัว (DIRECT MESSAGES)</span>
+            </div>
+            <div class="discord-dm-list" id="discordDmList"></div>
+          </div>
+        </aside>
+
+        <main class="discord-chat-main">
+          <header class="discord-chat-header">
+            <div class="discord-header-left">
+              <button type="button" class="btn-discord-hamburger" onclick="toggleDiscordSidebar()" title="เปิดรายชื่อห้อง">☰</button>
+              <span class="discord-header-prefix" id="discordHeaderPrefix">#</span>
+              <div class="discord-header-title-box">
+                <h3 id="discordChatHeaderTitle">ห้องแชทรวมทีม (Main Chat)</h3>
+                <span id="discordChatHeaderDesc">พื้นที่พูดคุยรวมทุกคนในทีม</span>
+              </div>
+            </div>
+
+            <div class="discord-header-actions">
+              <!-- แถบโปรไฟล์ผู้ที่อยู่ในห้องสนทนาเสียง (แสดงเฉพาะแชทกลุ่ม) -->
+              <div class="voice-room-participants-bar" id="voiceRoomParticipantsBar" style="display: none;"></div>
+
+              <!-- ปุ่มเข้าร่วม/ออกจากห้องเสียง (แสดงเฉพาะแชทกลุ่ม) -->
+              <button type="button" class="btn-voice-room-toggle" id="btnToggleVoiceRoom" onclick="toggleVoiceRoom()" style="display: none;" title="เข้าร่วม/ออกจากห้องเสียง">
+                <span id="voiceRoomBtnIcon">🎧</span>
+                <span id="voiceRoomBtnText">เข้าร่วมเสียง</span>
+              </button>
+
+              <!-- ปุ่มโทรด้วยเสียงแบบ 1-on-1 (แสดงเฉพาะแชทส่วนตัว DM) -->
+              <button type="button" class="btn-voice-call" id="btnVoiceCall" onclick="startVoiceCall()" style="display: none;" title="โทรคุยด้วยเสียง">
+                <span>📞</span>
+                <span class="voice-call-text">โทรเสียง</span>
+              </button>
+
+              <!-- ปุ่มลบกลุ่มแชท -->
+              <button type="button" class="btn-delete-group-header" id="btnDeleteCurrentGroup" onclick="handleDeleteCurrentGroup()" style="display: none;" title="ลบกลุ่มแชทนี้">
+                🗑️ ลบกลุ่ม
+              </button>
+
+              <button type="button" class="btn-chat-control" id="btnClearChat" onclick="handleClearChat()" title="ล้างประวัติแชท (เฉพาะแอดมิน)" style="display: none;">🗑️</button>
+            </div>
+          </header>
+
+          <div class="chat-messages-body" id="chatMessagesBody"></div>
+
+          <div class="chat-image-preview-wrapper" id="chatImagePreviewWrapper">
+            <div class="chat-image-preview-thumb">
+              <img src="" id="chatImagePreviewImg" alt="Preview">
+            </div>
+            <span style="font-size: 0.8rem; color: #cbd5e1; flex: 1;">แนบรูปภาพพร้อมส่ง</span>
+            <button type="button" class="btn-sm delete" onclick="removeChatImageAttachment()">✕ ลบรูป</button>
+          </div>
+
+          <form class="chat-input-row" onsubmit="handleSendChatMessage(event)">
+            <button type="button" class="btn-chat-tool" id="btnChatEmojiToggle" onclick="toggleChatEmojiPicker()" title="ใส่อิโมจิ">😊</button>
+            <label class="btn-chat-tool" title="แนบรูปภาพส่งในแชท">
+              📷
+              <input type="file" id="chatFileInput" accept="image/*" style="display: none;" onchange="handleChatImageSelect(event)">
+            </label>
+            <input type="text" id="chatTextInput" class="chat-input" placeholder="พิมพ์ข้อความ... (กด Enter เพื่อส่ง)" autocomplete="off">
+            <button type="submit" class="btn-chat-send" title="ส่งข้อความ">🚀</button>
+            <div class="chat-emoji-popover" id="chatEmojiPickerPopover"></div>
+          </form>
+        </main>
       </div>
-    `;
-    body.appendChild(row);
-  });
-}
+    </section>
 
-function scrollChatToBottom() {
-  const body = document.getElementById('chatMessagesBody');
-  if (body) {
-    setTimeout(() => { 
-      body.scrollTop = body.scrollHeight; 
-    }, 60);
-  }
-}
-
-// ================= AUDIO HARDWARE & SETTINGS =================
-window.openSettingsModal = async function() {
-  AudioFX.click();
-  document.getElementById('settingsModal').style.display = 'flex';
-  await refreshAudioDevices();
-};
-
-window.closeSettingsModal = function() {
-  stopMicTest();
-  document.getElementById('settingsModal').style.display = 'none';
-};
-
-window.refreshAudioDevices = async function() {
-  try {
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach(track => track.stop());
-      } catch (e) {}
-    }
-
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const inputSelect = document.getElementById('settingAudioInputSelect');
-    const outputSelect = document.getElementById('settingAudioOutputSelect');
-
-    if (!inputSelect || !outputSelect) return;
-
-    inputSelect.innerHTML = '';
-    outputSelect.innerHTML = '';
-
-    const savedInputId = localStorage.getItem('taiyoani_audio_input_id') || '';
-    const savedOutputId = localStorage.getItem('taiyoani_audio_output_id') || '';
-
-    let micCount = 0;
-    let speakerCount = 0;
-
-    devices.forEach((device) => {
-      const opt = document.createElement('option');
-      opt.value = device.deviceId;
-
-      if (device.kind === 'audioinput') {
-        micCount++;
-        opt.innerText = device.label || `ไมโครโฟน ${micCount}`;
-        if (device.deviceId === savedInputId) opt.selected = true;
-        inputSelect.appendChild(opt);
-      } else if (device.kind === 'audiooutput') {
-        speakerCount++;
-        opt.innerText = device.label || `ลำโพง / หูฟัง ${speakerCount}`;
-        if (device.deviceId === savedOutputId) opt.selected = true;
-        outputSelect.appendChild(opt);
-      }
-    });
-
-    if (micCount === 0) inputSelect.innerHTML = '<option value="">ไม่พบอุปกรณ์ไมโครโฟน</option>';
-    if (speakerCount === 0) outputSelect.innerHTML = '<option value="">ลำโพงเริ่มต้นของระบบ (Default Speaker)</option>';
-  } catch (err) {
-    console.warn("Hardware enumeration error:", err);
-  }
-};
-
-window.handleAudioDeviceChange = function() {
-  const inputSelect = document.getElementById('settingAudioInputSelect');
-  const outputSelect = document.getElementById('settingAudioOutputSelect');
-  if (inputSelect && inputSelect.value) {
-    localStorage.setItem('taiyoani_audio_input_id', inputSelect.value);
-  }
-  if (outputSelect && outputSelect.value) {
-    localStorage.setItem('taiyoani_audio_output_id', outputSelect.value);
-  }
-  if (isMicTesting) {
-    stopMicTest();
-    startMicTest();
-  }
-};
-
-window.toggleMicTest = function() {
-  AudioFX.click();
-  if (isMicTesting) {
-    stopMicTest();
-  } else {
-    startMicTest();
-  }
-};
-
-async function startMicTest() {
-  const meterFill = document.getElementById('audioMeterFill');
-  const btn = document.getElementById('btnToggleMicTest');
-  const statusText = document.getElementById('micTestStatusText');
-  const selectedMicId = document.getElementById('settingAudioInputSelect')?.value;
-
-  try {
-    const constraints = {
-      audio: selectedMicId ? { deviceId: { exact: selectedMicId } } : true
-    };
-
-    micTestStream = await navigator.mediaDevices.getUserMedia(constraints);
-    micTestAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const source = micTestAudioCtx.createMediaStreamSource(micTestStream);
-    micTestAnalyser = micTestAudioCtx.createAnalyser();
-    micTestAnalyser.fftSize = 256;
-    source.connect(micTestAnalyser);
-
-    const bufferLength = micTestAnalyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-
-    isMicTesting = true;
-    if (btn) btn.innerText = '⏹️ หยุดทดสอบ';
-    if (statusText) statusText.innerText = '🟢 ไมค์กำลังทำงาน: ลองพูดเพื่อดูความดังของเสียง';
-
-    function drawMeter() {
-      if (!isMicTesting) return;
-      micTestAnalyser.getByteFrequencyData(dataArray);
-
-      let sum = 0;
-      for (let i = 0; i < bufferLength; i++) {
-        sum += dataArray[i];
-      }
-      let avg = sum / bufferLength;
-      let percent = Math.min(100, Math.round((avg / 128) * 100 * 1.5));
-
-      if (meterFill) meterFill.style.width = `${percent}%`;
-      micTestAnimId = requestAnimationFrame(drawMeter);
-    }
-    drawMeter();
-  } catch (err) {
-    console.error("Mic test error:", err);
-    alert("ไม่สามารถเข้าถึงไมโครโฟนได้ กรุณาตรวจสอบการอนุญาตใช้งานไมค์ในเบราว์เซอร์");
-    stopMicTest();
-  }
-}
-
-function stopMicTest() {
-  isMicTesting = false;
-  if (micTestAnimId) cancelAnimationFrame(micTestAnimId);
-  if (micTestStream) {
-    micTestStream.getTracks().forEach(track => track.stop());
-    micTestStream = null;
-  }
-  if (micTestAudioCtx && micTestAudioCtx.state !== 'closed') {
-    micTestAudioCtx.close();
-    micTestAudioCtx = null;
-  }
-  const meterFill = document.getElementById('audioMeterFill');
-  const btn = document.getElementById('btnToggleMicTest');
-  const statusText = document.getElementById('micTestStatusText');
-  if (meterFill) meterFill.style.width = '0%';
-  if (btn) btn.innerText = '🎙️ เริ่มทดสอบไมค์';
-  if (statusText) statusText.innerText = 'กดเริ่มทดสอบ แล้วลองพูดเพื่อดูการตอบสนองของไมค์';
-}
-
-window.testSpeakerSound = function() {
-  AudioFX.init();
-  if (!AudioFX.ctx) return;
-
-  const now = AudioFX.ctx.currentTime;
-  const osc = AudioFX.ctx.createOscillator();
-  const gain = AudioFX.ctx.createGain();
-
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(523.25, now);
-  osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.12);
-  osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.24);
-  osc.frequency.exponentialRampToValueAtTime(1046.50, now + 0.36);
-
-  gain.gain.setValueAtTime(0.12, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-
-  osc.connect(gain);
-  gain.connect(AudioFX.ctx.destination);
-
-  osc.start(now);
-  osc.stop(now + 0.6);
-};
-
-// ================= ADMIN ROLE MANAGEMENT SYSTEM =================
-window.openAdminRoleModal = function(userId) {
-  if (!isAdmin()) {
-    AudioFX.delete();
-    alert('เฉพาะแอดมิน (TaiyoAni) เท่านั้นที่มีสิทธิ์ปรับยศสมาชิก');
-    return;
-  }
-
-  const user = teamUsers.find(u => u.id === userId);
-  if (!user) return;
-
-  AudioFX.click();
-  closeModal('teamMembersModal');
-  closeModal('viewProfileModal');
-
-  document.getElementById('adminTargetUserId').value = user.id;
-  document.getElementById('adminTargetUserName').innerText = user.name;
-  document.getElementById('adminTargetUserCurrentRole').innerText = `ยศปัจจุบัน: ${isAdmin(user) ? 'แอดมิน' : (user.role || 'สมาชิกทั่วไป')}`;
-  document.getElementById('adminTargetUserAvatar').innerHTML = renderAvatarHtml(user.avatar);
-
-  const isUserStaff = isStaff(user) && !isAdmin(user);
-  document.getElementById('adminRoleSelect').value = isUserStaff ? 'ทีมงาน' : 'สมาชิกทั่วไป';
-  document.getElementById('adminRoleCustomInput').value = user.customRole || user.role || '';
-
-  document.getElementById('adminRoleModal').style.display = 'flex';
-};
-
-window.handleAdminRoleSelectChange = function() {
-  const selectVal = document.getElementById('adminRoleSelect').value;
-  const customInput = document.getElementById('adminRoleCustomInput');
-  if (selectVal === 'สมาชิกทั่วไป' && (!customInput.value || customInput.value.includes('ทีมงาน'))) {
-    customInput.value = 'สมาชิกทั่วไป';
-  } else if (selectVal === 'ทีมงาน' && (!customInput.value || customInput.value.includes('สมาชิกทั่วไป'))) {
-    customInput.value = 'ทีมงาน';
-  }
-};
-
-window.handleSaveUserRoleSubmit = async function(e) {
-  e.preventDefault();
-  if (!isAdmin()) {
-    alert('เฉพาะแอดมินเท่านั้นที่มีสิทธิ์เปลี่ยนยศ');
-    return;
-  }
-
-  const targetUserId = document.getElementById('adminTargetUserId').value;
-  const selectedRank = document.getElementById('adminRoleSelect').value;
-  const customRole = document.getElementById('adminRoleCustomInput').value.trim();
-
-  const finalRole = customRole || (selectedRank === 'ทีมงาน' ? 'ทีมงาน' : 'สมาชิกทั่วไป');
-
-  closeModal('adminRoleModal');
-  showSaveLoadingModal("กำลังบันทึกการเปลี่ยนยศ...", "กรุณารอสักครู่ ระบบกำลังอัปเดตข้อมูลขึ้นระบบคลาวด์");
-  setSaveProgress(40);
-
-  try {
-    await updateDoc(doc(db, "users", targetUserId), {
-      role: finalRole,
-      rankType: selectedRank,
-      customRole: customRole
-    });
-
-    setSaveProgress(100);
-    showSaveSuccessModal("ปรับยศสมาชิกสำเร็จ!", `เปลี่ยนยศเป็น "${finalRole}" เรียบร้อยแล้ว`);
-    AudioFX.success();
-
-    setTimeout(() => {
-      hideSaveLoadingModal();
-      updateCurrentUserDisplay();
-      renderMembersPresenceList();
-    }, 900);
-  } catch (err) {
-    console.error("Change role error:", err);
-    hideSaveLoadingModal();
-    AudioFX.delete();
-    alert("เกิดข้อผิดพลาดในการบันทึกยศ กรุณาลองใหม่อีกครั้ง");
-  }
-};
-
-// ================= VIEW PROFILE & BIO SYSTEM =================
-window.openUserProfile = function(userId) {
-  const user = teamUsers.find(u => u.id === userId);
-  if (!user) return;
-
-  closeModal('teamMembersModal');
-  AudioFX.click();
-
-  const isSelf = currentUserId && user.id === currentUserId;
-  const userIsAdmin = isAdmin(user);
-  const adminTag = userIsAdmin ? ' 👑 (Admin)' : '';
-  const presence = getPresenceStatus(user.lastActive);
-  const displayRole = userIsAdmin ? '👑 แอดมิน' : (user.role || (isStaff(user) ? '🛡️ ทีมงาน' : '👤 สมาชิกทั่วไป'));
-
-  const bannerContainer = document.getElementById('viewProfileBannerDisplay');
-  if (bannerContainer) {
-    if (user.banner) {
-      bannerContainer.innerHTML = `<img src="${escapeHtml(user.banner)}" alt="Cover Banner">`;
-    } else {
-      bannerContainer.innerHTML = '';
-    }
-  }
-
-  document.getElementById('viewProfileAvatarDisplay').innerHTML = renderAvatarHtml(user.avatar);
-  document.getElementById('viewProfileNameDisplay').innerText = `${user.name}${adminTag}`;
-  document.getElementById('viewProfileRoleDisplay').innerText = displayRole;
-  document.getElementById('viewProfileStatusDisplay').innerHTML = `<span style="color: ${presence.isOnline ? '#6ee7b7' : '#94a3b8'}">${presence.text}</span>`;
-  document.getElementById('viewProfileEmailDisplay').innerText = user.email || 'ไม่ได้ระบุ';
-  document.getElementById('viewProfileBioDisplay').innerText = user.bio && user.bio.trim() !== '' ? user.bio : 'ผู้ใช้นี้ยังไม่ได้ระบุคำแนะนำตัว';
-
-  const actionsContainer = document.getElementById('viewProfileActionsContainer');
-  let adminBtnHtml = '';
-  if (isAdmin() && !isSelf && !userIsAdmin) {
-    adminBtnHtml = `
-      <button type="button" class="btn-admin-manage-role" onclick="openAdminRoleModal('${user.id}')">
-        🎖️ ปรับยศสมาชิก (Admin)
+    <!-- ================= BOTTOM DOCK NAV ================= -->
+    <nav class="bottom-dock-nav">
+      <button type="button" class="bottom-nav-item active" id="navBtnHome" onclick="switchAppView('home')">
+        <span class="bottom-nav-icon">🏠</span>
+        <span class="bottom-nav-text">โฮม</span>
       </button>
-    `;
-  }
 
-  if (isSelf) {
-    actionsContainer.innerHTML = `
-      <button type="button" class="btn-create-task" onclick="closeModal('viewProfileModal'); openEditProfileModal();">
-        ✏️ แก้ไขข้อมูลโปรไฟล์ของคุณ
+      <button type="button" class="bottom-nav-item" id="navBtnCommunity" onclick="switchAppView('community')">
+        <span class="bottom-nav-icon">💡</span>
+        <span class="bottom-nav-text">คอมมู</span>
       </button>
-    `;
-  } else {
-    actionsContainer.innerHTML = `
-      <button type="button" class="btn-dm-start" style="padding: 8px 18px; font-size: 0.85rem;" onclick="closeModal('viewProfileModal'); startDirectChat('${user.id}');">
-        💬 ส่งข้อความส่วนตัว (DM)
+
+      <button type="button" class="bottom-nav-item" id="navBtnProjects" onclick="switchAppView('projects')">
+        <span class="bottom-nav-icon">📁</span>
+        <span class="bottom-nav-text">โปรเจกต์</span>
       </button>
-      ${adminBtnHtml}
-    `;
-  }
 
-  document.getElementById('viewProfileModal').style.display = 'flex';
-};
-
-window.openCurrentUserProfile = function() {
-  if (currentUserId) {
-    window.openUserProfile(currentUserId);
-  }
-};
-
-// ================= CHAT EMOJI & IMAGE ATTACHMENT =================
-function renderChatEmojiPicker() {
-  const container = document.getElementById('chatEmojiPickerPopover');
-  if (!container) return;
-  container.innerHTML = '';
-
-  EMOJI_LIST.forEach(emoji => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'emoji-btn-opt';
-    btn.innerText = emoji;
-    btn.onclick = () => {
-      const input = document.getElementById('chatTextInput');
-      input.value += emoji;
-      input.focus();
-      container.style.display = 'none';
-    };
-    container.appendChild(btn);
-  });
-}
-
-window.toggleChatEmojiPicker = function() {
-  AudioFX.click();
-  const picker = document.getElementById('chatEmojiPickerPopover');
-  if (picker) {
-    const isShown = picker.style.display === 'grid';
-    picker.style.display = isShown ? 'none' : 'grid';
-  }
-};
-
-document.addEventListener('click', (e) => {
-  const picker = document.getElementById('chatEmojiPickerPopover');
-  const btn = document.getElementById('btnChatEmojiToggle');
-  if (picker && picker.style.display === 'grid') {
-    if (!picker.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
-      picker.style.display = 'none';
-    }
-  }
-});
-
-window.handleChatImageSelect = function(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const img = new Image();
-    img.onload = function() {
-      const canvas = document.createElement('canvas');
-      const maxDim = 800;
-      let width = img.width, height = img.height;
-
-      if (width > height && width > maxDim) {
-        height = Math.round((height * maxDim) / width);
-        width = maxDim;
-      } else if (height > maxDim) {
-        width = Math.round((width * maxDim) / height);
-        height = maxDim;
-      }
-
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, width, height);
-
-      selectedChatImageBase64 = canvas.toDataURL('image/jpeg', 0.82);
-
-      const previewBox = document.getElementById('chatImagePreviewWrapper');
-      const previewImg = document.getElementById('chatImagePreviewImg');
-      if (previewBox && previewImg) {
-        previewImg.src = selectedChatImageBase64;
-        previewBox.style.display = 'flex';
-      }
-      AudioFX.click();
-    };
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
-};
-
-window.removeChatImageAttachment = function() {
-  selectedChatImageBase64 = null;
-  const previewBox = document.getElementById('chatImagePreviewWrapper');
-  const fileInput = document.getElementById('chatFileInput');
-  if (previewBox) previewBox.style.display = 'none';
-  if (fileInput) fileInput.value = '';
-};
-
-window.openLightboxImage = function(imgSrc) {
-  AudioFX.click();
-  const modal = document.getElementById('imageLightboxModal');
-  const imgEl = document.getElementById('imageLightboxImg');
-  if (modal && imgEl) {
-    imgEl.src = imgSrc;
-    modal.style.display = 'flex';
-  }
-};
-
-window.closeLightbox = function() {
-  const modal = document.getElementById('imageLightboxModal');
-  if (modal) modal.style.display = 'none';
-};
-
-// ================= SAVE LOADING MODAL CONTROLLERS =================
-function showSaveLoadingModal(title, desc) {
-  const modal = document.getElementById('loadingModal');
-  const titleEl = document.getElementById('saveLoadingTitle');
-  const descEl = document.getElementById('saveLoadingDesc');
-  const iconEl = document.getElementById('saveLoadingIcon');
-  const fillEl = document.getElementById('saveProgressBarFill');
-  if (!modal) return;
-  
-  if (titleEl) titleEl.innerText = title;
-  if (descEl) descEl.innerText = desc;
-  if (iconEl) iconEl.innerText = '⏳';
-  if (fillEl) {
-    fillEl.classList.remove('success');
-    fillEl.style.width = '12%';
-  }
-  modal.style.display = 'flex';
-}
-
-function setSaveProgress(percent) {
-  const fillEl = document.getElementById('saveProgressBarFill');
-  if (fillEl) fillEl.style.width = `${percent}%`;
-}
-
-function showSaveSuccessModal(title, desc) {
-  const titleEl = document.getElementById('saveLoadingTitle');
-  const descEl = document.getElementById('saveLoadingDesc');
-  const iconEl = document.getElementById('saveLoadingIcon');
-  const fillEl = document.getElementById('saveProgressBarFill');
-  
-  if (titleEl) titleEl.innerText = title;
-  if (descEl) descEl.innerText = desc;
-  if (iconEl) iconEl.innerText = '✅';
-  if (fillEl) {
-    fillEl.classList.add('success');
-    fillEl.style.width = '100%';
-  }
-}
-
-function hideSaveLoadingModal() {
-  const modal = document.getElementById('loadingModal');
-  if (modal) modal.style.display = 'none';
-}
-
-// ================= DEVICE MODE SWITCHER =================
-window.setDeviceMode = function(mode) {
-  AudioFX.click();
-  const body = document.body;
-  body.classList.remove('device-mode-auto', 'device-mode-desktop', 'device-mode-tablet', 'device-mode-mobile');
-  body.classList.add(`device-mode-${mode}`);
-
-  localStorage.setItem('taiyoani_device_mode', mode);
-
-  document.querySelectorAll('.btn-device-opt').forEach(btn => btn.classList.remove('active'));
-  const targetBtn = document.getElementById(`devOpt${mode.charAt(0).toUpperCase() + mode.slice(1)}`);
-  if (targetBtn) targetBtn.classList.add('active');
-
-  isMobileSidebarOpen = false;
-  const sidebar = document.getElementById('appSidebar');
-  const backdrop = document.getElementById('sidebarBackdrop');
-  if (sidebar) sidebar.classList.remove('mobile-open');
-  if (backdrop) backdrop.classList.remove('active');
-};
-
-function initDeviceMode() {
-  const savedMode = localStorage.getItem('taiyoani_device_mode') || 'auto';
-  window.setDeviceMode(savedMode);
-}
-
-window.toggleMobileSidebar = function() {
-  AudioFX.click();
-  isMobileSidebarOpen = !isMobileSidebarOpen;
-  const sidebar = document.getElementById('appSidebar');
-  const backdrop = document.getElementById('sidebarBackdrop');
-  if (sidebar) sidebar.classList.toggle('mobile-open', isMobileSidebarOpen);
-  if (backdrop) backdrop.classList.toggle('active', isMobileSidebarOpen);
-};
-
-// ================= PRESENCE & HEARTBEAT SYSTEM =================
-function startHeartbeat() {
-  if (!currentUserId) return;
-  updateDoc(doc(db, "users", currentUserId), { lastActive: serverTimestamp() }).catch(() => {});
-
-  setInterval(() => {
-    if (currentUserId) {
-      updateDoc(doc(db, "users", currentUserId), { lastActive: serverTimestamp() }).catch(() => {});
-    }
-  }, 45000);
-}
-
-function getPresenceStatus(lastActive) {
-  if (!lastActive) {
-    return { isOnline: false, text: 'ออฟไลน์นานแล้ว' };
-  }
-  const lastTime = lastActive.toDate ? lastActive.toDate().getTime() : (typeof lastActive === 'number' ? lastActive : new Date(lastActive).getTime());
-  const diffMs = Date.now() - lastTime;
-  const diffMin = Math.floor(diffMs / 60000);
-
-  if (diffMin < 2) {
-    return { isOnline: true, text: '🟢 ออนไลน์' };
-  } else if (diffMin < 60) {
-    return { isOnline: false, text: `${diffMin} น. ที่แล้ว` };
-  } else if (diffMin < 1440) {
-    const diffHr = Math.floor(diffMin / 60);
-    return { isOnline: false, text: `${diffHr} ชม. ที่แล้ว` };
-  } else {
-    const diffDay = Math.floor(diffMin / 1440);
-    return { isOnline: false, text: `${diffDay} วันที่แล้ว` };
-  }
-}
-
-// ================= REAL-TIME FIRESTORE LISTENERS =================
-function startRealtimeSync() {
-  onSnapshot(collection(db, "users"), (snapshot) => {
-    teamUsers = [];
-    snapshot.forEach(doc => teamUsers.push(doc.data()));
-    populateLoginUserSelect();
-    populateAssigneeDropdown();
-    updateCurrentUserDisplay();
-    renderMembersPresenceList();
-    renderDiscordSidebarChannels();
-    renderHomeBanners();
-  });
-
-  onSnapshot(collection(db, "group_chats"), (snapshot) => {
-    groupChats = [];
-    snapshot.forEach(doc => groupChats.push({ id: doc.id, ...doc.data() }));
-    renderDiscordSidebarChannels();
-  });
-
-  onSnapshot(collection(db, "projects"), (snapshot) => {
-    projects = [];
-    snapshot.forEach(doc => projects.push(doc.data()));
-    
-    if (projects.length > 0 && !activeProjectId) {
-      activeProjectId = projects[0].id;
-    } else if (projects.length === 0) {
-      activeProjectId = null;
-    }
-    renderProjects();
-  });
-
-  onSnapshot(doc(db, "finances", "revenue_stats"), (docSnap) => {
-    if (docSnap.exists()) {
-      revenueData = docSnap.data();
-    } else {
-      revenueData = { voice: 0, animation: 0, audio: 0, other: 0, note: '', updatedBy: 'แอดมิน', updatedTime: 'เริ่มต้น' };
-    }
-    renderRevenueWidget();
-  });
-
-  const chatQuery = query(collection(db, "chats"), orderBy("timestamp", "asc"));
-  onSnapshot(chatQuery, (snapshot) => {
-    const newChats = [];
-    snapshot.forEach(doc => newChats.push({ id: doc.id, ...doc.data() }));
-
-    if (initialChatLoadDone && activeChatMode === 'team' && newChats.length > chatMessages.length) {
-      const lastMsg = newChats[newChats.length - 1];
-      if (lastMsg && lastMsg.senderId !== currentUserId) {
-        triggerHardwareAlert(`💬 ${lastMsg.senderName} (ห้องรวม)`, lastMsg.text || '📷 ส่งรูปภาพ', lastMsg.senderAvatar, () => {
-          window.switchAppView('chat');
-          window.switchChatChannel('team');
-        });
-      }
-    }
-    initialChatLoadDone = true;
-    chatMessages = newChats;
-    if (activeChatMode === 'team') {
-      renderChatMessages();
-      scrollChatToBottom();
-    }
-  });
-
-  const communityQuery = query(collection(db, "community_posts"), orderBy("timestamp", "desc"));
-  onSnapshot(communityQuery, (snapshot) => {
-    communityPosts = [];
-    snapshot.forEach(doc => communityPosts.push({ id: doc.id, ...doc.data() }));
-    renderCommunityPosts();
-  });
-
-  const storiesQuery = query(collection(db, "community_stories"), orderBy("timestamp", "asc"));
-  onSnapshot(storiesQuery, (snapshot) => {
-    communityStories = [];
-    snapshot.forEach(doc => communityStories.push({ id: doc.id, ...doc.data() }));
-    renderStoriesTray();
-  });
-
-  const bannersQuery = query(collection(db, "home_banners"), orderBy("createdAt", "desc"));
-  onSnapshot(bannersQuery, (snapshot) => {
-    homeBanners = [];
-    snapshot.forEach(doc => homeBanners.push({ id: doc.id, ...doc.data() }));
-    renderHomeBanners();
-  });
-}
-
-// ================= REVENUE & PAYOUT SYSTEM =================
-function renderRevenueWidget() {
-  const voice = Number(revenueData.voice) || 0;
-  const anim = Number(revenueData.animation) || 0;
-  const audio = Number(revenueData.audio) || 0;
-  const other = Number(revenueData.other) || 0;
-  const total = voice + anim + audio + other;
-
-  const voiceEl = document.getElementById('revenueVoiceDisplay');
-  const animEl = document.getElementById('revenueAnimDisplay');
-  const audioEl = document.getElementById('revenueAudioDisplay');
-  const otherEl = document.getElementById('revenueOtherDisplay');
-  const totalEl = document.getElementById('revenueTotalDisplay');
-
-  if (voiceEl) voiceEl.innerText = formatCurrency(voice);
-  if (animEl) animEl.innerText = formatCurrency(anim);
-  if (audioEl) audioEl.innerText = formatCurrency(audio);
-  if (otherEl) otherEl.innerText = formatCurrency(other);
-  if (totalEl) totalEl.innerText = formatCurrency(total);
-
-  const noteEl = document.getElementById('revenueNoteDisplay');
-  if (noteEl) {
-    noteEl.innerText = revenueData.note ? `งวด: ${revenueData.note}` : 'งบประมาณและผลตอบแทนรวมทุกฝ่าย';
-  }
-
-  const badge = document.getElementById('revenueUpdatedBadge');
-  if (badge) {
-    if (revenueData.updatedTime) {
-      badge.innerText = `อัปเดตล่าสุด: ${revenueData.updatedTime} โดย ${revenueData.updatedBy || 'แอดมิน'}`;
-    } else {
-      badge.innerText = `อัปเดตล่าสุด: พร้อมใช้งาน`;
-    }
-  }
-
-  const transferDateEl = document.getElementById('revenueTransferDateDisplay');
-  const transferDetailsEl = document.getElementById('revenueTransferDetailsDisplay');
-  const statusBadgeEl = document.getElementById('revenueTransferStatusBadge');
-  const payerEl = document.getElementById('revenuePayerDisplay');
-
-  if (transferDateEl) {
-    transferDateEl.innerText = (revenueData.transferDate && revenueData.transferDate.trim() !== '') 
-      ? revenueData.transferDate 
-      : 'ยังไม่ได้กำหนดวันที่';
-  }
-
-  if (transferDetailsEl) {
-    transferDetailsEl.innerText = (revenueData.transferDetails && revenueData.transferDetails.trim() !== '')
-      ? revenueData.transferDetails
-      : 'ยังไม่มีข้อความชี้แจงการโอนเงินจากแอดมิน';
-  }
-
-  if (payerEl) {
-    payerEl.innerText = `${revenueData.updatedBy || 'TaiyoAni'} (Admin)`;
-  }
-
-  if (statusBadgeEl) {
-    const status = revenueData.transferStatus || 'pending';
-    statusBadgeEl.className = 'payout-status-badge';
-    if (status === 'completed') {
-      statusBadgeEl.classList.add('status-completed');
-      statusBadgeEl.innerText = '✅ โอนเงินเรียบร้อยแล้ว';
-    } else if (status === 'processing') {
-      statusBadgeEl.classList.add('status-processing');
-      statusBadgeEl.innerText = '🔄 กำลังดำเนินการโอนเงิน';
-    } else {
-      statusBadgeEl.classList.add('status-pending');
-      statusBadgeEl.innerText = '⏳ กำลังสรุปยอด / รอโอน';
-    }
-  }
-}
-
-window.openRevenueModal = function() {
-  if (!isAdmin()) {
-    AudioFX.delete();
-    alert('เฉพาะแอดมิน (TaiyoAni) เท่านั้นที่มีสิทธิ์จัดการรายได้และข้อมูลโอนเงิน');
-    return;
-  }
-  AudioFX.click();
-  document.getElementById('inputRevenueVoice').value = revenueData.voice || 0;
-  document.getElementById('inputRevenueAnim').value = revenueData.animation || 0;
-  document.getElementById('inputRevenueAudio').value = revenueData.audio || 0;
-  document.getElementById('inputRevenueOther').value = revenueData.other || 0;
-  document.getElementById('inputRevenueNote').value = revenueData.note || '';
-  
-  document.getElementById('inputRevenueTransferDate').value = revenueData.transferDate || '';
-  document.getElementById('inputRevenueTransferStatus').value = revenueData.transferStatus || 'pending';
-  document.getElementById('inputRevenueTransferDetails').value = revenueData.transferDetails || '';
-
-  document.getElementById('revenueModal').style.display = 'flex';
-};
-
-window.handleSaveRevenue = async function(e) {
-  e.preventDefault();
-  if (!isAdmin()) {
-    alert('เฉพาะแอดมินเท่านั้นที่มีสิทธิ์บันทึกรายได้');
-    return;
-  }
-
-  const voice = parseFloat(document.getElementById('inputRevenueVoice').value) || 0;
-  const animation = parseFloat(document.getElementById('inputRevenueAnim').value) || 0;
-  const audio = parseFloat(document.getElementById('inputRevenueAudio').value) || 0;
-  const other = parseFloat(document.getElementById('inputRevenueOther').value) || 0;
-  const note = document.getElementById('inputRevenueNote').value.trim();
-
-  const transferDate = document.getElementById('inputRevenueTransferDate').value.trim();
-  const transferStatus = document.getElementById('inputRevenueTransferStatus').value;
-  const transferDetails = document.getElementById('inputRevenueTransferDetails').value.trim();
-
-  const currentUser = getCurrentUser();
-  const nowStr = new Date().toLocaleDateString('th-TH') + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-  AudioFX.success();
-  await setDoc(doc(db, "finances", "revenue_stats"), {
-    voice,
-    animation,
-    audio,
-    other,
-    note,
-    transferDate,
-    transferStatus,
-    transferDetails,
-    updatedBy: currentUser ? currentUser.name : 'TaiyoAni',
-    updatedTime: nowStr,
-    timestamp: serverTimestamp()
-  });
-
-  closeModal('revenueModal');
-};
-
-// ================= NEW SCRIPT CREATION =================
-window.openNewScriptModal = function() {
-  if (!activeProjectId) {
-    alert('กรุณาสร้างหรือเลือกโปรเจกต์ก่อนสร้างสคริปต์');
-    return;
-  }
-  AudioFX.click();
-  document.getElementById('newScriptTitleInput').value = '';
-  document.getElementById('newScriptDescInput').value = '';
-  document.getElementById('newScriptModal').style.display = 'flex';
-};
-
-window.handleCreateNewScript = async function(e) {
-  e.preventDefault();
-  const currentProj = projects.find(p => p.id === activeProjectId);
-  if (!currentProj) return;
-
-  const title = document.getElementById('newScriptTitleInput').value.trim();
-  const desc = document.getElementById('newScriptDescInput').value.trim();
-  if (!title) return;
-
-  const currentUser = getCurrentUser();
-  const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const scriptId = 'script-' + Date.now();
-
-  const newScriptTask = {
-    id: scriptId,
-    title,
-    assignee: 'ทีมพากย์ / ผลิตบท',
-    story: desc || 'เอกสารสคริปต์บทพากย์และเนื้อเรื่องประจำโปรเจกต์',
-    status: 'script',
-    pages: [''],
-    likes: 0,
-    createdBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar } : null,
-    updatedBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar, time: nowStr } : null
-  };
-
-  const updatedTasks = [newScriptTask, ...(currentProj.tasks || [])];
-  AudioFX.success();
-  await updateDoc(doc(db, "projects", activeProjectId), { tasks: updatedTasks });
-  
-  closeModal('newScriptModal');
-  openScriptEditor(scriptId);
-};
-
-// ================= MULTI-PAGE WORD SCRIPT EDITOR =================
-window.execWordCmd = function(command, value = null) {
-  document.getElementById('wordPaperEditor').focus();
-  document.execCommand(command, false, value);
-  saveCurrentPageBuffer();
-  updateWordStats();
-};
-
-function saveCurrentPageBuffer() {
-  const editor = document.getElementById('wordPaperEditor');
-  if (editor && currentScriptPages[activePageIndex] !== undefined) {
-    currentScriptPages[activePageIndex] = editor.innerHTML;
-  }
-}
-
-function updateWordStats() {
-  const editor = document.getElementById('wordPaperEditor');
-  if (!editor) return;
-  const text = editor.innerText || '';
-  const charCount = text.length;
-  const wordCount = text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
-  document.getElementById('wordStatsDisplay').innerText = `หน้า ${activePageIndex + 1}: ${wordCount} คำ | ${charCount} ตัวอักษร (รวม ${currentScriptPages.length} หน้า)`;
-}
-
-function updatePageControlsUI() {
-  const total = currentScriptPages.length;
-  const dropdown = document.getElementById('pageSelectDropdown');
-  dropdown.innerHTML = '';
-
-  for (let i = 0; i < total; i++) {
-    const opt = document.createElement('option');
-    opt.value = i;
-    opt.innerText = `${i + 1}`;
-    if (i === activePageIndex) opt.selected = true;
-    dropdown.appendChild(opt);
-  }
-
-  document.getElementById('pageTotalDisplay').innerText = `/ ${total}`;
-  document.getElementById('btnPrevPage').disabled = (activePageIndex === 0);
-  document.getElementById('btnNextPage').disabled = (activePageIndex === total - 1);
-  document.getElementById('btnAddNewPage').disabled = (total >= MAX_PAGES);
-  document.getElementById('btnDeleteCurrentPage').disabled = (total <= 1);
-}
-
-window.jumpToPage = function(pageIndex) {
-  saveCurrentPageBuffer();
-  activePageIndex = parseInt(pageIndex, 10) || 0;
-  loadPageContent();
-};
-
-window.prevPage = function() {
-  if (activePageIndex > 0) {
-    AudioFX.pageFlip();
-    saveCurrentPageBuffer();
-    activePageIndex--;
-    loadPageContent();
-  }
-};
-
-window.nextPage = function() {
-  if (activePageIndex < currentScriptPages.length - 1) {
-    AudioFX.pageFlip();
-    saveCurrentPageBuffer();
-    activePageIndex++;
-    loadPageContent();
-  }
-};
-
-window.addNewPage = function() {
-  if (currentScriptPages.length >= MAX_PAGES) {
-    alert(`ไม่สามารถเพิ่มหน้าได้เกิน ${MAX_PAGES} หน้า`);
-    return;
-  }
-  AudioFX.pageFlip();
-  saveCurrentPageBuffer();
-  currentScriptPages.push('');
-  activePageIndex = currentScriptPages.length - 1;
-  loadPageContent();
-};
-
-window.deleteCurrentPage = function() {
-  if (currentScriptPages.length <= 1) {
-    alert('ต้องมีสคริปต์อย่างน้อย 1 หน้า');
-    return;
-  }
-  if (confirm(`คุณต้องการลบ "หน้าที่ ${activePageIndex + 1}" ใช่หรือไม่?`)) {
-    AudioFX.delete();
-    currentScriptPages.splice(activePageIndex, 1);
-    if (activePageIndex >= currentScriptPages.length) {
-      activePageIndex = currentScriptPages.length - 1;
-    }
-    loadPageContent();
-  }
-};
-
-function loadPageContent() {
-  const paper = document.getElementById('wordPaperEditor');
-  paper.innerHTML = currentScriptPages[activePageIndex] || '';
-  updatePageControlsUI();
-  updateWordStats();
-}
-
-const paperEditorEl = document.getElementById('wordPaperEditor');
-if (paperEditorEl) {
-  paperEditorEl.addEventListener('input', () => {
-    saveCurrentPageBuffer();
-    updateWordStats();
-  });
-}
-
-window.openScriptEditor = function(taskId) {
-  const currentProj = projects.find(p => p.id === activeProjectId);
-  if (!currentProj) return;
-
-  const task = currentProj.tasks.find(t => t.id === taskId);
-  if (!task) return;
-
-  activeScriptTaskId = taskId;
-  AudioFX.click();
-
-  document.getElementById('scriptEditorTaskTitle').innerText = `📜 สคริปต์: ${task.title}`;
-  
-  const currentUser = getCurrentUser();
-  const isCreator = currentUser && task.createdBy && task.createdBy.name === currentUser.name;
-  const canEdit = isAdmin(currentUser) || isCreator;
-
-  if (Array.isArray(task.pages) && task.pages.length > 0) {
-    currentScriptPages = [...task.pages];
-  } else if (task.scriptContent) {
-    currentScriptPages = [task.scriptContent];
-  } else {
-    currentScriptPages = [''];
-  }
-
-  activePageIndex = 0;
-
-  const paper = document.getElementById('wordPaperEditor');
-  paper.contentEditable = canEdit ? 'true' : 'false';
-
-  const saveBtn = document.getElementById('btnSaveScriptAction');
-  const addPageBtn = document.getElementById('btnAddNewPage');
-  const delPageBtn = document.getElementById('btnDeleteCurrentPage');
-  if (saveBtn) saveBtn.style.display = canEdit ? 'inline-flex' : 'none';
-  if (addPageBtn) addPageBtn.style.display = canEdit ? 'inline-flex' : 'none';
-  if (delPageBtn) delPageBtn.style.display = canEdit ? 'inline-flex' : 'none';
-
-  const metaInfo = document.getElementById('scriptEditorMetaInfo');
-  if (task.scriptUpdatedBy) {
-    metaInfo.innerText = `✏️ แก้ไขล่าสุดโดย ${task.scriptUpdatedBy.name} (${task.scriptUpdatedBy.time}) ${!canEdit ? '• [โหมดอ่าน]' : ''}`;
-  } else {
-    metaInfo.innerText = canEdit ? 'เขียนและจัดรูปแบบเอกสารแบบเรียลไทม์' : 'โหมดอ่านอย่างเดียว';
-  }
-
-  loadPageContent();
-  document.getElementById('scriptEditorModal').style.display = 'flex';
-};
-
-window.handleSaveTaskScript = async function() {
-  const currentProj = projects.find(p => p.id === activeProjectId);
-  if (!currentProj || !activeScriptTaskId) return;
-
-  const task = currentProj.tasks.find(t => t.id === activeScriptTaskId);
-  if (!task) return;
-
-  const currentUser = getCurrentUser();
-  const isCreator = currentUser && task.createdBy && task.createdBy.name === currentUser.name;
-  if (!isAdmin() && !isCreator) {
-    alert('คุณไม่มีสิทธิ์แก้ไขสคริปต์นี้');
-    return;
-  }
-
-  saveCurrentPageBuffer();
-  const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-  const updatedTasks = currentProj.tasks.map(t => {
-    if (t.id === activeScriptTaskId) {
-      return {
-        ...t,
-        pages: currentScriptPages,
-        scriptContent: currentScriptPages[0] || '',
-        scriptUpdatedBy: currentUser ? { name: currentUser.name, time: nowStr } : null
-      };
-    }
-    return t;
-  });
-
-  AudioFX.success();
-  await updateDoc(doc(db, "projects", activeProjectId), { tasks: updatedTasks });
-  closeModal('scriptEditorModal');
-  alert(`💾 บันทึกสคริปต์สำเร็จ (${currentScriptPages.length} หน้า)!`);
-};
-
-// ================= AUTH GATEKEEPER =================
-function initAuth() {
-  initDeviceMode();
-  initAppView();
-  startLiveClock();
-  renderChatEmojiPicker();
-  startRealtimeSync();
-  startIncomingCallListener();
-
-  if (currentUserId) {
-    document.getElementById('authGate').style.display = 'none';
-    document.getElementById('mainAppLayout').style.display = 'flex';
-    updateCurrentUserDisplay();
-    startHeartbeat();
-  } else {
-    document.getElementById('authGate').style.display = 'flex';
-    document.getElementById('mainAppLayout').style.display = 'none';
-    renderAuthAvatarPicker();
-  }
-}
-
-window.switchAuthTab = function(tab) {
-  const isLogin = tab === 'login';
-  document.getElementById('loginSection').style.display = isLogin ? 'block' : 'none';
-  document.getElementById('registerSection').style.display = isLogin ? 'none' : 'block';
-  document.getElementById('tabBtnLogin').className = `auth-tab-btn ${isLogin ? 'active' : ''}`;
-  document.getElementById('tabBtnRegister').className = `auth-tab-btn ${!isLogin ? 'active' : ''}`;
-  document.getElementById('loginErrorMsg').style.display = 'none';
-  document.getElementById('regErrorMsg').style.display = 'none';
-};
-
-function renderAuthAvatarPicker() {
-  const container = document.getElementById('authAvatarPicker');
-  if (!container) return;
-  container.innerHTML = '';
-  const currentVal = document.getElementById('authAvatarDataInput').value;
-
-  AVATAR_PRESETS.forEach(emoji => {
-    const div = document.createElement('div');
-    div.className = `avatar-opt ${emoji === currentVal ? 'active' : ''}`;
-    div.innerText = emoji;
-    div.onclick = () => {
-      document.querySelectorAll('#authAvatarPicker .avatar-opt').forEach(el => el.classList.remove('active'));
-      div.classList.add('active');
-      document.getElementById('authAvatarDataInput').value = emoji;
-      document.getElementById('avatarPreviewDisplay').innerHTML = `<span>${emoji}</span>`;
-    };
-    container.appendChild(div);
-  });
-}
-
-function renderEditAvatarPicker(selectedAvatar) {
-  const container = document.getElementById('editAvatarPicker');
-  if (!container) return;
-  container.innerHTML = '';
-
-  AVATAR_PRESETS.forEach(emoji => {
-    const div = document.createElement('div');
-    div.className = `avatar-opt ${emoji === selectedAvatar ? 'active' : ''}`;
-    div.innerText = emoji;
-    div.onclick = () => {
-      document.querySelectorAll('#editAvatarPicker .avatar-opt').forEach(el => el.classList.remove('active'));
-      div.classList.add('active');
-      document.getElementById('editAvatarDataInput').value = emoji;
-      document.getElementById('editAvatarPreviewDisplay').innerHTML = `<span>${emoji}</span>`;
-    };
-    container.appendChild(div);
-  });
-}
-
-window.handleAvatarFileSelect = function(event, mode) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = function (e) {
-    const img = new Image();
-    img.onload = function () {
-      const canvas = document.createElement('canvas');
-      const maxDim = 160;
-      let width = img.width, height = img.height;
-
-      if (width > height && width > maxDim) {
-        height = Math.round((height * maxDim) / width);
-        width = maxDim;
-      } else if (height > maxDim) {
-        width = Math.round((width * maxDim) / height);
-        height = maxDim;
-      }
-
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, width, height);
-
-      const compressedBase64 = canvas.toDataURL('image/jpeg', 0.85);
-
-      if (mode === 'reg') {
-        document.getElementById('authAvatarDataInput').value = compressedBase64;
-        document.getElementById('avatarPreviewDisplay').innerHTML = `<img src="${compressedBase64}" alt="Avatar">`;
-        document.querySelectorAll('#authAvatarPicker .avatar-opt').forEach(el => el.classList.remove('active'));
-      } else if (mode === 'edit') {
-        document.getElementById('editAvatarDataInput').value = compressedBase64;
-        document.getElementById('editAvatarPreviewDisplay').innerHTML = `<img src="${compressedBase64}" alt="Avatar">`;
-        document.querySelectorAll('#editAvatarPicker .avatar-opt').forEach(el => el.classList.remove('active'));
-      }
-    };
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
-};
-
-window.handleBannerFileSelect = function(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const base64 = e.target.result;
-    document.getElementById('editBannerDataInput').value = base64;
-    document.getElementById('editBannerPreviewDisplay').innerHTML = `<img src="${base64}" alt="Banner">`;
-  };
-  reader.readAsDataURL(file);
-};
-
-window.handleRemoveBanner = function() {
-  document.getElementById('editBannerDataInput').value = '';
-  document.getElementById('editBannerPreviewDisplay').innerHTML = `<span style="font-size: 0.85rem; color: var(--text-muted);">ไม่มีภาพหน้าปก</span>`;
-  document.getElementById('editBannerFileInput').value = '';
-};
-
-// ================= DEVICE-SPECIFIC LOGIN & ACCOUNTS =================
-function renderDeviceAccountsList() {
-  const datalist = document.getElementById('deviceAccountsList');
-  if (!datalist) return;
-  datalist.innerHTML = '';
-
-  try {
-    const saved = JSON.parse(localStorage.getItem('taiyoani_device_accounts') || '[]');
-    saved.forEach(acc => {
-      const opt = document.createElement('option');
-      opt.value = acc.name;
-      opt.label = acc.email ? `${acc.name} (${acc.email})` : acc.name;
-      datalist.appendChild(opt);
-    });
-  } catch (e) {}
-}
-
-function saveDeviceAccount(user) {
-  try {
-    let saved = JSON.parse(localStorage.getItem('taiyoani_device_accounts') || '[]');
-    const existingIndex = saved.findIndex(a => a.id === user.id);
-    if (existingIndex > -1) {
-      saved[existingIndex] = { id: user.id, name: user.name, email: user.email || '' };
-    } else {
-      saved.push({ id: user.id, name: user.name, email: user.email || '' });
-    }
-    localStorage.setItem('taiyoani_device_accounts', JSON.stringify(saved));
-    renderDeviceAccountsList();
-  } catch (e) {}
-}
-
-window.handleClearDeviceSavedAccounts = function() {
-  if (confirm('ต้องการล้างประวัติชื่อบัญชีที่เคยล็อกอินบนอุปกรณ์นี้หรือไม่?')) {
-    AudioFX.delete();
-    localStorage.removeItem('taiyoani_device_accounts');
-    renderDeviceAccountsList();
-    const input = document.getElementById('loginUsernameInput');
-    if (input) input.value = '';
-    alert('ล้างประวัติบัญชีบนอุปกรณ์นี้เรียบร้อยแล้ว');
-  }
-};
-
-function populateLoginUserSelect() {
-  renderDeviceAccountsList();
-}
-
-window.handleLoginSelectChange = function() {
-  document.getElementById('loginPasswordInput').value = '';
-  document.getElementById('loginErrorMsg').style.display = 'none';
-};
-
-window.handleLoginSubmit = async function(e) {
-  e.preventDefault();
-  const usernameOrEmail = document.getElementById('loginUsernameInput').value.trim().toLowerCase();
-  const password = document.getElementById('loginPasswordInput').value;
-  const errorMsg = document.getElementById('loginErrorMsg');
-
-  const targetUser = teamUsers.find(u => 
-    (u.name && u.name.trim().toLowerCase() === usernameOrEmail) ||
-    (u.email && u.email.trim().toLowerCase() === usernameOrEmail)
-  );
-
-  if (!targetUser) {
-    AudioFX.delete();
-    errorMsg.innerText = 'ไม่พบบัญชีผู้ใช้หรืออีเมลนี้ในระบบ';
-    errorMsg.style.display = 'block';
-    return;
-  }
-
-  if (targetUser.password === password) {
-    if (!targetUser.isVerified) {
-      AudioFX.click();
-      pendingVerificationUser = targetUser;
-      openOtpVerificationModal(targetUser);
-      return;
-    }
-
-    AudioFX.success();
-    currentUserId = targetUser.id;
-    localStorage.setItem('taiyoani_active_user_id', currentUserId);
-    
-    saveDeviceAccount(targetUser);
-
-    document.getElementById('authGate').style.display = 'none';
-    document.getElementById('mainAppLayout').style.display = 'flex';
-    document.getElementById('loginPasswordInput').value = '';
-    document.getElementById('loginUsernameInput').value = '';
-    errorMsg.style.display = 'none';
-    
-    updateCurrentUserDisplay();
-    renderProjects();
-    startHeartbeat();
-  } else {
-    AudioFX.delete();
-    errorMsg.innerText = 'รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง';
-    errorMsg.style.display = 'block';
-  }
-};
-
-window.handleRegisterSubmit = async function(e) {
-  e.preventDefault();
-  const name = document.getElementById('regNameInput').value.trim();
-  const email = document.getElementById('regEmailInput').value.trim().toLowerCase();
-  let role = document.getElementById('regRoleInput').value.trim();
-  const bio = document.getElementById('regBioInput').value.trim();
-  const password = document.getElementById('regPasswordInput').value;
-  const confirmPassword = document.getElementById('regConfirmPasswordInput').value;
-  const avatarData = document.getElementById('authAvatarDataInput').value || '👨‍💻';
-  const errorMsg = document.getElementById('regErrorMsg');
-
-  errorMsg.style.display = 'none';
-
-  const nameLower = name.toLowerCase();
-  if (nameLower === 'taiyoani') {
-    const existingAdmin = teamUsers.find(u => u.name.trim().toLowerCase() === 'taiyoani');
-    if (existingAdmin) {
-      AudioFX.delete();
-      errorMsg.innerText = 'ชื่อผู้ใช้ "TaiyoAni" สงวนสิทธิ์สำหรับแอดมิน (Creator) เท่านั้น';
-      errorMsg.style.display = 'block';
-      return;
-    }
-    role = 'แอดมิน';
-  }
-
-  const emailExists = teamUsers.find(u => u.email && u.email.toLowerCase() === email);
-  if (emailExists) {
-    AudioFX.delete();
-    errorMsg.innerText = 'อีเมลนี้ถูกใช้งานในระบบแล้ว กรุณาใช้อีเมลอื่น';
-    errorMsg.style.display = 'block';
-    return;
-  }
-
-  const usernameExists = teamUsers.find(u => u.name && u.name.trim().toLowerCase() === nameLower);
-  if (usernameExists) {
-    AudioFX.delete();
-    errorMsg.innerText = 'ชื่อผู้ใช้งานนี้ถูกใช้งานแล้ว กรุณาตั้งชื่ออื่น';
-    errorMsg.style.display = 'block';
-    return;
-  }
-
-  if (password !== confirmPassword) {
-    AudioFX.delete();
-    errorMsg.innerText = 'รหัสผ่านและยืนยันรหัสผ่านไม่ตรงกัน';
-    errorMsg.style.display = 'block';
-    return;
-  }
-
-  const submitBtn = e.target.querySelector('button[type="submit"]');
-  if (submitBtn) {
-    submitBtn.disabled = true;
-    submitBtn.innerText = '⏳ กำลังส่งรหัส OTP...';
-  }
-
-  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-  const userId = 'user-' + Date.now();
-
-  const newUser = {
-    id: userId,
-    name,
-    email,
-    role: role || 'สมาชิกทั่วไป',
-    rankType: 'สมาชิกทั่วไป',
-    bio: bio || '',
-    avatar: avatarData,
-    banner: '',
-    password: password,
-    isVerified: false,
-    otpCode: otpCode,
-    lastActive: serverTimestamp()
-  };
-
-  try {
-    await setDoc(doc(db, "users", userId), newUser);
-    await sendOtpEmail(email, name, otpCode);
-
-    pendingVerificationUser = newUser;
-    openOtpVerificationModal(newUser);
-  } catch (err) {
-    console.error("Register error:", err);
-    errorMsg.innerText = 'เกิดข้อผิดพลาด: ' + (err.message || err);
-    errorMsg.style.display = 'block';
-  } finally {
-    if (submitBtn) {
-      submitBtn.disabled = false;
-      submitBtn.innerText = 'สมัครสมาชิกและรับรหัส OTP';
-    }
-  }
-};
-
-function openOtpVerificationModal(user) {
-  document.getElementById('otpCodeInput').value = '';
-  document.getElementById('otpErrorMsg').style.display = 'none';
-
-  if (user && user.email) {
-    document.getElementById('otpTargetEmailDisplay').innerText = user.email;
-    document.getElementById('otpEmailInputGroup').style.display = 'none';
-  } else {
-    document.getElementById('otpTargetEmailDisplay').innerText = 'ยังไม่ได้ระบุอีเมล';
-    document.getElementById('otpEmailInputGroup').style.display = 'block';
-  }
-
-  document.getElementById('otpModal').style.display = 'flex';
-}
-
-window.closeOtpModal = function() {
-  document.getElementById('otpModal').style.display = 'none';
-  pendingVerificationUser = null;
-};
-
-window.handleSendOtpToExistingUser = async function() {
-  if (!pendingVerificationUser) return;
-  const email = document.getElementById('unverifiedAccountEmailInput').value.trim().toLowerCase();
-  
-  if (!email || !email.includes('@')) {
-    alert('กรุณากรอกอีเมลที่ถูกต้อง');
-    return;
-  }
-
-  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-  pendingVerificationUser.email = email;
-  pendingVerificationUser.otpCode = otpCode;
-
-  await updateDoc(doc(db, "users", pendingVerificationUser.id), {
-    email: email,
-    otpCode: otpCode
-  });
-
-  await sendOtpEmail(email, pendingVerificationUser.name, otpCode);
-  document.getElementById('otpTargetEmailDisplay').innerText = email;
-  document.getElementById('otpEmailInputGroup').style.display = 'none';
-};
-
-window.handleVerifyOtpSubmit = async function(e) {
-  e.preventDefault();
-  const enteredOtp = document.getElementById('otpCodeInput').value.trim();
-  const errorMsg = document.getElementById('otpErrorMsg');
-
-  if (!pendingVerificationUser) return;
-
-  if (enteredOtp === pendingVerificationUser.otpCode) {
-    AudioFX.success();
-    await updateDoc(doc(db, "users", pendingVerificationUser.id), {
-      isVerified: true,
-      otpCode: null
-    });
-
-    currentUserId = pendingVerificationUser.id;
-    localStorage.setItem('taiyoani_active_user_id', currentUserId);
-    saveDeviceAccount(pendingVerificationUser);
-
-    closeOtpModal();
-    document.getElementById('authGate').style.display = 'none';
-    document.getElementById('mainAppLayout').style.display = 'flex';
-    document.getElementById('loginPasswordInput').value = '';
-    updateCurrentUserDisplay();
-    renderProjects();
-    startHeartbeat();
-    alert('🎉 ยืนยันตัวตนผ่านอีเมลสำเร็จ ยินดีต้อนรับเข้าสู่ระบบ!');
-  } else {
-    AudioFX.delete();
-    errorMsg.innerText = 'รหัส OTP ไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง';
-    errorMsg.style.display = 'block';
-  }
-};
-
-window.handleResendOtp = async function() {
-  if (!pendingVerificationUser || !pendingVerificationUser.email) {
-    alert('กรุณาระบุอีเมลก่อนขอรับรหัส');
-    return;
-  }
-
-  const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
-  pendingVerificationUser.otpCode = newOtp;
-
-  await updateDoc(doc(db, "users", pendingVerificationUser.id), {
-    otpCode: newOtp
-  });
-
-  await sendOtpEmail(pendingVerificationUser.email, pendingVerificationUser.name, newOtp);
-  AudioFX.click();
-};
-
-window.handleLogout = function() {
-  if (confirm('คุณต้องการออกจากระบบ / สลับบัญชีหรือไม่?')) {
-    AudioFX.click();
-    currentUserId = null;
-    localStorage.removeItem('taiyoani_active_user_id');
-    document.getElementById('loginPasswordInput').value = '';
-    initAuth();
-  }
-};
-
-// ================= MEMBERS PRESENCE RENDERING =================
-function renderMembersPresenceList() {
-  const container = document.getElementById('membersPresenceList');
-  const homeOnlinePill = document.getElementById('homeOnlineIndicator');
-  const dockOnlineCount = document.getElementById('modalOnlineCountText');
-  if (!container) return;
-  container.innerHTML = '';
-
-  let onlineCount = 0;
-  const currentUser = getCurrentUser();
-
-  if (teamUsers.length === 0) {
-    container.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted); font-size:0.85rem;">ยังไม่มีสมาชิกในระบบ</div>';
-    return;
-  }
-
-  teamUsers.forEach(user => {
-    const presence = getPresenceStatus(user.lastActive);
-    if (presence.isOnline) onlineCount++;
-
-    const isSelf = currentUser && user.id === currentUser.id;
-    const userIsAdmin = isAdmin(user);
-    const userIsStaff = isStaff(user);
-    const adminTag = userIsAdmin ? ' 👑' : '';
-
-    let badgeClass = 'member';
-    let badgeText = '👤 สมาชิกทั่วไป';
-    if (userIsAdmin) {
-      badgeClass = 'admin';
-      badgeText = '👑 แอดมิน';
-    } else if (userIsStaff) {
-      badgeClass = 'staff';
-      badgeText = '🛡️ ทีมงาน';
-    }
-
-    let adminManageBtn = '';
-    if (isAdmin() && !isSelf && !userIsAdmin) {
-      adminManageBtn = `
-        <button type="button" class="btn-admin-manage-role" onclick="openAdminRoleModal('${user.id}')" title="ปรับยศสมาชิก">
-          🎖️ ปรับยศ
+      <button type="button" class="bottom-nav-item" id="navBtnRevenue" onclick="switchAppView('revenue')">
+        <span class="bottom-nav-icon">💰</span>
+        <span class="bottom-nav-text">รายได้</span>
+      </button>
+
+      <button type="button" class="bottom-nav-item" id="navBtnChat" onclick="switchAppView('chat')">
+        <span class="bottom-nav-icon" style="position: relative;">
+          💬
+          <span class="chat-badge-counter" id="chatBadgeCounter">0</span>
+        </span>
+        <span class="bottom-nav-text">แชท</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- ================= INCOMING CALL POPUP MODAL (สำหรับแชทส่วนตัว) ================= -->
+  <div class="modal-overlay" id="incomingCallModal" style="z-index: 1320;">
+    <div class="modal voice-call-card incoming-card">
+      <div class="voice-call-avatar-pulse ringing" id="incomingCallAvatarPulse">
+        <div class="voice-call-avatar" id="incomingCallAvatarDisplay">📞</div>
+      </div>
+      <h3 class="voice-call-target-name" id="incomingCallerNameDisplay">สายเรียกเข้า...</h3>
+      <p class="voice-call-status-text">📞 มีสมาชิกกำลังโทรหาคุณ...</p>
+
+      <div class="voice-call-actions" style="margin-top: 14px;">
+        <button type="button" class="btn-voice-action accept" onclick="acceptIncomingCall()" title="รับสาย">
+          🟢 รับสาย
         </button>
-      `;
-    }
+        <button type="button" class="btn-voice-action end" onclick="declineIncomingCall()" title="ปฏิเสธสาย">
+          🔴 วางสาย
+        </button>
+      </div>
+    </div>
+  </div>
 
-    const item = document.createElement('div');
-    item.className = 'member-presence-item';
-    item.innerHTML = `
-      <div class="member-presence-left clickable-profile" onclick="openUserProfile('${user.id}')" title="คลิกเพื่อดูโปรไฟล์">
-        <div class="member-avatar-wrapper">
-          ${renderAvatarHtml(user.avatar)}
-          <span class="status-badge-dot ${presence.isOnline ? 'online' : 'offline'}"></span>
+  <!-- ================= VOICE CALL ACTIVE MODAL (สำหรับแชทส่วนตัว) ================= -->
+  <div class="modal-overlay" id="voiceCallModal" style="z-index: 1250;">
+    <div class="modal voice-call-card">
+      <div class="voice-call-avatar-pulse" id="voiceCallAvatarPulse">
+        <div class="voice-call-avatar" id="voiceCallAvatarDisplay">📞</div>
+      </div>
+      <h3 class="voice-call-target-name" id="voiceCallTargetNameDisplay">กำลังสนทนาสาย...</h3>
+      <p class="voice-call-status-text" id="voiceCallStatusText">กำลังเชื่อมต่อสัญญาณเสียง...</p>
+      <div class="voice-call-timer" id="voiceCallTimerDisplay" style="display: none;">00:00</div>
+
+      <div class="voice-call-actions">
+        <button type="button" class="btn-voice-action mute" id="btnVoiceMute" onclick="toggleVoiceMute()" title="ปิด/เปิดไมค์">
+          🎤 ปิดไมค์
+        </button>
+        <button type="button" class="btn-voice-action settings" onclick="openSettingsModal()" title="ตั้งค่าไมโครโฟน/ลำโพง">
+          ⚙️ ตั้งค่า
+        </button>
+        <button type="button" class="btn-voice-action end" onclick="endVoiceCall()" title="วางสาย">
+          🔴 วางสาย
+        </button>
+      </div>
+
+      <audio id="remoteVoiceAudio" autoplay playsinline></audio>
+    </div>
+  </div>
+
+  <!-- ================= MODALS อื่นๆ ================= -->
+
+  <!-- ADD HOME BANNER MODAL -->
+  <div class="modal-overlay" id="homeBannerModal" style="z-index: 1270;">
+    <div class="modal" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">👑 เพิ่มแบนเนอร์โฆษณา / โปรเจกต์ล่าสุด</h3>
+        <button type="button" class="close-btn" onclick="closeModal('homeBannerModal')">✕</button>
+      </div>
+      <form onsubmit="handleSaveHomeBanner(event)">
+        <div class="form-group">
+          <label>หัวข้อโฆษณา / ชื่องาน *</label>
+          <input type="text" id="bannerTitleInput" class="form-control" placeholder="เช่น โปรเจกต์ Animation EP.1 กำลังจะมา!" required>
         </div>
-        <div class="member-presence-info">
-          <div class="member-presence-name-row">
-            <span class="member-presence-name">${escapeHtml(user.name)}${adminTag}</span>
-            <span class="member-role-badge ${badgeClass}">${badgeText}</span>
-          </div>
-          <div class="member-presence-status ${presence.isOnline ? 'online' : ''}">
-            ${escapeHtml(presence.text)} • <span style="color:#cbd5e1;">${userIsAdmin ? '👑 แอดมิน' : escapeHtml(user.role || 'สมาชิกทั่วไป')}</span>
-          </div>
+
+        <div class="form-group">
+          <label>คำอธิบายสั้นๆ / ไฮไลท์</label>
+          <input type="text" id="bannerSubtitleInput" class="form-control" placeholder="เช่น ติดตามรับชมผลงานใหม่ของทีมงานเร็วๆ นี้...">
         </div>
-      </div>
-      <div class="member-presence-actions">
-        ${!isSelf ? `
-          <button type="button" class="btn-dm-start" onclick="startDirectChat('${user.id}')" title="เปิดแชทส่วนตัวกับ ${escapeHtml(user.name)}">
-            💬 ทักแชท
-          </button>
-        ` : ''}
-        ${adminManageBtn}
-      </div>
-    `;
-    container.appendChild(item);
-  });
 
-  if (homeOnlinePill) homeOnlinePill.innerText = `${onlineCount}`;
-  if (dockOnlineCount) dockOnlineCount.innerText = `${onlineCount} ออนไลน์`;
-}
-
-// ================= DIRECT MESSAGING SHORTCUT =================
-window.startDirectChat = function(targetUserId) {
-  const targetUser = teamUsers.find(u => u.id === targetUserId);
-  if (!targetUser) return;
-
-  closeModal('teamMembersModal');
-  closeModal('viewProfileModal');
-
-  window.switchAppView('chat');
-  window.switchChatChannel('dm', targetUser.id);
-};
-
-// ================= PROJECT NOTES =================
-window.openProjectNotesModal = function() {
-  const currentProj = projects.find(p => p.id === activeProjectId);
-  if (!currentProj) {
-    alert('กรุณาเลือกโปรเจกต์ก่อน');
-    return;
-  }
-  AudioFX.click();
-  document.getElementById('projectNotesContent').value = currentProj.notes || '';
-  
-  const infoSpan = document.getElementById('notesLastUpdatedInfo');
-  if (currentProj.notesUpdatedBy) {
-    infoSpan.innerText = `✏️ ${currentProj.notesUpdatedBy.name} (${currentProj.notesUpdatedBy.time})`;
-  } else {
-    infoSpan.innerText = '';
-  }
-
-  document.getElementById('projectNotesModal').style.display = 'flex';
-};
-
-window.handleSaveProjectNotes = async function(e) {
-  e.preventDefault();
-  const currentProj = projects.find(p => p.id === activeProjectId);
-  if (!currentProj) return;
-
-  const notesText = document.getElementById('projectNotesContent').value;
-  const currentUser = getCurrentUser();
-  const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-  AudioFX.success();
-  await updateDoc(doc(db, "projects", activeProjectId), {
-    notes: notesText,
-    notesUpdatedBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar, time: nowStr } : null
-  });
-
-  closeModal('projectNotesModal');
-};
-
-// ================= EDIT PROFILE MODAL =================
-window.openEditProfileModal = function() {
-  const user = getCurrentUser();
-  if (!user) return;
-
-  document.getElementById('editNameInput').value = user.name;
-  document.getElementById('editEmailInput').value = user.email || '';
-  document.getElementById('editRoleInput').value = user.role || '';
-  document.getElementById('editBioInput').value = user.bio || '';
-  document.getElementById('editPasswordInput').value = '';
-  document.getElementById('editAvatarDataInput').value = user.avatar || '👤';
-  document.getElementById('editBannerDataInput').value = user.banner || '';
-
-  const preview = document.getElementById('editAvatarPreviewDisplay');
-  if (user.avatar && (user.avatar.startsWith('data:image') || user.avatar.startsWith('http'))) {
-    preview.innerHTML = `<img src="${user.avatar}" alt="Avatar">`;
-  } else {
-    preview.innerHTML = `<span>${user.avatar || '👤'}</span>`;
-  }
-
-  const bannerPreview = document.getElementById('editBannerPreviewDisplay');
-  if (user.banner) {
-    bannerPreview.innerHTML = `<img src="${user.banner}" alt="Cover Banner">`;
-  } else {
-    bannerPreview.innerHTML = `<span style="font-size: 0.85rem; color: var(--text-muted);">ไม่มีภาพหน้าปก</span>`;
-  }
-
-  renderEditAvatarPicker(user.avatar);
-  document.getElementById('editProfileModal').style.display = 'flex';
-};
-
-window.handleEditProfileSubmit = async function(e) {
-  e.preventDefault();
-  const user = getCurrentUser();
-  if (!user) return;
-
-  const newName = document.getElementById('editNameInput').value.trim();
-  const newEmail = document.getElementById('editEmailInput').value.trim().toLowerCase();
-  const newRole = document.getElementById('editRoleInput').value.trim();
-  const newBio = document.getElementById('editBioInput').value.trim();
-  const newPassword = document.getElementById('editPasswordInput').value;
-  const newAvatar = document.getElementById('editAvatarDataInput').value;
-  const newBanner = document.getElementById('editBannerDataInput').value;
-
-  if (!newName) return;
-
-  if (newName.toLowerCase() === 'taiyoani' && !isAdmin(user)) {
-    AudioFX.delete();
-    alert('ไม่สามารถเปลี่ยนชื่อเป็น "TaiyoAni" ได้ เนื่องจากสงวนสิทธิ์สำหรับแอดมินเท่านั้น');
-    return;
-  }
-
-  showSaveLoadingModal("กำลังบันทึกข้อมูลโปรไฟล์...", "กรุณารอสักครู่ ระบบกำลังอัปเดตข้อมูลขึ้นระบบคลาวด์");
-  setSaveProgress(30);
-
-  try {
-    const oldName = user.name;
-    const updatedFields = {
-      name: newName,
-      email: newEmail,
-      role: newRole || (isAdmin(user) ? 'แอดมิน' : 'สมาชิกทั่วไป'),
-      bio: newBio || '',
-      avatar: newAvatar || user.avatar,
-      banner: newBanner || ''
-    };
-
-    if (newPassword && newPassword.trim() !== '') {
-      updatedFields.password = newPassword;
-    }
-
-    setSaveProgress(60);
-    await updateDoc(doc(db, "users", user.id), updatedFields);
-
-    if (oldName !== newName) {
-      setSaveProgress(80);
-      for (const p of projects) {
-        let isChanged = false;
-        let pData = { ...p };
-        if (pData.createdBy && pData.createdBy.name === oldName) {
-          pData.createdBy.name = newName;
-          pData.createdBy.avatar = updatedFields.avatar;
-          isChanged = true;
-        }
-        pData.tasks = (pData.tasks || []).map(t => {
-          let taskUpdated = { ...t };
-          if (t.assignee === oldName) { taskUpdated.assignee = newName; isChanged = true; }
-          if (t.createdBy && t.createdBy.name === oldName) { taskUpdated.createdBy.name = newName; taskUpdated.createdBy.avatar = updatedFields.avatar; isChanged = true; }
-          if (t.updatedBy && t.updatedBy.name === oldName) { taskUpdated.updatedBy.name = newName; taskUpdated.updatedBy.avatar = updatedFields.avatar; isChanged = true; }
-          return taskUpdated;
-        });
-        if (isChanged) {
-          await updateDoc(doc(db, "projects", p.id), pData);
-        }
-      }
-    }
-
-    setSaveProgress(100);
-    showSaveSuccessModal("บันทึกข้อมูลสำเร็จแล้ว!", "อัปเดตโปรไฟล์ของคุณเรียบร้อย");
-    AudioFX.success();
-
-    setTimeout(() => {
-      hideSaveLoadingModal();
-      closeModal('editProfileModal');
-      updateCurrentUserDisplay();
-    }, 900);
-
-  } catch (err) {
-    console.error("Save profile error:", err);
-    hideSaveLoadingModal();
-    AudioFX.delete();
-    alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล กรุณาลองใหม่อีกครั้ง");
-  }
-};
-
-// ================= WORKSPACE ACTIONS =================
-window.openAddProjectModal = function() {
-  document.getElementById('projTitleInput').value = '';
-  document.getElementById('projDescInput').value = '';
-  document.getElementById('projectModal').style.display = 'flex';
-};
-
-window.handleCreateProject = async function(e) {
-  e.preventDefault();
-  const name = document.getElementById('projTitleInput').value.trim();
-  const desc = document.getElementById('projDescInput').value.trim();
-  if (!name) return;
-
-  AudioFX.success();
-  const currentUser = getCurrentUser();
-  const projId = 'proj-' + Date.now();
-
-  const newProj = {
-    id: projId,
-    name,
-    desc,
-    notes: '',
-    createdBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar } : null,
-    tasks: []
-  };
-
-  await setDoc(doc(db, "projects", projId), newProj);
-  activeProjectId = projId;
-  closeModal('projectModal');
-};
-
-window.selectProject = function(id) {
-  activeProjectId = id;
-  renderProjects();
-  if (isMobileSidebarOpen) toggleMobileSidebar();
-};
-
-window.deleteProject = async function(id) {
-  if (!isAdmin()) {
-    AudioFX.delete();
-    alert('เฉพาะแอดมิน (TaiyoAni) เท่านั้นที่มีสิทธิ์ลบโปรเจกต์');
-    return;
-  }
-
-  if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบโปรเจกต์นี้และงานทั้งหมด?')) {
-    AudioFX.delete();
-    await deleteDoc(doc(db, "projects", id));
-    if (activeProjectId === id) activeProjectId = null;
-  }
-};
-
-window.openAddTaskModal = function() {
-  if (!activeProjectId) {
-    alert('กรุณาสร้างหรือเลือกโปรเจกต์ก่อน');
-    return;
-  }
-  populateAssigneeDropdown();
-  document.getElementById('taskIdInput').value = '';
-  document.getElementById('taskTitleInput').value = '';
-  document.getElementById('taskStoryInput').value = '';
-  document.getElementById('taskStatusInput').value = 'pending';
-  document.getElementById('taskModalTitle').innerText = 'มอบหมายงานใหม่';
-  document.getElementById('taskModal').style.display = 'flex';
-};
-
-window.editTask = function(taskId) {
-  const currentProj = projects.find(p => p.id === activeProjectId);
-  if (!currentProj) return;
-  const task = currentProj.tasks.find(t => t.id === taskId);
-  if (!task) return;
-
-  const currentUser = getCurrentUser();
-  const isCreator = currentUser && task.createdBy && task.createdBy.name === currentUser.name;
-  if (!isAdmin() && !isCreator) {
-    AudioFX.delete();
-    alert('เฉพาะผู้ที่มอบหมายงานนี้ หรือ แอดมิน (TaiyoAni) เท่านั้นที่มีสิทธิ์แก้ไขงาน');
-    return;
-  }
-
-  populateAssigneeDropdown();
-  document.getElementById('taskIdInput').value = task.id;
-  document.getElementById('taskTitleInput').value = task.title;
-  document.getElementById('taskAssigneeInput').value = task.assignee;
-  document.getElementById('taskStoryInput').value = task.story || '';
-  document.getElementById('taskStatusInput').value = task.status || 'pending';
-  document.getElementById('taskModalTitle').innerText = 'แก้ไขข้อมูลการมอบหมายงาน';
-  document.getElementById('taskModal').style.display = 'flex';
-};
-
-window.handleSaveTask = async function(e) {
-  e.preventDefault();
-  const currentProj = projects.find(p => p.id === activeProjectId);
-  if (!currentProj) return;
-
-  const taskId = document.getElementById('taskIdInput').value;
-  const title = document.getElementById('taskTitleInput').value.trim();
-  const assignee = document.getElementById('taskAssigneeInput').value;
-  const story = document.getElementById('taskStoryInput').value.trim();
-  const status = document.getElementById('taskStatusInput').value;
-
-  const currentUser = getCurrentUser();
-  const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-  let updatedTasks = [...(currentProj.tasks || [])];
-
-  if (taskId) {
-    const taskIndex = updatedTasks.findIndex(t => t.id === taskId);
-    if (taskIndex > -1) {
-      const existingTask = updatedTasks[taskIndex];
-      const isCreator = currentUser && existingTask.createdBy && existingTask.createdBy.name === currentUser.name;
-      if (!isAdmin() && !isCreator) {
-        alert('คุณไม่มีสิทธิ์แก้ไขงานนี้');
-        return;
-      }
-
-      updatedTasks[taskIndex] = {
-        ...existingTask,
-        title, 
-        assignee, 
-        story, 
-        status,
-        updatedBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar, time: nowStr } : null
-      };
-    }
-  } else {
-    updatedTasks.push({
-      id: 'task-' + Date.now(),
-      title, 
-      assignee, 
-      story, 
-      submissionLink: '',
-      scriptContent: '',
-      status, 
-      likes: 0,
-      createdBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar } : null,
-      updatedBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar, time: nowStr } : null
-    });
-  }
-
-  AudioFX.success();
-  await updateDoc(doc(db, "projects", activeProjectId), { tasks: updatedTasks });
-  closeModal('taskModal');
-};
-
-window.deleteTask = async function(taskId) {
-  const currentProj = projects.find(p => p.id === activeProjectId);
-  if (!currentProj) return;
-
-  const task = currentProj.tasks.find(t => t.id === taskId);
-  if (!task) return;
-
-  const currentUser = getCurrentUser();
-  const isCreator = currentUser && task.createdBy && task.createdBy.name === currentUser.name;
-  if (!isAdmin() && !isCreator) {
-    AudioFX.delete();
-    alert('เฉพาะผู้ที่สร้างรายการนี้ หรือ แอดมิน (TaiyoAni) เท่านั้นที่มีสิทธิ์ลบ');
-    return;
-  }
-
-  if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบรายการนี้?')) {
-    AudioFX.delete();
-    const updatedTasks = currentProj.tasks.filter(t => t.id !== taskId);
-    await updateDoc(doc(db, "projects", activeProjectId), { tasks: updatedTasks });
-  }
-};
-
-// ================= SUBMIT WORK HANDLER =================
-window.openSubmitWorkModal = function(taskId) {
-  const currentProj = projects.find(p => p.id === activeProjectId);
-  if (!currentProj) return;
-
-  const task = currentProj.tasks.find(t => t.id === taskId);
-  if (!task) return;
-
-  AudioFX.click();
-  document.getElementById('submitTaskIdInput').value = task.id;
-  document.getElementById('submitTaskTitleDisplay').innerText = task.title;
-  document.getElementById('submitWorkLinkInput').value = task.submissionLink || '';
-  document.getElementById('submitWorkStatusInput').value = 'completed';
-  document.getElementById('submitWorkModal').style.display = 'flex';
-};
-
-window.handleSaveSubmission = async function(e) {
-  e.preventDefault();
-  const currentProj = projects.find(p => p.id === activeProjectId);
-  if (!currentProj) return;
-
-  const taskId = document.getElementById('submitTaskIdInput').value;
-  const submissionLink = document.getElementById('submitWorkLinkInput').value.trim();
-  const status = document.getElementById('submitWorkStatusInput').value;
-
-  if (!submissionLink) return;
-
-  const currentUser = getCurrentUser();
-  const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-  const updatedTasks = currentProj.tasks.map(t => {
-    if (t.id === taskId) {
-      return {
-        ...t,
-        submissionLink: submissionLink,
-        status: status,
-        updatedBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar, time: nowStr } : null
-      };
-    }
-    return t;
-  });
-
-  AudioFX.submitWork();
-  await updateDoc(doc(db, "projects", activeProjectId), { tasks: updatedTasks });
-  closeModal('submitWorkModal');
-  alert('🎉 บันทึกการส่งงานเรียบร้อยแล้ว!');
-};
-
-window.openAddIdeaModal = function() {
-  if (!activeProjectId) {
-    alert('กรุณาสร้างหรือเลือกโปรเจกต์ก่อนเสนอไอเดีย');
-    return;
-  }
-  document.getElementById('ideaTitleInput').value = '';
-  document.getElementById('ideaStoryInput').value = '';
-  document.getElementById('ideaLinkInput').value = '';
-  document.getElementById('ideaModal').style.display = 'flex';
-};
-
-window.handleSaveIdea = async function(e) {
-  e.preventDefault();
-  const currentProj = projects.find(p => p.id === activeProjectId);
-  if (!currentProj) return;
-
-  const title = document.getElementById('ideaTitleInput').value.trim();
-  const story = document.getElementById('ideaStoryInput').value.trim();
-  const submissionLink = document.getElementById('ideaLinkInput').value.trim();
-
-  AudioFX.like();
-  const currentUser = getCurrentUser();
-  const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-  const updatedTasks = [
-    {
-      id: 'idea-' + Date.now(),
-      title,
-      assignee: 'ทีม (ระดมความคิด)',
-      story,
-      submissionLink,
-      scriptContent: '',
-      status: 'idea',
-      likes: 1,
-      createdBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar } : null,
-      updatedBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar, time: nowStr } : null
-    },
-    ...(currentProj.tasks || [])
-  ];
-
-  await updateDoc(doc(db, "projects", activeProjectId), { tasks: updatedTasks });
-  closeModal('ideaModal');
-};
-
-window.handleLikeTask = async function(taskId) {
-  const currentProj = projects.find(p => p.id === activeProjectId);
-  if (!currentProj) return;
-
-  const updatedTasks = currentProj.tasks.map(t => {
-    if (t.id === taskId) {
-      AudioFX.like();
-      return { ...t, likes: (t.likes || 0) + 1 };
-    }
-    return t;
-  });
-
-  await updateDoc(doc(db, "projects", activeProjectId), { tasks: updatedTasks });
-};
-
-// ================= RENDER WORKSPACE UI =================
-function updateCurrentUserDisplay() {
-  const user = getCurrentUser();
-  if (user) {
-    const userIsAdmin = isAdmin(user);
-    const adminTag = userIsAdmin ? ' 👑' : '';
-    const displayRole = userIsAdmin ? '👑 แอดมิน' : (user.role || (isStaff(user) ? '🛡️ ทีมงาน' : '👤 สมาชิกทั่วไป'));
-    
-    document.getElementById('currentAvatarDisplay').innerHTML = renderAvatarHtml(user.avatar);
-    document.getElementById('currentUserNameDisplay').innerText = `${user.name}${adminTag}`;
-    document.getElementById('currentUserRoleDisplay').innerText = displayRole;
-    
-    const homeAvatar = document.getElementById('homeUserAvatarDisplay');
-    const homeName = document.getElementById('homeUserNameDisplay');
-    const homeRole = document.getElementById('homeUserRoleDisplay');
-    if (homeAvatar) homeAvatar.innerHTML = renderAvatarHtml(user.avatar);
-    if (homeName) homeName.innerText = `${user.name}${adminTag}`;
-    if (homeRole) homeRole.innerText = displayRole;
-
-    const editRevenueBtn = document.getElementById('btnAdminEditRevenue');
-    if (editRevenueBtn) {
-      editRevenueBtn.style.display = userIsAdmin ? 'inline-flex' : 'none';
-    }
-
-    const bannerAdminBar = document.getElementById('homeBannerAdminBar');
-    if (bannerAdminBar) {
-      bannerAdminBar.style.display = userIsAdmin ? 'flex' : 'none';
-    }
-  }
-}
-
-function populateAssigneeDropdown() {
-  const select = document.getElementById('taskAssigneeInput');
-  if (!select) return;
-  select.innerHTML = '';
-  teamUsers.forEach(user => {
-    const opt = document.createElement('option');
-    opt.value = user.name;
-    const adminTag = isAdmin(user) ? ' 👑' : '';
-    const roleText = isAdmin(user) ? 'แอดมิน' : (user.role || 'สมาชิกทั่วไป');
-    opt.innerText = `${user.name}${adminTag} (${roleText})`;
-    select.appendChild(opt);
-  });
-}
-
-function renderProjects() {
-  const list = document.getElementById('projectList');
-  if (!list) return;
-  list.innerHTML = '';
-
-  if (projects.length === 0) {
-    list.innerHTML = '<li style="padding:10px; color:#94a3b8; font-size:0.82rem;">ยังไม่มีโปรเจกต์</li>';
-    document.getElementById('currentProjectTitle').innerText = 'ไม่มีโปรเจกต์ที่เลือก';
-    document.getElementById('currentProjectDesc').innerText = 'กดปุ่มด้านล่างเพื่อเพิ่มโปรเจกต์ใหม่';
-    document.getElementById('btnNewTask').style.display = 'none';
-    document.getElementById('btnNewIdea').style.display = 'none';
-    document.getElementById('btnNewScript').style.display = 'none';
-    document.getElementById('btnProjectNotes').style.display = 'none';
-    renderTasks();
-    return;
-  }
-
-  document.getElementById('btnNewTask').style.display = 'inline-flex';
-  document.getElementById('btnNewIdea').style.display = 'inline-flex';
-  document.getElementById('btnNewScript').style.display = 'inline-flex';
-  document.getElementById('btnProjectNotes').style.display = 'inline-flex';
-
-  projects.forEach(p => {
-    const li = document.createElement('li');
-    li.className = `project-item ${p.id === activeProjectId ? 'active' : ''}`;
-    li.onclick = () => selectProject(p.id);
-
-    const creatorAvatar = p.createdBy ? renderAvatarHtml(p.createdBy.avatar) : '';
-    const creatorName = p.createdBy ? p.createdBy.name : '';
-
-    const deleteBtnHtml = isAdmin() 
-      ? `<button type="button" class="btn-delete-proj" title="ลบโปรเจกต์ (เฉพาะแอดมิน)" onclick="event.stopPropagation(); deleteProject('${p.id}')">🗑</button>`
-      : '';
-
-    li.innerHTML = `
-      <div style="overflow:hidden;">
-        <div class="project-name" title="${p.name}">📁 ${escapeHtml(p.name)}</div>
-        ${creatorName ? `
-          <div style="font-size:0.7rem; color:#94a3b8; margin-top:2px; display:flex; align-items:center; gap:3px;">
-            สร้างโดย ${creatorAvatar} <span>${escapeHtml(creatorName)}</span>
-          </div>` : ''}
-      </div>
-      ${deleteBtnHtml}
-    `;
-    list.appendChild(li);
-  });
-
-  const currentProj = projects.find(p => p.id === activeProjectId);
-  if (currentProj) {
-    document.getElementById('currentProjectTitle').innerText = currentProj.name;
-    document.getElementById('currentProjectDesc').innerText = currentProj.desc || 'จัดการงาน สตอรี่รายละเอียด และลิ้งก์ส่งงาน';
-  }
-  renderTasks();
-}
-
-function renderTasks() {
-  const container = document.getElementById('tasksContainer');
-  if (!container) return;
-  container.innerHTML = '';
-
-  const currentProj = projects.find(p => p.id === activeProjectId);
-  if (!currentProj || !currentProj.tasks || currentProj.tasks.length === 0) {
-    container.innerHTML = `
-      <div class="empty-state" style="grid-column: 1 / -1;">
-        <div class="empty-icon">💡</div>
-        <h3 style="color:#ffffff;">ยังไม่มีงาน ไอเดีย หรือสคริปต์ในโปรเจกต์นี้</h3>
-        <p style="margin-top: 6px;">คลิกปุ่ม "📜 สร้างสคริปต์", "💡 เสนอไอเดีย" หรือ "+ มอบหมายงานใหม่" ด้านบนเพื่อเริ่มต้น</p>
-      </div>
-    `;
-    return;
-  }
-
-  const currentUser = getCurrentUser();
-
-  currentProj.tasks.forEach(task => {
-    const isIdea = task.status === 'idea';
-    const isScript = task.status === 'script';
-
-    const pageCount = Array.isArray(task.pages) ? task.pages.length : (task.scriptContent ? 1 : 1);
-
-    const badgeMap = {
-      script: { text: `📜 สคริปต์ (${pageCount} หน้า)`, class: 'badge-script' },
-      idea: { text: '💡 ไอเดีย / Concept', class: 'badge-idea' },
-      pending: { text: '🟡 รอดำเนินการ', class: 'badge-pending' },
-      in_progress: { text: '🔵 กำลังทำ', class: 'badge-in_progress' },
-      completed: { text: '🟢 เสร็จสิ้น', class: 'badge-completed' }
-    };
-
-    const badge = badgeMap[task.status] || badgeMap.pending;
-    const assigneeUser = teamUsers.find(u => u.name === task.assignee);
-    const assigneeAvatar = assigneeUser ? renderAvatarHtml(assigneeUser.avatar) : '👤';
-    const assigneeId = assigneeUser ? assigneeUser.id : null;
-
-    const creatorUser = task.createdBy ? teamUsers.find(u => u.name === task.createdBy.name) : null;
-    const creatorId = creatorUser ? creatorUser.id : null;
-
-    const isCreator = currentUser && task.createdBy && task.createdBy.name === currentUser.name;
-    const canManage = isAdmin(currentUser) || isCreator;
-
-    const card = document.createElement('div');
-    card.className = `task-card ${isIdea ? 'is-idea' : ''} ${isScript ? 'is-script' : ''}`;
-
-    let labelName = '📖 รายละเอียด & สตอรี่:';
-    if (isIdea) labelName = '💡 แนวคิด & รายละเอียด:';
-    if (isScript) labelName = '📑 รายละเอียดสคริปต์:';
-
-    card.innerHTML = `
-      <div class="task-header-row">
-        <span class="task-badge ${badge.class}">${badge.text}</span>
-        ${task.createdBy ? `
-          <div class="attribution-box ${creatorId ? 'clickable-profile' : ''}" ${creatorId ? `onclick="openUserProfile('${creatorId}')"` : ''} title="คลิกเพื่อดูโปรไฟล์">
-            ${renderAvatarHtml(task.createdBy.avatar)}
-            <span>สร้างโดย <strong>${escapeHtml(task.createdBy.name)}</strong></span>
-          </div>
-        ` : ''}
-      </div>
-
-      <h3 class="task-title">${escapeHtml(task.title)}</h3>
-      
-      <div class="task-story">
-        <strong style="color:${isIdea ? '#fef08a' : (isScript ? '#e9d5ff' : '#cbd5e1')};">${labelName}</strong><br>${escapeHtml(task.story || 'ไม่มีรายละเอียดเพิ่มเติม')}
-      </div>
-
-      <div class="task-meta">
-        <div class="meta-row">
-          <span class="meta-label">👤 ผู้เกี่ยวข้อง:</span>
-          <div class="clickable-profile" ${assigneeId ? `onclick="openUserProfile('${assigneeId}')"` : ''} style="display:flex; align-items:center; gap:6px;" title="คลิกเพื่อดูโปรไฟล์">
-            ${assigneeAvatar}
-            <strong style="color:#f8fafc;">${escapeHtml(task.assignee)}</strong>
-          </div>
+        <div class="form-group">
+          <label>ลิ้งก์ปลายทางเมื่อคลิก (Optional):</label>
+          <input type="url" id="bannerLinkInput" class="form-control" placeholder="https://youtube.com/... หรือ ลิ้งก์ภายนอก">
         </div>
-        ${task.updatedBy ? `
-          <div class="meta-row" style="font-size: 0.72rem; color: #94a3b8; gap:4px;">
-            <span>✏️ อัปเดตล่าสุด:</span>
-            ${renderAvatarHtml(task.updatedBy.avatar)}
-            <span>${escapeHtml(task.updatedBy.name)} (${task.updatedBy.time})</span>
-          </div>
-        ` : ''}
-      </div>
 
-      ${task.submissionLink ? `
-        <div class="drive-link-box">
-          <a href="${escapeHtml(task.submissionLink)}" target="_blank" rel="noopener noreferrer">
-            <span>${isIdea ? '🔗 ลิ้งก์ตัวอย่าง / Reference' : '📁 ลิ้งก์ส่งงาน (Google Drive / Cloud Link)'}</span> ↗
-          </a>
-        </div>
-      ` : ''}
-
-      <div class="card-actions">
-        <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-          <button type="button" class="btn-like" onclick="handleLikeTask('${task.id}')" title="กดถูกใจ">
-            👍 <span>${task.likes || 0}</span>
-          </button>
-
-          ${isScript ? `
-            <button type="button" class="btn-open-script-card" onclick="openScriptEditor('${task.id}')" title="เปิดโปรแกรมเขียนสคริปต์">
-              <span>📖</span> เปิดสคริปต์ (${pageCount} หน้า)
-            </button>
-          ` : ''}
+        <div class="form-group">
+          <label>อัปโหลดไฟล์สื่อ (ภาพ / GIF / วิดีโอสั้นไม่เกิน 1 นาที และไฟล์ < 750KB) *</label>
+          <input type="file" id="bannerFileInput" class="form-control" accept="image/*,video/mp4,video/webm" onchange="handleBannerMediaSelect(event)" required>
+          <input type="hidden" id="bannerMediaDataInput">
+          <input type="hidden" id="bannerMediaTypeInput" value="image">
           
-          ${(!isIdea && !isScript) ? `
-            <button type="button" class="btn-submit-work" onclick="openSubmitWorkModal('${task.id}')" title="เปิดหน้าต่างส่งงาน">
-              📤 ส่งงาน
-            </button>
-          ` : ''}
+          <div id="bannerMediaPreviewContainer" class="banner-upload-preview-box">
+            <span style="font-size: 0.8rem; color: var(--text-muted);">ตัวอย่างไฟล์สื่อจะแสดงที่นี่</span>
+          </div>
         </div>
 
-        <div class="card-action-group">
-          ${canManage ? `
-            ${!isScript ? `<button type="button" class="btn-sm" onclick="editTask('${task.id}')">✏️ แก้ไข</button>` : ''}
-            <button type="button" class="btn-sm delete" onclick="deleteTask('${task.id}')">ลบ</button>
-          ` : ''}
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('homeBannerModal')">ยกเลิก</button>
+          <button type="submit" class="btn-create-task" id="btnSubmitBanner" style="background: linear-gradient(135deg, rgba(251, 191, 36, 0.4), rgba(245, 158, 11, 0.6)); border-color: var(--amber); color: #fff;">
+            🚀 โพสต์ขึ้นแบนเนอร์
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- COMMUNITY SEARCH MODAL -->
+  <div class="modal-overlay" id="communitySearchModal" style="z-index: 1245;">
+    <div class="modal" style="max-width: 460px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">🔍 ค้นหา & กรองกระทู้</h3>
+        <button type="button" class="close-btn" onclick="closeModal('communitySearchModal')">✕</button>
+      </div>
+      
+      <div class="form-group">
+        <label>คำค้นหา (ค้นจากชื่อเรื่อง, เนื้อหา, ชื่อผู้โพสต์ หรือแท็ก):</label>
+        <input type="text" id="modalSearchInput" class="form-control" placeholder="พิมพ์ข้อความที่ต้องการค้นหา...">
+      </div>
+
+      <div class="form-group">
+        <label>หมวดหมู่กระทู้:</label>
+        <div class="search-category-grid">
+          <button type="button" class="category-select-pill active" data-cat="all" onclick="selectSearchCategory('all')">🌟 ทั้งหมด</button>
+          <button type="button" class="category-select-pill" data-cat="idea" onclick="selectSearchCategory('idea')">💡 ไอเดีย</button>
+          <button type="button" class="category-select-pill" data-cat="discussion" onclick="selectSearchCategory('discussion')">💬 พูดคุย</button>
+          <button type="button" class="category-select-pill" data-cat="art" onclick="selectSearchCategory('art')">🎨 อาร์ต</button>
+          <button type="button" class="category-select-pill" data-cat="qa" onclick="selectSearchCategory('qa')">❓ Q&A</button>
         </div>
       </div>
-    `;
-    container.appendChild(card);
-  });
-}
 
-window.closeModal = function(modalId) {
-  document.getElementById(modalId).style.display = 'none';
-};
+      <div class="modal-footer" style="justify-content: space-between; margin-top: 20px;">
+        <button type="button" class="btn-sm delete" onclick="handleResetSearchFilter()">ล้างการค้นหา</button>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn-sm" onclick="closeModal('communitySearchModal')">ปิด</button>
+          <button type="button" class="btn-create-task" onclick="handleApplySearchFilter()">ค้นหาเลย 🚀</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-function escapeHtml(text) {
-  if (!text) return '';
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
+  <!-- CREATE STORY MODAL -->
+  <div class="modal-overlay" id="createStoryModal" style="z-index: 1260;">
+    <div class="modal" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">📸 เพิ่มสตอรี่ใหม่ (อยู่ได้ 24 ชม.)</h3>
+        <button type="button" class="close-btn" onclick="closeModal('createStoryModal')">✕</button>
+      </div>
+      <form onsubmit="handleCreateStorySubmit(event)">
+        <div class="form-group">
+          <label>ข้อความสตอรี่ / อัปเดตสั้นๆ *</label>
+          <textarea id="storyTextInput" class="form-control" style="min-height: 85px;" placeholder="กำลังทำอะไรอยู่? หรือแชร์เรื่องราวสั้นๆ..." required></textarea>
+        </div>
 
-document.addEventListener('click', () => { requestNotificationPermission(); }, { once: true });
+        <div class="form-group">
+          <label>เลือกโทนสีพื้นหลัง:</label>
+          <div class="story-bg-picker">
+            <label class="bg-color-opt active" style="background: linear-gradient(135deg, #38bdf8, #818cf8);">
+              <input type="radio" name="storyBg" value="linear-gradient(135deg, #38bdf8, #818cf8)" checked>
+            </label>
+            <label class="bg-color-opt" style="background: linear-gradient(135deg, #f43f5e, #fb923c);">
+              <input type="radio" name="storyBg" value="linear-gradient(135deg, #f43f5e, #fb923c)">
+            </label>
+            <label class="bg-color-opt" style="background: linear-gradient(135deg, #10b981, #3b82f6);">
+              <input type="radio" name="storyBg" value="linear-gradient(135deg, #10b981, #3b82f6)">
+            </label>
+            <label class="bg-color-opt" style="background: linear-gradient(135deg, #c084fc, #ec4899);">
+              <input type="radio" name="storyBg" value="linear-gradient(135deg, #c084fc, #ec4899)">
+            </label>
+            <label class="bg-color-opt" style="background: linear-gradient(135deg, #1e293b, #0f172a);">
+              <input type="radio" name="storyBg" value="linear-gradient(135deg, #1e293b, #0f172a)">
+            </label>
+          </div>
+        </div>
 
-initAuth();
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('createStoryModal')">ยกเลิก</button>
+          <button type="submit" class="btn-create-task">🚀 โพสต์สตอรี่</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
-// ================= FORGOT & RESET PASSWORD LOGIC =================
-let resetPasswordTargetUser = null;
+  <!-- STORY VIEWER MODAL -->
+  <div class="modal-overlay" id="storyViewerModal" style="z-index: 1300;" onclick="handleStoryViewerBgClick(event)">
+    <div class="story-viewer-card" id="storyViewerCard">
+      <div class="story-progress-bar-track">
+        <div class="story-progress-bar-fill" id="storyProgressBarFill"></div>
+      </div>
 
-window.openForgotPasswordModal = function() {
-  AudioFX.click();
-  document.getElementById('forgotStep1').style.display = 'block';
-  document.getElementById('forgotStep2').style.display = 'none';
-  document.getElementById('forgotEmailInput').value = '';
-  document.getElementById('resetOtpCodeInput').value = '';
-  document.getElementById('resetNewPasswordInput').value = '';
-  document.getElementById('resetConfirmPasswordInput').value = '';
-  document.getElementById('forgotErrorMsg1').style.display = 'none';
-  document.getElementById('forgotErrorMsg2').style.display = 'none';
-  resetPasswordTargetUser = null;
-  document.getElementById('forgotPasswordModal').style.display = 'flex';
-};
+      <div class="story-viewer-header">
+        <div class="story-author-info">
+          <div class="story-author-avatar" id="storyViewerAvatar"></div>
+          <div>
+            <div class="story-author-name" id="storyViewerAuthorName">Username</div>
+            <div class="story-time-ago" id="storyViewerTimeAgo">เมื่อสักครู่</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button type="button" class="btn-delete-story" id="btnDeleteCurrentStory" onclick="handleDeleteCurrentStory()" title="ลบสตอรี่นี้" style="display: none;">🗑️</button>
+          <button type="button" class="story-close-btn" onclick="closeStoryViewer()">✕</button>
+        </div>
+      </div>
 
-window.handleRequestPasswordResetOtp = async function(e) {
-  e.preventDefault();
-  const emailInput = document.getElementById('forgotEmailInput').value.trim().toLowerCase();
-  const errorMsg1 = document.getElementById('forgotErrorMsg1');
+      <div class="story-viewer-content" id="storyViewerContent">
+        <p id="storyViewerTextDisplay"></p>
+      </div>
 
-  const matchedUser = teamUsers.find(u => u.email && u.email.toLowerCase() === emailInput);
-  if (!matchedUser) {
-    AudioFX.delete();
-    errorMsg1.innerText = "ไม่พบบัญชีที่ผูกกับอีเมลนี้ในระบบ";
-    errorMsg1.style.display = 'block';
-    return;
-  }
+      <div class="story-nav-btn prev" onclick="prevStorySlide()">❮</div>
+      <div class="story-nav-btn next" onclick="nextStorySlide()">❯</div>
+    </div>
+  </div>
 
-  const resetOtp = Math.floor(100000 + Math.random() * 900000).toString();
-  resetPasswordTargetUser = { ...matchedUser, resetOtp };
+  <!-- COMMUNITY POST MODAL -->
+  <div class="modal-overlay" id="communityPostModal" style="z-index: 1240;">
+    <div class="modal" style="max-width: 540px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">✨ สร้างกระทู้ / เสนอไอเดียใหม่</h3>
+        <button type="button" class="close-btn" onclick="closeModal('communityPostModal')">✕</button>
+      </div>
+      <form onsubmit="handleCreateCommunityPost(event)">
+        <div class="form-group">
+          <label>เลือกหมวดหมู่ *</label>
+          <select id="communityCategorySelect" class="form-control" required>
+            <option value="idea">💡 ไอเดียใหม่ (New Idea)</option>
+            <option value="discussion">💬 พูดคุยทั่วไป (General Discussion)</option>
+            <option value="art">🎨 อาร์ต & สไตล์ (Art & Design)</option>
+            <option value="qa">❓ สอบถาม / เสนอแนะ (Q&A / Feedback)</option>
+          </select>
+        </div>
 
-  try {
-    await updateDoc(doc(db, "users", matchedUser.id), {
-      resetOtpCode: resetOtp
-    });
+        <div class="form-group">
+          <label>หัวข้อกระทู้ / ชื่อไอเดีย *</label>
+          <input type="text" id="communityTitleInput" class="form-control" placeholder="เช่น ชวนระดมไอเดียฉากต่อสู้, เสนอโทนสีงานใหม่" required>
+        </div>
 
-    await sendOtpEmail(
-      matchedUser.email,
-      matchedUser.name,
-      resetOtp,
-      "คุณได้ทำรายการขอรีเซ็ตรหัสผ่านใหม่",
-      "🔑 รหัส OTP สำหรับรีเซ็ตรหัสผ่าน - TaiyoAni UI Hub"
-    );
+        <div class="form-group">
+          <label>รายละเอียด & แนวคิด *</label>
+          <textarea id="communityContentInput" class="form-control" style="min-height: 120px;" placeholder="อธิบายแนวคิด ข้อดี หรือจุดเด่นของไอเดียนี้..." required></textarea>
+        </div>
 
-    AudioFX.success();
-    document.getElementById('forgotStep1').style.display = 'none';
-    document.getElementById('forgotStep2').style.display = 'block';
-  } catch (err) {
-    console.error("Reset OTP error:", err);
-    errorMsg1.innerText = "เกิดข้อผิดพลาดในการส่ง OTP กรุณาลองใหม่อีกครั้ง";
-    errorMsg1.style.display = 'block';
-  }
-};
+        <div class="form-group">
+          <label>แท็กกำกับ (ใส่เครื่องหมาย # คั่นคำ)</label>
+          <input type="text" id="communityTagsInput" class="form-control" placeholder="เช่น #3D #Blender #Anime #ConceptArt">
+        </div>
 
-window.handleResetPasswordSubmit = async function(e) {
-  e.preventDefault();
-  const otpInput = document.getElementById('resetOtpCodeInput').value.trim();
-  const newPass = document.getElementById('resetNewPasswordInput').value;
-  const confirmPass = document.getElementById('resetConfirmPasswordInput').value;
-  const errorMsg2 = document.getElementById('forgotErrorMsg2');
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('communityPostModal')">ยกเลิก</button>
+          <button type="submit" class="btn-create-task">🚀 โพสต์ลงคอมมูนิตี้</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
-  if (!resetPasswordTargetUser) return;
+  <!-- COMMUNITY POST DETAIL MODAL -->
+  <div class="modal-overlay" id="communityDetailModal" style="z-index: 1250;">
+    <div class="modal" style="max-width: 600px; max-height: 90vh; max-height: 90dvh; display: flex; flex-direction: column; padding: 20px;">
+      <div class="modal-header" style="margin-bottom: 12px;">
+        <div id="detailModalCategoryBox"></div>
+        <button type="button" class="close-btn" onclick="closeModal('communityDetailModal')">✕</button>
+      </div>
 
-  if (otpInput !== resetPasswordTargetUser.resetOtp) {
-    AudioFX.delete();
-    errorMsg2.innerText = "รหัส OTP ไม่ถูกต้อง กรุณาตรวจสอบอีเมลอีกครั้ง";
-    errorMsg2.style.display = 'block';
-    return;
-  }
+      <div id="communityDetailBody" style="flex: 1 1 auto; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 14px;"></div>
 
-  if (newPass !== confirmPass) {
-    AudioFX.delete();
-    errorMsg2.innerText = "รหัสผ่านใหม่และการยืนยันรหัสผ่านไม่ตรงกัน";
-    errorMsg2.style.display = 'block';
-    return;
-  }
+      <div style="padding-top: 12px; border-top: 1px solid var(--glass-border); margin-top: 8px;">
+        <form class="ig-comment-input-bar" id="detailModalCommentForm" onsubmit="handleModalAddComment(event)">
+          <input type="text" id="detailModalCommentInput" class="ig-comment-input" placeholder="แสดงความคิดเห็นเพิ่มเติม..." autocomplete="off" required>
+          <button type="submit" class="btn-ig-submit-comment">โพสต์</button>
+        </form>
+      </div>
+    </div>
+  </div>
 
-  try {
-    await updateDoc(doc(db, "users", resetPasswordTargetUser.id), {
-      password: newPass,
-      resetOtpCode: null
-    });
+  <!-- ACCESS DENIED MODAL -->
+  <div class="modal-overlay" id="accessDeniedModal" style="z-index: 1350;">
+    <div class="modal" style="max-width: 400px; text-align: center; padding: 26px 20px;">
+      <div style="font-size: 3rem; margin-bottom: 8px;">🔒</div>
+      <h3 style="color: #ffffff; margin-bottom: 8px; font-size: 1.2rem;">จำกัดสิทธิ์การเข้าถึง</h3>
+      <p style="font-size: 0.88rem; color: #cbd5e1; line-height: 1.6; margin-bottom: 20px;">
+        หน้านี้เปิดให้เข้าถึงได้เฉพาะ <strong style="color: #fbbf24;">ยศทีมงาน</strong> และ <strong style="color: #f43f5e;">แอดมิน</strong> เท่านั้น<br>
+        สมาชิกทั่วไปสามารถใช้งานหน้าโฮม คอมมูนิตี้ และห้องแชทได้ตามปกติ
+      </p>
+      <button type="button" class="btn-create-task" onclick="closeAccessDeniedModal()" style="width: 100%; justify-content: center; padding: 10px 16px; font-size: 0.92rem;">
+        🏠 กลับไปหน้าโฮม
+      </button>
+    </div>
+  </div>
 
-    AudioFX.success();
-    closeModal('forgotPasswordModal');
-    alert("🎉 รีเซ็ตรหัสผ่านสำเร็จเรียบร้อย! คุณสามารถใช้รหัสผ่านใหม่เข้าสู่ระบบได้ทันที");
-  } catch (err) {
-    console.error("Save new password error:", err);
-    errorMsg2.innerText = "เกิดข้อผิดพลาดในการบันทึกรหัสผ่านใหม่";
-    errorMsg2.style.display = 'block';
-  }
-};
+  <!-- ADMIN ROLE MODAL -->
+  <div class="modal-overlay" id="adminRoleModal" style="z-index: 1220;">
+    <div class="modal" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">🎖️ ปรับยศสมาชิก (Admin Only)</h3>
+        <button type="button" class="close-btn" onclick="closeModal('adminRoleModal')">✕</button>
+      </div>
+      <form onsubmit="handleSaveUserRoleSubmit(event)">
+        <input type="hidden" id="adminTargetUserId">
+        <div style="display: flex; align-items: center; gap: 12px; background: rgba(0,0,0,0.25); padding: 12px; border-radius: 10px; margin-bottom: 14px; border: 1px solid var(--glass-border);">
+          <div class="member-avatar-wrapper" id="adminTargetUserAvatar"></div>
+          <div>
+            <h4 id="adminTargetUserName" style="color: #fff; font-size: 1.05rem;">-</h4>
+            <p id="adminTargetUserCurrentRole" style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">ยศปัจจุบัน: -</p>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>เลือกประเภทยศ *</label>
+          <select id="adminRoleSelect" class="form-control" onchange="handleAdminRoleSelectChange()" required>
+            <option value="ทีมงาน">🛡️ ทีมงาน (Staff / Team Crew)</option>
+            <option value="สมาชิกทั่วไป">👤 สมาชิกทั่วไป (General Member)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>ระบุตำแหน่ง / หน้าที่เจาะจง (แสดงในโปรไฟล์):</label>
+          <input type="text" id="adminRoleCustomInput" class="form-control" placeholder="เช่น 3D Animator (ทีมงาน), ผู้ช่วยงานตัดต่อ">
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('adminRoleModal')">ยกเลิก</button>
+          <button type="submit" class="btn-create-task">💾 บันทึกการปรับยศ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- LIGHTBOX IMAGE MODAL -->
+  <div class="image-lightbox-modal" id="imageLightboxModal" onclick="closeLightbox()">
+    <img src="" class="image-lightbox-content" id="imageLightboxImg" alt="Full View">
+  </div>
+
+  <!-- TEAM MEMBERS MODAL -->
+  <div class="modal-overlay" id="teamMembersModal">
+    <div class="modal team-members-modal-box">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">👥 รายชื่อสมาชิกในระบบ (<span id="modalOnlineCountText">0 ออนไลน์</span>)</h3>
+        <button type="button" class="close-btn" onclick="closeModal('teamMembersModal')">✕</button>
+      </div>
+      <div class="dock-members-list" id="membersPresenceList"></div>
+    </div>
+  </div>
+
+  <!-- VIEW PROFILE MODAL -->
+  <div class="modal-overlay" id="viewProfileModal">
+    <div class="modal profile-modal-container">
+      <div class="profile-view-card">
+        <div class="profile-view-banner-wrapper">
+          <div class="profile-view-banner" id="viewProfileBannerDisplay"></div>
+          <button type="button" class="close-btn profile-close-floating" onclick="closeModal('viewProfileModal')">✕</button>
+        </div>
+
+        <div class="profile-view-header-content">
+          <div class="profile-view-avatar-box" id="viewProfileAvatarDisplay"></div>
+          <h3 class="profile-view-name" id="viewProfileNameDisplay"></h3>
+          <div class="profile-view-role-tag" id="viewProfileRoleDisplay"></div>
+          <div class="profile-view-status" id="viewProfileStatusDisplay"></div>
+        </div>
+
+        <div class="profile-view-body">
+          <div class="profile-view-section">
+            <label class="profile-view-label">📧 อีเมลติดต่อ:</label>
+            <div class="profile-view-val" id="viewProfileEmailDisplay">-</div>
+          </div>
+
+          <div class="profile-view-section">
+            <label class="profile-view-label">📝 คำแนะนำตัว / Bio:</label>
+            <div class="profile-view-bio-box" id="viewProfileBioDisplay">ยังไม่มีคำแนะนำตัว</div>
+          </div>
+
+          <div class="profile-view-actions" id="viewProfileActionsContainer"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDIT PROFILE MODAL -->
+  <div class="modal-overlay" id="editProfileModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>แก้ไขข้อมูลส่วนตัว / โปรไฟล์</h3>
+        <button type="button" class="close-btn" onclick="closeModal('editProfileModal')">✕</button>
+      </div>
+      <form onsubmit="handleEditProfileSubmit(event)">
+        <div class="form-group">
+          <label>ภาพหน้าปกโปรไฟล์ (Cover Banner / รองรับ GIF):</label>
+          <div class="banner-upload-wrapper">
+            <div class="banner-preview-box" id="editBannerPreviewDisplay">
+              <span style="font-size: 0.85rem; color: var(--text-muted);">ไม่มีภาพหน้าปก</span>
+            </div>
+            <div class="banner-upload-controls">
+              <label class="btn-file-upload">
+                🖼️ เปลี่ยนภาพหน้าปก
+                <input type="file" id="editBannerFileInput" accept="image/*" onchange="handleBannerFileSelect(event)">
+              </label>
+              <button type="button" class="btn-sm delete" style="margin-left: 6px;" onclick="handleRemoveBanner()" title="ลบภาพหน้าปก">ลบหน้าปก</button>
+            </div>
+          </div>
+          <input type="hidden" id="editBannerDataInput">
+        </div>
+
+        <div class="form-group">
+          <label>รูปโปรไฟล์ (อัปโหลดจากเครื่อง หรือเลือก Preset / รองรับ GIF):</label>
+          <div class="avatar-upload-wrapper">
+            <div class="avatar-preview-box" id="editAvatarPreviewDisplay">
+              <span>👤</span>
+            </div>
+            <div class="avatar-upload-controls">
+              <label class="btn-file-upload">
+                📁 เปลี่ยนรูปโปรไฟล์
+                <input type="file" id="editAvatarFileInput" accept="image/*" onchange="handleAvatarFileSelect(event, 'edit')">
+              </label>
+              <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">หรือเลือก Preset:</div>
+            </div>
+          </div>
+          <div class="avatar-picker" id="editAvatarPicker"></div>
+          <input type="hidden" id="editAvatarDataInput">
+        </div>
+
+        <div class="form-group">
+          <label>ชื่อผู้ใช้งาน / ฉายา *</label>
+          <input type="text" id="editNameInput" class="form-control" required>
+        </div>
+
+        <div class="form-group">
+          <label>อีเมลส่วนตัว</label>
+          <input type="email" id="editEmailInput" class="form-control" placeholder="example@gmail.com" required>
+        </div>
+
+        <div class="form-group">
+          <label>ตำแหน่ง / หน้าที่ในทีม</label>
+          <input type="text" id="editRoleInput" class="form-control" placeholder="เช่น 3D Animator, Editor">
+        </div>
+
+        <div class="form-group">
+          <label>คำแนะนำตัว / Bio (แสดงให้ทุกคนในทีมอ่าน)</label>
+          <textarea id="editBioInput" class="form-control" placeholder="เขียนแนะนำตัว สไตล์งาน หรือสิ่งที่คุณรับผิดชอบ..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>เปลี่ยนรหัสผ่านใหม่ (หากไม่ต้องการเปลี่ยนให้เว้นว่างไว้)</label>
+          <input type="password" id="editPasswordInput" class="form-control" placeholder="กรอกรหัสผ่านใหม่" minlength="4">
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('editProfileModal')">ยกเลิก</button>
+          <button type="submit" class="btn-create-task">บันทึกข้อมูลโปรไฟล์</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- LOADING PROGRESS MODAL -->
+  <div class="modal-overlay" id="loadingModal" style="z-index: 1200;">
+    <div class="modal save-loading-card">
+      <div class="save-loading-icon" id="saveLoadingIcon">⏳</div>
+      <h3 class="save-loading-title" id="saveLoadingTitle">กำลังบันทึกข้อมูลโปรไฟล์...</h3>
+      <p class="save-loading-desc" id="saveLoadingDesc">กรุณารอสักครู่ ระบบกำลังอัปเดตข้อมูล</p>
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="saveProgressBarFill"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NEW SCRIPT MODAL -->
+  <div class="modal-overlay" id="newScriptModal">
+    <div class="modal" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">📜 สร้างสคริปต์ใหม่</h3>
+        <button type="button" class="close-btn" onclick="closeModal('newScriptModal')">✕</button>
+      </div>
+      <form onsubmit="handleCreateNewScript(event)">
+        <div class="form-group">
+          <label>ชื่อสคริปต์ / หัวข้อบท *</label>
+          <input type="text" id="newScriptTitleInput" class="form-control" placeholder="เช่น สคริปต์บทพากย์ ตอนที่ 1, บทสนทนาตัวละครหลัก" required>
+        </div>
+        <div class="form-group">
+          <label>คำอธิบายย่อ / แท็กระบุ</label>
+          <input type="text" id="newScriptDescInput" class="form-control" placeholder="เช่น ใช้สำหรับอัดเสียงรอบที่ 1">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('newScriptModal')">ยกเลิก</button>
+          <button type="submit" class="btn-script-create-submit">🚀 เปิดหน้าเขียนสคริปต์</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- SCRIPT EDITOR MODAL -->
+  <div class="modal-overlay" id="scriptEditorModal">
+    <div class="modal word-editor-modal">
+      <div class="modal-header" style="margin-bottom: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+          <span style="font-size: 1.4rem;">📑</span>
+          <div>
+            <h3 id="scriptEditorTaskTitle" style="font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">สคริปต์บทพากย์</h3>
+            <div id="scriptEditorMetaInfo" style="font-size: 0.72rem; color: var(--text-muted);">เขียนและจัดรูปแบบเอกสารแบบเรียลไทม์</div>
+          </div>
+        </div>
+        <button type="button" class="close-btn" onclick="closeModal('scriptEditorModal')">✕</button>
+      </div>
+
+      <div class="word-pages-nav-bar">
+        <div class="page-nav-controls">
+          <button type="button" class="btn-page-nav" onclick="prevPage()" id="btnPrevPage">⬅️ ก่อนหน้า</button>
+          <div class="page-indicator-box">
+            <span>หน้า</span>
+            <select id="pageSelectDropdown" onchange="jumpToPage(this.value)" class="page-select-dropdown"></select>
+            <span id="pageTotalDisplay">/ 1</span>
+          </div>
+          <button type="button" class="btn-page-nav" onclick="nextPage()" id="btnNextPage">ถัดไป ➡️</button>
+        </div>
+
+        <div class="page-action-controls">
+          <button type="button" class="btn-page-add" onclick="addNewPage()" id="btnAddNewPage">➕ เพิ่มหน้า</button>
+          <button type="button" class="btn-page-delete" onclick="deleteCurrentPage()" id="btnDeleteCurrentPage">🗑️ ลบหน้า</button>
+        </div>
+      </div>
+
+      <div class="word-toolbar">
+        <div class="word-toolbar-group">
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('undo')" title="เลิกทำ">↩️</button>
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('redo')" title="ทำซ้ำ">↪️</button>
+        </div>
+        <div class="word-toolbar-divider"></div>
+        <div class="word-toolbar-group">
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('formatBlock', '<h1>')"><b>H1</b></button>
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('formatBlock', '<h2>')"><b>H2</b></button>
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('formatBlock', '<p>')">¶</button>
+        </div>
+        <div class="word-toolbar-divider"></div>
+        <div class="word-toolbar-group">
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('bold')"><b>B</b></button>
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('italic')"><i>I</i></button>
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('underline')"><u>U</u></button>
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('strikeThrough')"><s>S</s></button>
+        </div>
+        <div class="word-toolbar-divider"></div>
+        <div class="word-toolbar-group">
+          <label class="word-color-picker-label" title="สีตัวอักษร">
+            <span style="font-weight: bold; border-bottom: 3px solid #38bdf8;">A</span>
+            <input type="color" onchange="execWordCmd('foreColor', this.value)" value="#ffffff">
+          </label>
+          <label class="word-color-picker-label" title="สีไฮไลต์">
+            <span style="background: #fbbf24; color: #000; padding: 0 3px; border-radius: 2px;">🖍️</span>
+            <input type="color" onchange="execWordCmd('hiliteColor', this.value)" value="#fbbf24">
+          </label>
+        </div>
+        <div class="word-toolbar-divider"></div>
+        <div class="word-toolbar-group">
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('justifyLeft')">⇤</button>
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('justifyCenter')">≡</button>
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('justifyRight')">⇥</button>
+        </div>
+        <div class="word-toolbar-divider"></div>
+        <div class="word-toolbar-group">
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('insertUnorderedList')">• List</button>
+          <button type="button" class="word-tool-btn" onclick="execWordCmd('insertOrderedList')">1. List</button>
+          <button type="button" class="word-tool-btn" onclick="removeFormat()">🧹</button>
+        </div>
+      </div>
+
+      <div class="word-paper-container">
+        <div class="word-paper-sheet" id="wordPaperEditor" contenteditable="true" spellcheck="false" placeholder="เริ่มพิมพ์สคริปต์งาน บทพากย์ หรือเนื้อเรื่องในหน้านี้..."></div>
+      </div>
+
+      <div class="word-editor-footer">
+        <div class="word-stats" id="wordStatsDisplay">0 คำ | 0 ตัวอักษร</div>
+        <div class="modal-footer" style="margin-top: 0;">
+          <button type="button" class="btn-sm" onclick="closeModal('scriptEditorModal')">ปิด</button>
+          <button type="button" class="btn-create-task" id="btnSaveScriptAction" onclick="handleSaveTaskScript()">💾 บันทึกสคริปต์</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUBMIT WORK MODAL -->
+  <div class="modal-overlay" id="submitWorkModal">
+    <div class="modal" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">📤 ส่งงาน</h3>
+        <button type="button" class="close-btn" onclick="closeModal('submitWorkModal')">✕</button>
+      </div>
+      <form onsubmit="handleSaveSubmission(event)">
+        <input type="hidden" id="submitTaskIdInput">
+        <div style="background: rgba(0,0,0,0.25); padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--glass-border);">
+          <div style="font-size: 0.78rem; color: var(--text-muted);">ชื่องาน:</div>
+          <div id="submitTaskTitleDisplay" style="font-size: 1rem; font-weight: 600; color: #ffffff; margin-top: 2px;"></div>
+        </div>
+
+        <div class="form-group">
+          <label>🔗 ลิ้งก์ส่งงาน (Google Drive, Figma, Dropbox, YouTube ฯลฯ) *</label>
+          <input type="url" id="submitWorkLinkInput" class="form-control" placeholder="https://drive.google.com/drive/folders/..." required>
+        </div>
+
+        <div class="form-group">
+          <label>สถานะงาน</label>
+          <select id="submitWorkStatusInput" class="form-control">
+            <option value="completed">🟢 เสร็จสิ้น (Completed / ส่งงานแล้ว)</option>
+            <option value="in_progress">🔵 กำลังทำ (In Progress / ดราฟต์งาน)</option>
+            <option value="pending">🟡 รอดำเนินการ (Pending)</option>
+          </select>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('submitWorkModal')">ยกเลิก</button>
+          <button type="submit" class="btn-submit-action">🚀 ยืนยันการส่งงาน</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- REVENUE MODAL -->
+  <div class="modal-overlay" id="revenueModal" style="z-index: 1260;">
+    <div class="modal" style="max-width: 560px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">👑 จัดการงบประมาณและข้อมูลโอนเงิน (Admin Only)</h3>
+        <button type="button" class="close-btn" onclick="closeModal('revenueModal')">✕</button>
+      </div>
+      <form onsubmit="handleSaveRevenue(event)">
+        <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px;">
+          กรอกงบประมาณของแต่ละฝ่าย พร้อมกำหนดวันโอนเงินและคำชี้แจง ข้อมูลจะถูกอัปเดตแบบเรียลไทม์ทันที:
+        </p>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>🎙️ ทีมพากย์ (บาท):</label>
+            <input type="number" id="inputRevenueVoice" class="form-control" placeholder="0" min="0" step="any" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>🎬 ทีมแอนิเมชั่น (บาท):</label>
+            <input type="number" id="inputRevenueAnim" class="form-control" placeholder="0" min="0" step="any" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>🎵 ทีมงานเสียง (บาท):</label>
+            <input type="number" id="inputRevenueAudio" class="form-control" placeholder="0" min="0" step="any" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>✨ ทีมสนับสนุน (บาท):</label>
+            <input type="number" id="inputRevenueOther" class="form-control" placeholder="0" min="0" step="any" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>📌 หัวข้องวด / หมายเหตุภาพรวม:</label>
+          <input type="text" id="inputRevenueNote" class="form-control" placeholder="เช่น ประจำงวด Episode 1 / งบเดือนสิงหาคม">
+        </div>
+
+        <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 16px 0;">
+
+        <div style="font-size: 0.86rem; font-weight: 700; color: #fbbf24; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+          💳 ข้อมูลกำหนดการโอนเงิน (แสดงให้ทุกคนในทีมอ่าน)
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>📅 กำหนดวันโอนเงิน:</label>
+            <input type="text" id="inputRevenueTransferDate" class="form-control" placeholder="เช่น 31 ส.ค. 2026 หรือ ทุกวันศุกร์สิ้นเดือน">
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>🚦 สถานะการโอนเงิน:</label>
+            <select id="inputRevenueTransferStatus" class="form-control">
+              <option value="pending">⏳ กำลังสรุปยอด / รอโอน</option>
+              <option value="processing">🔄 กำลังดำเนินการโอนเงิน</option>
+              <option value="completed">✅ โอนเงินเรียบร้อยแล้ว</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>📝 คำอธิบายการโอนเงิน / ช่องทางส่งสลิป / หมายเหตุจากแอดมิน:</label>
+          <textarea id="inputRevenueTransferDetails" class="form-control" style="min-height: 90px;" placeholder="เช่น โอนเข้าบัญชีที่แจ้งไว้ในแชทส่วนตัว หากท่านใดยังไม่ส่งเลขบัญชีกรุณาทักหาแอดมิน..."></textarea>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('revenueModal')">ยกเลิก</button>
+          <button type="submit" class="btn-create-task" style="background: linear-gradient(135deg, rgba(251, 191, 36, 0.4), rgba(245, 158, 11, 0.6)); border-color: var(--amber); color: #fff;">
+            💾 บันทึกงบประมาณ & แจ้งเตือนวันโอน
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- PROJECT NOTES MODAL -->
+  <div class="modal-overlay" id="projectNotesModal">
+    <div class="modal" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">📝 สมุดโน้ตโปรเจกต์</h3>
+        <button type="button" class="close-btn" onclick="closeModal('projectNotesModal')">✕</button>
+      </div>
+      <form onsubmit="handleSaveProjectNotes(event)">
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label style="margin-bottom: 0;">บันทึกข้อมูลประจำโปรเจกต์:</label>
+            <span id="notesLastUpdatedInfo" style="font-size: 0.75rem; color: var(--text-muted);"></span>
+          </div>
+          <textarea id="projectNotesContent" class="form-control" style="min-height: 280px; font-size: 0.95rem; line-height: 1.6;" placeholder="พิมพ์บันทึกรายละเอียดของโปรเจกต์นี้ที่ทุกคนในทีมสามารถอ่านและแก้ไขร่วมกันได้..."></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('projectNotesModal')">ปิด</button>
+          <button type="submit" class="btn-create-task">💾 บันทึกโน้ต</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- IDEA MODAL -->
+  <div class="modal-overlay" id="ideaModal">
+    <div class="modal" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">💡 เสนอไอเดียใหม่ให้โปรเจกต์</h3>
+        <button type="button" class="close-btn" onclick="closeModal('ideaModal')">✕</button>
+      </div>
+      <form onsubmit="handleSaveIdea(event)">
+        <div class="form-group">
+          <label>หัวข้อไอเดีย / Concept Idea *</label>
+          <input type="text" id="ideaTitleInput" class="form-control" placeholder="เช่น เพิ่มฉากต่อสู้ตอนฝนตก, ปรับโทนแสงเป็นนีออนย้อนยุค" required>
+        </div>
+        <div class="form-group">
+          <label>รายละเอียดไอเดีย / คอนเซ็ปต์ที่อยากเสนอ *</label>
+          <textarea id="ideaStoryInput" class="form-control" placeholder="อธิบายแนวคิด ข้อดี หรือจุดเด่นของไอเดียนี้..." required></textarea>
+        </div>
+        <div class="form-group">
+          <label>ลิ้งก์ตัวอย่างอ้างอิง / Moodboard (เช่น Pinterest, YouTube, Google Drive)</label>
+          <input type="url" id="ideaLinkInput" class="form-control" placeholder="https://...">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('ideaModal')">ยกเลิก</button>
+          <button type="submit" class="btn-idea-submit">🚀 โพสต์เสนอไอเดีย</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- PROJECT MODAL -->
+  <div class="modal-overlay" id="projectModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>เพิ่มโปรเจกต์ใหม่</h3>
+        <button type="button" class="close-btn" onclick="closeModal('projectModal')">✕</button>
+      </div>
+      <form onsubmit="handleCreateProject(event)">
+        <div class="form-group">
+          <label>ชื่อโปรเจกต์ *</label>
+          <input type="text" id="projTitleInput" class="form-control" placeholder="เช่น Animation Episode 1, Web App" required>
+        </div>
+        <div class="form-group">
+          <label>คำอธิบายสั้นๆ</label>
+          <input type="text" id="projDescInput" class="form-control" placeholder="เป้าหมายทีมหรือขอบเขตงาน">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('projectModal')">ยกเลิก</button>
+          <button type="submit" class="btn-create-task">บันทึกโปรเจกต์</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- TASK MODAL -->
+  <div class="modal-overlay" id="taskModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="taskModalTitle">มอบหมายงานใหม่</h3>
+        <button type="button" class="close-btn" onclick="closeModal('taskModal')">✕</button>
+      </div>
+      <form onsubmit="handleSaveTask(event)">
+        <input type="hidden" id="taskIdInput">
+        <div class="form-group">
+          <label>ชื่องาน / Task Title *</label>
+          <input type="text" id="taskTitleInput" class="form-control" placeholder="เช่น ออกแบบ Concept Art, ทำ 3D Rigging" required>
+        </div>
+        <div class="form-group">
+          <label>มอบหมายให้ใคร (Assignee) *</label>
+          <select id="taskAssigneeInput" class="form-control" required></select>
+        </div>
+        <div class="form-group">
+          <label>รายละเอียด & สตอรี่งาน (Story / Requirements)</label>
+          <textarea id="taskStoryInput" class="form-control" placeholder="อธิบายขั้นตอนงาน, คอนเซ็ปต์, ขอบเขตที่ต้องการ..."></textarea>
+        </div>
+        <div class="form-group">
+          <label>สถานะเริ่มต้น</label>
+          <select id="taskStatusInput" class="form-control">
+            <option value="pending">🟡 รอดำเนินการ (Pending)</option>
+            <option value="in_progress">🔵 กำลังทำ (In Progress)</option>
+            <option value="completed">🟢 เสร็จสิ้น (Completed)</option>
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('taskModal')">ยกเลิก</button>
+          <button type="submit" class="btn-create-task">บันทึกงาน</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CREATE GROUP CHAT MODAL -->
+  <div class="modal-overlay" id="createGroupChatModal" style="z-index: 1270;">
+    <div class="modal" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">👥 สร้างกลุ่มแชทส่วนตัวใหม่</h3>
+        <button type="button" class="close-btn" onclick="closeModal('createGroupChatModal')">✕</button>
+      </div>
+      <form onsubmit="handleCreateGroupChat(event)">
+        <div class="form-group">
+          <label>ชื่อกลุ่มแชท (Group Name) *</label>
+          <input type="text" id="createGroupNameInput" class="form-control" placeholder="เช่น ทีมพากย์เสียงหลัก, ฝ่ายทำ 3D Rigging" required>
+        </div>
+
+        <div class="form-group">
+          <label>เลือกสมาชิกที่ต้องการดึงเข้ากลุ่ม (เลือกได้หลายคน):</label>
+          <div class="group-members-select-list" id="groupMembersSelectList"></div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-sm" onclick="closeModal('createGroupChatModal')">ยกเลิก</button>
+          <button type="submit" class="btn-create-task">🚀 สร้างกลุ่มแชท</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- SETTINGS & AUDIO HARDWARE MODAL -->
+  <div class="modal-overlay" id="settingsModal" style="z-index: 1280;">
+    <div class="modal" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">⚙️ ตั้งค่าอุปกรณ์เสียง (Voice & Audio Hardware)</h3>
+        <button type="button" class="close-btn" onclick="closeSettingsModal()">✕</button>
+      </div>
+      
+      <div class="settings-body">
+        <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px;">
+          ระบบจะตรวจจับไมโครโฟนและลำโพงในอุปกรณ์ของคุณอัตโนมัติ เพื่อให้พร้อมสำหรับการคุยด้วยเสียง
+        </p>
+
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label style="margin-bottom: 0;">🎙️ อุปกรณ์รับเสียง (Microphone Input):</label>
+            <button type="button" class="btn-sm" style="padding: 2px 8px; font-size: 0.72rem;" onclick="refreshAudioDevices()">🔄 ค้นหาใหม่</button>
+          </div>
+          <select id="settingAudioInputSelect" class="form-control" onchange="handleAudioDeviceChange()"></select>
+        </div>
+
+        <div class="audio-test-box">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 0.8rem; font-weight: 600; color: #f8fafc;">ระดับเสียงไมโครโฟน (Live Mic Meter):</span>
+            <button type="button" id="btnToggleMicTest" class="btn-sm" onclick="toggleMicTest()">🎙️ เริ่มทดสอบไมค์</button>
+          </div>
+          <div class="audio-meter-track">
+            <div class="audio-meter-fill" id="audioMeterFill"></div>
+          </div>
+          <div id="micTestStatusText" style="font-size: 0.72rem; color: var(--text-muted); margin-top: 6px;">กดเริ่มทดสอบ แล้วลองพูดเพื่อดูการตอบสนองของไมค์</div>
+        </div>
+
+        <div class="form-group" style="margin-top: 14px;">
+          <label>🔊 อุปกรณ์ส่งออกเสียง (Speaker / Output):</label>
+          <select id="settingAudioOutputSelect" class="form-control" onchange="handleAudioDeviceChange()"></select>
+        </div>
+
+        <div class="audio-test-box">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="font-size: 0.8rem; font-weight: 600; color: #f8fafc;">ทดสอบเสียงลำโพง (Speaker Test):</div>
+              <div style="font-size: 0.72rem; color: var(--text-muted);">ส่งสัญญาณเสียงทดสอบเพื่อตรวจเช็กความชัดเจน</div>
+            </div>
+            <button type="button" class="btn-sm" onclick="testSpeakerSound()">🔔 เล่นเสียงทดสอบ</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="margin-top: 16px;">
+        <button type="button" class="btn-create-task" onclick="closeSettingsModal()" style="width: 100%; justify-content: center;">
+          💾 บันทึกและเสร็จสิ้น
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= FORGOT & RESET PASSWORD MODAL ================= -->
+  <div class="modal-overlay" id="forgotPasswordModal" style="z-index: 1350;">
+    <div class="modal" style="max-width: 420px; text-align: center;">
+      <div style="font-size: 2.6rem; margin-bottom: 8px;">🔑</div>
+      <h3 style="color: #fff; margin-bottom: 6px;">รีเซ็ตรหัสผ่านผ่านอีเมล</h3>
+      <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px;">
+        ระบบจะส่งรหัส OTP 6 หลักไปยังอีเมลที่ลงทะเบียนไว้
+      </p>
+
+      <!-- ขั้นตอนที่ 1: กรอกอีเมลเพื่อขอรับ OTP -->
+      <div id="forgotStep1">
+        <form onsubmit="handleRequestPasswordResetOtp(event)">
+          <div class="form-group" style="text-align: left;">
+            <label>ระบุอีเมลที่ใช้ลงทะเบียนในระบบ *</label>
+            <input type="email" id="forgotEmailInput" class="form-control" placeholder="example@gmail.com" required>
+          </div>
+          <div id="forgotErrorMsg1" class="auth-error-msg" style="display: none; margin-bottom: 12px;"></div>
+          <button type="submit" class="btn-primary-auth" style="margin-top: 6px;">ส่งรหัส OTP ไปที่อีเมล</button>
+        </form>
+      </div>
+
+      <!-- ขั้นตอนที่ 2: กรอกรหัส OTP และตั้งรหัสผ่านใหม่ -->
+      <div id="forgotStep2" style="display: none; text-align: left;">
+        <form onsubmit="handleResetPasswordSubmit(event)">
+          <div class="form-group">
+            <label>รหัส OTP 6 หลักที่ได้รับในอีเมล *</label>
+            <input type="text" id="resetOtpCodeInput" class="form-control otp-input-box" placeholder="••••••" maxlength="6" required>
+          </div>
+          <div class="form-group">
+            <label>รหัสผ่านใหม่ (อย่างน้อย 4 ตัวอักษร) *</label>
+            <input type="password" id="resetNewPasswordInput" class="form-control" placeholder="กรอกรหัสผ่านใหม่" minlength="4" required>
+          </div>
+          <div class="form-group">
+            <label>ยืนยันรหัสผ่านใหม่ *</label>
+            <input type="password" id="resetConfirmPasswordInput" class="form-control" placeholder="กรอกรหัสผ่านใหม่อีกครั้ง" minlength="4" required>
+          </div>
+          <div id="forgotErrorMsg2" class="auth-error-msg" style="display: none; margin-bottom: 12px;"></div>
+          <button type="submit" class="btn-primary-auth">บันทึกรหัสผ่านใหม่</button>
+        </form>
+      </div>
+
+      <div style="margin-top: 14px; text-align: center;">
+        <button type="button" class="btn-sm" onclick="closeModal('forgotPasswordModal')">ยกเลิก</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
