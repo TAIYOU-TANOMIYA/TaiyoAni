@@ -4257,3 +4257,149 @@ body.device-mode-tablet .tasks-grid { grid-template-columns: repeat(2, 1fr) !imp
   from { opacity: 0; transform: translateY(-20px) scale(0.95); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
+
+/* ================= ULTRA-TRANSLUCENT iOS GLASS DOCK ================= */
+.bottom-dock-nav {
+  position: fixed;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%) translateZ(0);
+  z-index: 1000;
+  
+  /* ทรงแคปซูลเรียวโค้งมน */
+  padding: 6px 14px;
+  gap: 6px;
+  min-width: 380px;
+  max-width: 90vw;
+  justify-content: space-evenly;
+  border-radius: 9999px;
+  
+  /* ✨ ปรับความโปร่งใสสูง: ลดสีทึบลง เหลือเฉพาะประกายสะท้อนแสง */
+  background: linear-gradient(
+    135deg, 
+    rgba(255, 255, 255, 0.16) 0%, 
+    rgba(255, 255, 255, 0.03) 60%, 
+    rgba(15, 23, 42, 0.28) 100%
+  );
+  
+  /* เอฟเฟกต์เบลอฉากหลังทะลุกระจก (Frosted Blur) */
+  backdrop-filter: blur(2px) saturate(20%);
+  -webkit-backdrop-filter: blur(2px) saturate(20%);
+  
+  /* เส้นขอบแก้วบางใสและมิติการสะท้อนแสง */
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.45), 
+              0 0 24px rgba(56, 189, 248, 0.12), 
+              inset 0 1.5px 2px rgba(255, 255, 255, 0.65), 
+              inset 0 -1px 2px rgba(0, 0, 0, 0.2);
+  
+  display: flex;
+  align-items: center;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease, border-color 0.3s ease, background 0.3s ease;
+}
+
+/* เมื่อลากสครับนิ้ว/เมาส์: ปรับประกายแก้วเรืองแสงแบบโปร่งใส */
+.bottom-dock-nav.is-scrubbing {
+  background: linear-gradient(
+    135deg, 
+    rgba(255, 255, 255, 0.22) 0%, 
+    rgba(56, 189, 248, 0.08) 60%, 
+    rgba(15, 23, 42, 0.35) 100%
+  );
+  box-shadow: 0 20px 50px -5px rgba(0, 0, 0, 0.55), 
+              0 0 35px rgba(56, 189, 248, 0.3), 
+              inset 0 1.8px 2.5px rgba(255, 255, 255, 0.85);
+  border-color: rgba(56, 189, 248, 0.6);
+  transform: translateX(-50%) scale(1.025) translateZ(0);
+}
+
+/* ================= LIQUID CRYSTAL ACTIVE DOCK ITEM ================= */
+
+/* ปุ่มเมนูแต่ละช่อง */
+.bottom-nav-item {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #94a3b8;
+  padding: 8px 16px;
+  min-width: 66px;
+  border-radius: 9999px; /* โค้งมนทรงแคปซูลสมบูรณ์แบบ */
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  position: relative;
+  transition: transform 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.275), 
+              background 0.25s ease, 
+              color 0.2s ease,
+              box-shadow 0.25s ease,
+              border-color 0.25s ease;
+}
+
+/* ✨ สถานะปุ่มของหน้าปัจจุบัน (Liquid Glass Lens Reflection) */
+.bottom-nav-item.active {
+  /* ไล่ระดับแสงสะท้อนเลนส์แก้วใส (ขาวประกายคริสตัล + เหลือบแสงโปร่งแสง) */
+  background: linear-gradient(
+    145deg, 
+    rgba(255, 255, 255, 0.42) 0%, 
+    rgba(255, 255, 255, 0.14) 40%, 
+    rgba(255, 255, 255, 0.03) 70%, 
+    rgba(255, 255, 255, 0.18) 100%
+  ), 
+  rgba(255, 255, 255, 0.06);
+
+  /* เอฟเฟกต์หักเหแสงผ่านกระจกมน */
+  backdrop-filter: blur(24px) saturate(220%);
+  -webkit-backdrop-filter: blur(24px) saturate(220%);
+  
+  /* เส้นขอบแก้วคริสตัลคมชัด (Rim Light) */
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  
+  /* มิติการตกกระทบของแสง: แสงสะท้อนขอบบน, แสงเงาด้านล่าง และแสงวาวนวลรอบตัว */
+  box-shadow: 
+    inset 0 2px 2.5px 0 rgba(255, 255, 255, 0.95), /* แสงตกกระทบขอบบนสุด */
+    inset 0 -1.5px 2px 0 rgba(0, 0, 0, 0.25),      /* เงาลึกมิติด้านล่าง */
+    inset 0 0 14px 1px rgba(255, 255, 255, 0.2),   /* มิติแก้วโปร่งแสงตรงกลาง */
+    0 10px 25px -4px rgba(0, 0, 0, 0.45),          /* เงาทอดลงด้านล่าง */
+    0 0 20px 2px rgba(255, 255, 255, 0.22);        /* แสงออร่าประกายแก้วสีขาวนวล */
+  
+  color: #ffffff;
+  transform: translateY(-3px) scale(1.06);
+}
+
+/* ไอคอนของหน้าที่เลือก: เปล่งประกายแสงสีขาวคมชัด */
+.bottom-nav-item.active .bottom-nav-icon {
+  transform: scale(1.18);
+  filter: drop-shadow(0 3px 8px rgba(255, 255, 255, 0.75)) 
+          drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6));
+}
+
+/* ตัวหนังสือของหน้าที่เลือก: คมชัดมีมิติ */
+.bottom-nav-item.active .bottom-nav-text {
+  font-weight: 700;
+  color: #ffffff;
+  opacity: 1;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.7), 0 0 8px rgba(255, 255, 255, 0.4);
+}
+
+/* เอฟเฟกต์ตอนกดลากสครับผ่านเมนู (Drag-to-select Hover) */
+.bottom-nav-item.is-scrub-hovered {
+  background: linear-gradient(
+    145deg, 
+    rgba(255, 255, 255, 0.55) 0%, 
+    rgba(255, 255, 255, 0.2) 50%, 
+    rgba(255, 255, 255, 0.08) 100%
+  ) !important;
+  border-color: #ffffff !important;
+  color: #ffffff !important;
+  transform: translateY(-8px) scale(1.22) !important;
+  box-shadow: 
+    inset 0 2px 3px rgba(255, 255, 255, 1), 
+    0 12px 28px rgba(0, 0, 0, 0.5), 
+    0 0 25px rgba(255, 255, 255, 0.45) !important;
+  z-index: 10;
+}
