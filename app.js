@@ -19,28 +19,56 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ================= EMAIL CONFIGURATION (EmailJS) =================
-const EMAILJS_PUBLIC_KEY = "";
-const EMAILJS_SERVICE_ID = "";
-const EMAILJS_TEMPLATE_ID = "";
+const EMAILJS_PUBLIC_KEY = "7V9Ht6H8soo45HjeR";
+const EMAILJS_SERVICE_ID = "service_02kcs7q";
+const EMAILJS_TEMPLATE_ID = "template_0x0kyls";
 
 if (EMAILJS_PUBLIC_KEY && window.emailjs) {
-  window.emailjs.init(EMAILJS_PUBLIC_KEY);
+  try {
+    window.emailjs.init({
+      publicKey: EMAILJS_PUBLIC_KEY
+    });
+  } catch (e) {
+    console.warn("EmailJS init warning:", e);
+  }
 }
 
-async function sendOtpEmail(targetEmail, userName, otpCode) {
+async function sendOtpEmail(targetEmail, userName, otpCode, introMessage = "รหัสยืนยันตัวตนของคุณคือ:", subject = "รหัสยืนยัน OTP - TaiyoAni UI Hub") {
+  if (!targetEmail) return false;
+
+  const templateParams = {
+    to_email: targetEmail,
+    email: targetEmail,
+    reply_to: targetEmail,
+    to_name: userName || "สมาชิก",
+    name: userName || "สมาชิก",
+    from_name: "TaiyoAni UI Hub",
+    otp_code: otpCode,
+    message_intro: introMessage,
+    message: `${introMessage} ${otpCode}`,
+    subject: subject,
+    system_name: "TaiyoAni UI Hub"
+  };
+
   if (EMAILJS_PUBLIC_KEY && EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID && window.emailjs) {
     try {
-      await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-        to_email: targetEmail,
-        to_name: userName,
-        otp_code: otpCode,
-        system_name: "TaiyoAni UI Hub"
-      });
+      const res = await window.emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        templateParams,
+        { publicKey: EMAILJS_PUBLIC_KEY }
+      );
+      console.log("EmailJS Success:", res.status, res.text);
+      return true;
     } catch (err) {
-      console.warn("EmailJS sending failed:", err);
+      console.error("EmailJS sending failed:", err);
+      const errMsg = err?.text || err?.message || JSON.stringify(err);
+      alert(`⚠️ ส่งอีเมลไม่สำเร็จ (${errMsg})\n\nรหัส OTP สำหรับทดสอบของคุณคือ: ${otpCode}\n(กรุณาตรวจเช็กการตั้งค่า EmailJS หรือดูในโฟลเดอร์สแปม/จดหมายขยะ)`);
+      return false;
     }
   } else {
-    alert(`[ระบบจำลองส่งเมลไปยัง: ${targetEmail}]\n\nรหัสยืนยัน OTP 6 หลักของคุณคือ: ${otpCode}`);
+    alert(`[โหมดจำลองส่งเมลไปยัง: ${targetEmail}]\n\nรหัสยืนยัน OTP คือ: ${otpCode}`);
+    return true;
   }
 }
 
@@ -1099,7 +1127,7 @@ function renderCommunityDetailModal() {
       <span style="font-size: 0.8rem; color: var(--text-muted);">ทั้งหมด ${commentsList.length} ความคิดเห็น</span>
     </div>
 
-    <div style="display: flex; flex-direction: column; gap: 8px;">
+    <div style="display: flex; direction: column; gap: 8px;">
       <h4 style="font-size: 0.88rem; color: #94a3b8;">ความคิดเห็นทั้งหมด:</h4>
       ${commentsList.length === 0 ? `
         <div style="font-size: 0.82rem; color: var(--text-muted); text-align: center; padding: 14px;">ยังไม่มีความคิดเห็นในโพสต์นี้</div>
@@ -1387,7 +1415,6 @@ window.switchChatChannel = function(mode, targetId = null) {
 };
 
 function getVoiceRoomId() {
-  // สร้าง Voice Room ID เฉพาะเมื่ออยู่ในแชทกลุ่มเท่านั้น
   if (activeChatMode === 'group' && activeGroupId) {
     return 'group_' + activeGroupId;
   }
@@ -1419,16 +1446,16 @@ function updateDiscordChatHeader(mode, titleName = '') {
     if (prefixEl) prefixEl.innerText = '@';
     if (titleEl) titleEl.innerText = titleName;
     if (descEl) descEl.innerText = 'แชทส่วนตัว 1-on-1 (รองรับการโทรเสียงแบบตัวต่อตัว)';
-    if (voiceCallBtn) voiceCallBtn.style.display = 'inline-flex'; // แสดงปุ่มโทรเสียงแบบ 1-on-1
-    if (voiceRoomBtn) voiceRoomBtn.style.display = 'none'; // ซ่อนปุ่มห้องเสียง
+    if (voiceCallBtn) voiceCallBtn.style.display = 'inline-flex';
+    if (voiceRoomBtn) voiceRoomBtn.style.display = 'none';
     if (deleteGroupBtn) deleteGroupBtn.style.display = 'none';
     if (clearBtn) clearBtn.style.display = 'none';
   } else if (mode === 'group') {
     if (prefixEl) prefixEl.innerText = '👥';
     if (titleEl) titleEl.innerText = titleName;
     if (descEl) descEl.innerText = 'กลุ่มแชทส่วนตัว (มีช่องสนทนาเสียงประจำกลุ่ม)';
-    if (voiceRoomBtn) voiceRoomBtn.style.display = 'inline-flex'; // แสดงปุ่มเข้าร่วมห้องเสียง
-    if (voiceCallBtn) voiceCallBtn.style.display = 'none'; // ซ่อนปุ่มโทร
+    if (voiceRoomBtn) voiceRoomBtn.style.display = 'inline-flex';
+    if (voiceCallBtn) voiceCallBtn.style.display = 'none';
     if (clearBtn) clearBtn.style.display = 'none';
 
     const canDeleteGroup = activeGroupData && currentUser && (isAdmin(currentUser) || activeGroupData.createdById === currentUser.id);
@@ -3202,25 +3229,50 @@ window.handleRemoveBanner = function() {
   document.getElementById('editBannerFileInput').value = '';
 };
 
-function populateLoginUserSelect() {
-  const select = document.getElementById('loginUserSelect');
-  if (!select) return;
-  select.innerHTML = '';
+// ================= DEVICE-SPECIFIC LOGIN & ACCOUNTS =================
+function renderDeviceAccountsList() {
+  const datalist = document.getElementById('deviceAccountsList');
+  if (!datalist) return;
+  datalist.innerHTML = '';
 
-  if (teamUsers.length === 0) {
-    select.innerHTML = '<option value="">ยังไม่มีบัญชีในระบบ (กรุณาสมัครสมาชิกใหม่)</option>';
-    return;
+  try {
+    const saved = JSON.parse(localStorage.getItem('taiyoani_device_accounts') || '[]');
+    saved.forEach(acc => {
+      const opt = document.createElement('option');
+      opt.value = acc.name;
+      opt.label = acc.email ? `${acc.name} (${acc.email})` : acc.name;
+      datalist.appendChild(opt);
+    });
+  } catch (e) {}
+}
+
+function saveDeviceAccount(user) {
+  try {
+    let saved = JSON.parse(localStorage.getItem('taiyoani_device_accounts') || '[]');
+    const existingIndex = saved.findIndex(a => a.id === user.id);
+    if (existingIndex > -1) {
+      saved[existingIndex] = { id: user.id, name: user.name, email: user.email || '' };
+    } else {
+      saved.push({ id: user.id, name: user.name, email: user.email || '' });
+    }
+    localStorage.setItem('taiyoani_device_accounts', JSON.stringify(saved));
+    renderDeviceAccountsList();
+  } catch (e) {}
+}
+
+window.handleClearDeviceSavedAccounts = function() {
+  if (confirm('ต้องการล้างประวัติชื่อบัญชีที่เคยล็อกอินบนอุปกรณ์นี้หรือไม่?')) {
+    AudioFX.delete();
+    localStorage.removeItem('taiyoani_device_accounts');
+    renderDeviceAccountsList();
+    const input = document.getElementById('loginUsernameInput');
+    if (input) input.value = '';
+    alert('ล้างประวัติบัญชีบนอุปกรณ์นี้เรียบร้อยแล้ว');
   }
+};
 
-  teamUsers.forEach(u => {
-    const opt = document.createElement('option');
-    opt.value = u.id;
-    const adminTag = isAdmin(u) ? ' 👑 (Admin)' : '';
-    const verifyStatus = u.isVerified ? '' : ' [⚠️ ยังไม่ยืนยันอีเมล]';
-    const roleText = isAdmin(u) ? 'แอดมิน' : (u.role || 'สมาชิกทั่วไป');
-    opt.innerText = `${u.name}${adminTag}${verifyStatus} (${roleText})`;
-    select.appendChild(opt);
-  });
+function populateLoginUserSelect() {
+  renderDeviceAccountsList();
 }
 
 window.handleLoginSelectChange = function() {
@@ -3230,12 +3282,21 @@ window.handleLoginSelectChange = function() {
 
 window.handleLoginSubmit = async function(e) {
   e.preventDefault();
-  const userId = document.getElementById('loginUserSelect').value;
+  const usernameOrEmail = document.getElementById('loginUsernameInput').value.trim().toLowerCase();
   const password = document.getElementById('loginPasswordInput').value;
   const errorMsg = document.getElementById('loginErrorMsg');
 
-  const targetUser = teamUsers.find(u => u.id === userId);
-  if (!targetUser) return;
+  const targetUser = teamUsers.find(u => 
+    (u.name && u.name.trim().toLowerCase() === usernameOrEmail) ||
+    (u.email && u.email.trim().toLowerCase() === usernameOrEmail)
+  );
+
+  if (!targetUser) {
+    AudioFX.delete();
+    errorMsg.innerText = 'ไม่พบบัญชีผู้ใช้หรืออีเมลนี้ในระบบ';
+    errorMsg.style.display = 'block';
+    return;
+  }
 
   if (targetUser.password === password) {
     if (!targetUser.isVerified) {
@@ -3248,9 +3309,15 @@ window.handleLoginSubmit = async function(e) {
     AudioFX.success();
     currentUserId = targetUser.id;
     localStorage.setItem('taiyoani_active_user_id', currentUserId);
+    
+    saveDeviceAccount(targetUser);
+
     document.getElementById('authGate').style.display = 'none';
     document.getElementById('mainAppLayout').style.display = 'flex';
     document.getElementById('loginPasswordInput').value = '';
+    document.getElementById('loginUsernameInput').value = '';
+    errorMsg.style.display = 'none';
+    
     updateCurrentUserDisplay();
     renderProjects();
     startHeartbeat();
@@ -3272,6 +3339,8 @@ window.handleRegisterSubmit = async function(e) {
   const avatarData = document.getElementById('authAvatarDataInput').value || '👨‍💻';
   const errorMsg = document.getElementById('regErrorMsg');
 
+  errorMsg.style.display = 'none';
+
   const nameLower = name.toLowerCase();
   if (nameLower === 'taiyoani') {
     const existingAdmin = teamUsers.find(u => u.name.trim().toLowerCase() === 'taiyoani');
@@ -3292,11 +3361,25 @@ window.handleRegisterSubmit = async function(e) {
     return;
   }
 
+  const usernameExists = teamUsers.find(u => u.name && u.name.trim().toLowerCase() === nameLower);
+  if (usernameExists) {
+    AudioFX.delete();
+    errorMsg.innerText = 'ชื่อผู้ใช้งานนี้ถูกใช้งานแล้ว กรุณาตั้งชื่ออื่น';
+    errorMsg.style.display = 'block';
+    return;
+  }
+
   if (password !== confirmPassword) {
     AudioFX.delete();
     errorMsg.innerText = 'รหัสผ่านและยืนยันรหัสผ่านไม่ตรงกัน';
     errorMsg.style.display = 'block';
     return;
+  }
+
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerText = '⏳ กำลังส่งรหัส OTP...';
   }
 
   const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -3317,18 +3400,29 @@ window.handleRegisterSubmit = async function(e) {
     lastActive: serverTimestamp()
   };
 
-  await setDoc(doc(db, "users", userId), newUser);
-  await sendOtpEmail(email, name, otpCode);
+  try {
+    await setDoc(doc(db, "users", userId), newUser);
+    await sendOtpEmail(email, name, otpCode);
 
-  pendingVerificationUser = newUser;
-  openOtpVerificationModal(newUser);
+    pendingVerificationUser = newUser;
+    openOtpVerificationModal(newUser);
+  } catch (err) {
+    console.error("Register error:", err);
+    errorMsg.innerText = 'เกิดข้อผิดพลาด: ' + (err.message || err);
+    errorMsg.style.display = 'block';
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerText = 'สมัครสมาชิกและรับรหัส OTP';
+    }
+  }
 };
 
 function openOtpVerificationModal(user) {
   document.getElementById('otpCodeInput').value = '';
   document.getElementById('otpErrorMsg').style.display = 'none';
 
-  if (user.email) {
+  if (user && user.email) {
     document.getElementById('otpTargetEmailDisplay').innerText = user.email;
     document.getElementById('otpEmailInputGroup').style.display = 'none';
   } else {
@@ -3383,6 +3477,7 @@ window.handleVerifyOtpSubmit = async function(e) {
 
     currentUserId = pendingVerificationUser.id;
     localStorage.setItem('taiyoani_active_user_id', currentUserId);
+    saveDeviceAccount(pendingVerificationUser);
 
     closeOtpModal();
     document.getElementById('authGate').style.display = 'none';
@@ -3414,41 +3509,6 @@ window.handleResendOtp = async function() {
 
   await sendOtpEmail(pendingVerificationUser.email, pendingVerificationUser.name, newOtp);
   AudioFX.click();
-};
-
-window.handleForgetSelectedAccount = async function() {
-  const select = document.getElementById('loginUserSelect');
-  const userId = select.value;
-  if (!userId) return;
-
-  const targetUser = teamUsers.find(u => u.id === userId);
-  if (!targetUser) return;
-
-  const adminUser = teamUsers.find(u => u.name.trim().toLowerCase() === 'taiyoani');
-  if (!adminUser) {
-    alert('ยังไม่มีบัญชีแอดมิน TaiyoAni ในระบบ');
-    return;
-  }
-
-  const adminPass = prompt(`[สิทธิ์แอดมินเท่านั้น]\nกรุณากรอกรหัสผ่านของ TaiyoAni (Admin) เพื่อยืนยันการลบบัญชี "${targetUser.name}" ออกจากระบบ:`);
-  if (!adminPass) return;
-
-  if (adminUser.password !== adminPass) {
-    AudioFX.delete();
-    alert('รหัสผ่านแอดมินไม่ถูกต้อง ไม่อนุญาตให้ลบบัญชี');
-    return;
-  }
-
-  if (confirm(`ยืนยันการลบบัญชี "${targetUser.name}" ออกจากระบบอย่างถาวร?`)) {
-    AudioFX.delete();
-    await deleteDoc(doc(db, "users", userId));
-    if (currentUserId === userId) {
-      currentUserId = null;
-      localStorage.removeItem('taiyoani_active_user_id');
-    }
-    AudioFX.success();
-    alert(`ลบบัญชี "${targetUser.name}" สำเร็จ`);
-  }
 };
 
 window.handleLogout = function() {
@@ -4217,3 +4277,98 @@ function escapeHtml(text) {
 document.addEventListener('click', () => { requestNotificationPermission(); }, { once: true });
 
 initAuth();
+
+// ================= FORGOT & RESET PASSWORD LOGIC =================
+let resetPasswordTargetUser = null;
+
+window.openForgotPasswordModal = function() {
+  AudioFX.click();
+  document.getElementById('forgotStep1').style.display = 'block';
+  document.getElementById('forgotStep2').style.display = 'none';
+  document.getElementById('forgotEmailInput').value = '';
+  document.getElementById('resetOtpCodeInput').value = '';
+  document.getElementById('resetNewPasswordInput').value = '';
+  document.getElementById('resetConfirmPasswordInput').value = '';
+  document.getElementById('forgotErrorMsg1').style.display = 'none';
+  document.getElementById('forgotErrorMsg2').style.display = 'none';
+  resetPasswordTargetUser = null;
+  document.getElementById('forgotPasswordModal').style.display = 'flex';
+};
+
+window.handleRequestPasswordResetOtp = async function(e) {
+  e.preventDefault();
+  const emailInput = document.getElementById('forgotEmailInput').value.trim().toLowerCase();
+  const errorMsg1 = document.getElementById('forgotErrorMsg1');
+
+  const matchedUser = teamUsers.find(u => u.email && u.email.toLowerCase() === emailInput);
+  if (!matchedUser) {
+    AudioFX.delete();
+    errorMsg1.innerText = "ไม่พบบัญชีที่ผูกกับอีเมลนี้ในระบบ";
+    errorMsg1.style.display = 'block';
+    return;
+  }
+
+  const resetOtp = Math.floor(100000 + Math.random() * 900000).toString();
+  resetPasswordTargetUser = { ...matchedUser, resetOtp };
+
+  try {
+    await updateDoc(doc(db, "users", matchedUser.id), {
+      resetOtpCode: resetOtp
+    });
+
+    await sendOtpEmail(
+      matchedUser.email,
+      matchedUser.name,
+      resetOtp,
+      "คุณได้ทำรายการขอรีเซ็ตรหัสผ่านใหม่",
+      "🔑 รหัส OTP สำหรับรีเซ็ตรหัสผ่าน - TaiyoAni UI Hub"
+    );
+
+    AudioFX.success();
+    document.getElementById('forgotStep1').style.display = 'none';
+    document.getElementById('forgotStep2').style.display = 'block';
+  } catch (err) {
+    console.error("Reset OTP error:", err);
+    errorMsg1.innerText = "เกิดข้อผิดพลาดในการส่ง OTP กรุณาลองใหม่อีกครั้ง";
+    errorMsg1.style.display = 'block';
+  }
+};
+
+window.handleResetPasswordSubmit = async function(e) {
+  e.preventDefault();
+  const otpInput = document.getElementById('resetOtpCodeInput').value.trim();
+  const newPass = document.getElementById('resetNewPasswordInput').value;
+  const confirmPass = document.getElementById('resetConfirmPasswordInput').value;
+  const errorMsg2 = document.getElementById('forgotErrorMsg2');
+
+  if (!resetPasswordTargetUser) return;
+
+  if (otpInput !== resetPasswordTargetUser.resetOtp) {
+    AudioFX.delete();
+    errorMsg2.innerText = "รหัส OTP ไม่ถูกต้อง กรุณาตรวจสอบอีเมลอีกครั้ง";
+    errorMsg2.style.display = 'block';
+    return;
+  }
+
+  if (newPass !== confirmPass) {
+    AudioFX.delete();
+    errorMsg2.innerText = "รหัสผ่านใหม่และการยืนยันรหัสผ่านไม่ตรงกัน";
+    errorMsg2.style.display = 'block';
+    return;
+  }
+
+  try {
+    await updateDoc(doc(db, "users", resetPasswordTargetUser.id), {
+      password: newPass,
+      resetOtpCode: null
+    });
+
+    AudioFX.success();
+    closeModal('forgotPasswordModal');
+    alert("🎉 รีเซ็ตรหัสผ่านสำเร็จเรียบร้อย! คุณสามารถใช้รหัสผ่านใหม่เข้าสู่ระบบได้ทันที");
+  } catch (err) {
+    console.error("Save new password error:", err);
+    errorMsg2.innerText = "เกิดข้อผิดพลาดในการบันทึกรหัสผ่านใหม่";
+    errorMsg2.style.display = 'block';
+  }
+};
