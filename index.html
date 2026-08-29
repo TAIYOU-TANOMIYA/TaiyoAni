@@ -33,23 +33,29 @@
       </div>
 
       <!-- ส่วนเข้าสู่ระบบ -->
-      <div id="loginSection">
-        <form onsubmit="handleLoginSubmit(event)">
-          <div class="form-group">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <label style="margin-bottom: 0;">เลือกบัญชีผู้ใช้ *</label>
-              <button type="button" class="btn-forget-link" onclick="handleForgetSelectedAccount()" title="ลบบัญชีออกจากระบบ (เฉพาะแอดมิน)">🗑️ ลบบัญชีนี้</button>
-            </div>
-            <select id="loginUserSelect" class="form-control" required onchange="handleLoginSelectChange()"></select>
-          </div>
-          <div class="form-group">
-            <label>รหัสผ่าน *</label>
-            <input type="password" id="loginPasswordInput" class="form-control" placeholder="กรอกรหัสผ่านของคุณ" required>
-          </div>
-          <div id="loginErrorMsg" class="auth-error-msg" style="display: none;"></div>
-          <button type="submit" class="btn-primary-auth">เข้าสู่ระบบ</button>
-        </form>
+      <!-- ✅ โค้ดใหม่ (ใช้ช่องกรอก Username/Email + ดึงเฉพาะบัญชีในเครื่อง) -->
+<div id="loginSection">
+  <form onsubmit="handleLoginSubmit(event)">
+    <div class="form-group">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <label style="margin-bottom: 0;">ชื่อผู้ใช้ หรือ อีเมล *</label>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn-forget-link" style="color: var(--accent);" onclick="openForgotPasswordModal()">❓ ลืมรหัสผ่าน?</button>
+          <button type="button" class="btn-forget-link" onclick="handleClearDeviceSavedAccounts()" title="ล้างประวัติชื่อที่จำไว้บนเครื่องนี้">🧹 ล้างประวัติในเครื่อง</button>
+        </div>
       </div>
+      <input type="text" id="loginUsernameInput" class="form-control" placeholder="กรอกชื่อผู้ใช้ หรือ อีเมลของคุณ" list="deviceAccountsList" required autocomplete="username">
+      <datalist id="deviceAccountsList"></datalist>
+    </div>
+
+    <div class="form-group">
+      <label>รหัสผ่าน *</label>
+      <input type="password" id="loginPasswordInput" class="form-control" placeholder="กรอกรหัสผ่านของคุณ" required autocomplete="current-password">
+    </div>
+    <div id="loginErrorMsg" class="auth-error-msg" style="display: none;"></div>
+    <button type="submit" class="btn-primary-auth">เข้าสู่ระบบ</button>
+  </form>
+</div>
 
       <!-- ส่วนสมัครสมาชิกใหม่ -->
       <div id="registerSection" style="display: none;">
@@ -933,7 +939,7 @@
             <div class="avatar-upload-controls">
               <label class="btn-file-upload">
                 📁 เปลี่ยนรูปโปรไฟล์
-                <input type="file" id="editAvatarFileInput" accept="image/*" onchange="handleAvatarFileSelect(event)">
+                <input type="file" id="editAvatarFileInput" accept="image/*" onchange="handleAvatarFileSelect(event, 'edit')">
               </label>
               <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">หรือเลือก Preset:</div>
             </div>
@@ -1397,6 +1403,53 @@
         <button type="button" class="btn-create-task" onclick="closeSettingsModal()" style="width: 100%; justify-content: center;">
           💾 บันทึกและเสร็จสิ้น
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= FORGOT & RESET PASSWORD MODAL ================= -->
+  <div class="modal-overlay" id="forgotPasswordModal" style="z-index: 1350;">
+    <div class="modal" style="max-width: 420px; text-align: center;">
+      <div style="font-size: 2.6rem; margin-bottom: 8px;">🔑</div>
+      <h3 style="color: #fff; margin-bottom: 6px;">รีเซ็ตรหัสผ่านผ่านอีเมล</h3>
+      <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px;">
+        ระบบจะส่งรหัส OTP 6 หลักไปยังอีเมลที่ลงทะเบียนไว้
+      </p>
+
+      <!-- ขั้นตอนที่ 1: กรอกอีเมลเพื่อขอรับ OTP -->
+      <div id="forgotStep1">
+        <form onsubmit="handleRequestPasswordResetOtp(event)">
+          <div class="form-group" style="text-align: left;">
+            <label>ระบุอีเมลที่ใช้ลงทะเบียนในระบบ *</label>
+            <input type="email" id="forgotEmailInput" class="form-control" placeholder="example@gmail.com" required>
+          </div>
+          <div id="forgotErrorMsg1" class="auth-error-msg" style="display: none; margin-bottom: 12px;"></div>
+          <button type="submit" class="btn-primary-auth" style="margin-top: 6px;">ส่งรหัส OTP ไปที่อีเมล</button>
+        </form>
+      </div>
+
+      <!-- ขั้นตอนที่ 2: กรอกรหัส OTP และตั้งรหัสผ่านใหม่ -->
+      <div id="forgotStep2" style="display: none; text-align: left;">
+        <form onsubmit="handleResetPasswordSubmit(event)">
+          <div class="form-group">
+            <label>รหัส OTP 6 หลักที่ได้รับในอีเมล *</label>
+            <input type="text" id="resetOtpCodeInput" class="form-control otp-input-box" placeholder="••••••" maxlength="6" required>
+          </div>
+          <div class="form-group">
+            <label>รหัสผ่านใหม่ (อย่างน้อย 4 ตัวอักษร) *</label>
+            <input type="password" id="resetNewPasswordInput" class="form-control" placeholder="กรอกรหัสผ่านใหม่" minlength="4" required>
+          </div>
+          <div class="form-group">
+            <label>ยืนยันรหัสผ่านใหม่ *</label>
+            <input type="password" id="resetConfirmPasswordInput" class="form-control" placeholder="กรอกรหัสผ่านใหม่อีกครั้ง" minlength="4" required>
+          </div>
+          <div id="forgotErrorMsg2" class="auth-error-msg" style="display: none; margin-bottom: 12px;"></div>
+          <button type="submit" class="btn-primary-auth">บันทึกรหัสผ่านใหม่</button>
+        </form>
+      </div>
+
+      <div style="margin-top: 14px; text-align: center;">
+        <button type="button" class="btn-sm" onclick="closeModal('forgotPasswordModal')">ยกเลิก</button>
       </div>
     </div>
   </div>
