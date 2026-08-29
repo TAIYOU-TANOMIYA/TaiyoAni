@@ -973,9 +973,12 @@
           <input type="password" id="editPasswordInput" class="form-control" placeholder="กรอกรหัสผ่านใหม่" minlength="4">
         </div>
 
-        <div class="modal-footer">
-          <button type="button" class="btn-sm" onclick="closeModal('editProfileModal')">ยกเลิก</button>
-          <button type="submit" class="btn-create-task">บันทึกข้อมูลโปรไฟล์</button>
+        <div class="modal-footer" style="justify-content: space-between;">
+          <button type="button" class="btn-sm delete" id="btnOpenDeleteAccountModal" onclick="openDeleteAccountModal()">🗑️ ลบบัญชีนี้</button>
+          <div style="display: flex; gap: 8px;">
+            <button type="button" class="btn-sm" onclick="closeModal('editProfileModal')">ยกเลิก</button>
+            <button type="submit" class="btn-create-task">บันทึกข้อมูลโปรไฟล์</button>
+          </div>
         </div>
       </form>
     </div>
@@ -1455,5 +1458,62 @@
   </div>
 
   <script type="module" src="app.js"></script>
+
+<!-- DELETE ACCOUNT CONFIRMATION MODAL -->
+  <div class="modal-overlay" id="deleteAccountModal" style="z-index: 1360;">
+    <div class="modal" style="max-width: 430px; text-align: center;">
+      <div style="font-size: 2.8rem; margin-bottom: 6px;">⚠️</div>
+      <h3 style="color: #f87171; margin-bottom: 6px; font-size: 1.2rem;">ยืนยันการลบบัญชีถาวร</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 16px;">
+        ข้อมูลบัญชีของคุณจะถูกลบออกจากระบบอย่างถาวรและไม่สามารถกู้คืนได้<br>
+        กรุณากรอกรหัสผ่านของคุณเพื่อยืนยันการดำเนินการ
+      </p>
+
+      <form onsubmit="handleConfirmDeleteAccount(event)">
+        <div class="form-group" style="text-align: left;">
+          <label>รหัสผ่านปัจจุบันของคุณ *</label>
+          <input type="password" id="deleteAccountPasswordInput" class="form-control" placeholder="กรอกรหัสผ่านเพื่อยืนยัน" required autocomplete="current-password">
+        </div>
+
+        <div id="deleteAccountErrorMsg" class="auth-error-msg" style="display: none; margin-bottom: 12px;"></div>
+
+        <div class="modal-footer" style="justify-content: space-between; margin-top: 18px;">
+          <button type="button" class="btn-sm" onclick="closeModal('deleteAccountModal')">ยกเลิก</button>
+          <button type="submit" class="btn-sm delete" style="background: rgba(239, 68, 68, 0.4); border-color: #ef4444; color: #ffffff; padding: 8px 16px; font-weight: 600;">
+            🔥 ลบบัญชีผู้ใช้ถาวร
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CHANGE PASSWORD OTP VERIFICATION MODAL -->
+  <div class="modal-overlay" id="changePasswordOtpModal" style="z-index: 1370;">
+    <div class="modal" style="max-width: 420px; text-align: center;">
+      <div style="font-size: 2.8rem; margin-bottom: 6px;">🔐</div>
+      <h3 style="color: #fff; margin-bottom: 6px;">ยืนยัน OTP เพื่อเปลี่ยนรหัสผ่าน</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 16px;">
+        เพื่อความปลอดภัย ระบบได้ส่งรหัสยืนยัน 6 หลักไปยังอีเมลที่ลงทะเบียนไว้:<br>
+        <strong id="pwdOtpTargetEmailDisplay" style="color: var(--accent);"></strong>
+      </p>
+
+      <form onsubmit="handleVerifyPasswordOtpSubmit(event)">
+        <div class="form-group" style="text-align: left;">
+          <label>กรอกรหัส OTP (6 หลัก) *</label>
+          <input type="text" id="pwdChangeOtpInput" class="form-control otp-input-box" placeholder="••••••" maxlength="6" required autocomplete="one-time-code">
+        </div>
+
+        <div id="pwdChangeOtpErrorMsg" class="auth-error-msg" style="display: none; margin-bottom: 12px;"></div>
+
+        <button type="submit" class="btn-primary-auth" style="margin-top: 6px;">ยืนยันการเปลี่ยนรหัสผ่าน</button>
+
+        <div style="margin-top: 14px; display: flex; justify-content: space-between; align-items: center;">
+          <button type="button" class="btn-forget-link" onclick="handleResendPasswordOtp()">🔄 ขอรหัส OTP ใหม่</button>
+          <button type="button" class="btn-sm" onclick="closeChangePasswordOtpModal()">ยกเลิก</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
 </body>
 </html>
