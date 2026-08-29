@@ -3106,6 +3106,7 @@ function initAuth() {
   renderChatEmojiPicker();
   startRealtimeSync();
   startIncomingCallListener();
+  initDockGestureScrubber(); // เรียกใช้งานระบบลากสลับเมนูด้านล่าง
 
   if (currentUserId) {
     document.getElementById('authGate').style.display = 'none';
@@ -3649,7 +3650,60 @@ window.handleSaveProjectNotes = async function(e) {
   closeModal('projectNotesModal');
 };
 
-// ================= EDIT PROFILE MODAL =================
+// ================= EDIT PROFILE & PASSWORD OTP SYSTEM =================
+let pendingPasswordUpdate = null;
+
+async function saveProfileChanges(user, updatedFields) {
+  showSaveLoadingModal("กำลังบันทึกข้อมูลโปรไฟล์...", "กรุณารอสักครู่ ระบบกำลังอัปเดตข้อมูลขึ้นระบบคลาวด์");
+  setSaveProgress(30);
+
+  try {
+    const oldName = user.name;
+    setSaveProgress(60);
+    await updateDoc(doc(db, "users", user.id), updatedFields);
+
+    if (oldName !== updatedFields.name) {
+      setSaveProgress(80);
+      for (const p of projects) {
+        let isChanged = false;
+        let pData = { ...p };
+        if (pData.createdBy && pData.createdBy.name === oldName) {
+          pData.createdBy.name = updatedFields.name;
+          pData.createdBy.avatar = updatedFields.avatar;
+          isChanged = true;
+        }
+        pData.tasks = (pData.tasks || []).map(t => {
+          let taskUpdated = { ...t };
+          if (t.assignee === oldName) { taskUpdated.assignee = updatedFields.name; isChanged = true; }
+          if (t.createdBy && t.createdBy.name === oldName) { taskUpdated.createdBy.name = updatedFields.name; taskUpdated.createdBy.avatar = updatedFields.avatar; isChanged = true; }
+          if (t.updatedBy && t.updatedBy.name === oldName) { taskUpdated.updatedBy.name = updatedFields.name; taskUpdated.updatedBy.avatar = updatedFields.avatar; isChanged = true; }
+          return taskUpdated;
+        });
+        if (isChanged) {
+          await updateDoc(doc(db, "projects", p.id), pData);
+        }
+      }
+    }
+
+    setSaveProgress(100);
+    showSaveSuccessModal("บันทึกข้อมูลสำเร็จแล้ว!", "อัปเดตโปรไฟล์ของคุณเรียบร้อย");
+    AudioFX.success();
+
+    setTimeout(() => {
+      hideSaveLoadingModal();
+      closeModal('editProfileModal');
+      document.getElementById('editPasswordInput').value = '';
+      updateCurrentUserDisplay();
+    }, 900);
+
+  } catch (err) {
+    console.error("Save profile error:", err);
+    hideSaveLoadingModal();
+    AudioFX.delete();
+    alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล กรุณาลองใหม่อีกครั้ง");
+  }
+}
+
 window.openEditProfileModal = function() {
   const user = getCurrentUser();
   if (!user) return;
@@ -3674,6 +3728,12 @@ window.openEditProfileModal = function() {
     bannerPreview.innerHTML = `<img src="${user.banner}" alt="Cover Banner">`;
   } else {
     bannerPreview.innerHTML = `<span style="font-size: 0.85rem; color: var(--text-muted);">ไม่มีภาพหน้าปก</span>`;
+  }
+
+  // 🔒 ซ่อนปุ่มลบบัญชีหากเป็นบัญชีแอดมิน (TaiyoAni)
+  const delBtn = document.getElementById('btnOpenDeleteAccountModal');
+  if (delBtn) {
+    delBtn.style.display = isAdmin(user) ? 'none' : 'inline-block';
   }
 
   renderEditAvatarPicker(user.avatar);
@@ -3701,66 +3761,113 @@ window.handleEditProfileSubmit = async function(e) {
     return;
   }
 
-  showSaveLoadingModal("กำลังบันทึกข้อมูลโปรไฟล์...", "กรุณารอสักครู่ ระบบกำลังอัปเดตข้อมูลขึ้นระบบคลาวด์");
-  setSaveProgress(30);
+  const updatedFields = {
+    name: newName,
+    email: newEmail || user.email,
+    role: newRole || (isAdmin(user) ? 'แอดมิน' : 'สมาชิกทั่วไป'),
+    bio: newBio || '',
+    avatar: newAvatar || user.avatar,
+    banner: newBanner || ''
+  };
 
-  try {
-    const oldName = user.name;
-    const updatedFields = {
-      name: newName,
-      email: newEmail,
-      role: newRole || (isAdmin(user) ? 'แอดมิน' : 'สมาชิกทั่วไป'),
-      bio: newBio || '',
-      avatar: newAvatar || user.avatar,
-      banner: newBanner || ''
+  // 🔒 กรณีผู้ใช้ต้องการเปลี่ยนรหัสผ่านใหม่: ต้องยืนยัน OTP ก่อน
+  if (newPassword && newPassword.trim() !== '') {
+    if (newPassword.length < 4) {
+      AudioFX.delete();
+      alert('รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 4 ตัวอักษร');
+      return;
+    }
+
+    const registeredEmail = user.email;
+    if (!registeredEmail) {
+      alert('⚠️ บัญชีนี้ไม่มีอีเมลที่ผูกไว้ในระบบ ไม่สามารถส่ง OTP ได้');
+      return;
+    }
+
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    pendingPasswordUpdate = {
+      user: user,
+      newPassword: newPassword,
+      updatedFields: updatedFields,
+      otpCode: otpCode,
+      registeredEmail: registeredEmail
     };
 
-    if (newPassword && newPassword.trim() !== '') {
-      updatedFields.password = newPassword;
-    }
+    showSaveLoadingModal("กำลังส่งรหัส OTP...", `ส่งรหัสไปยัง ${registeredEmail}`);
+    setSaveProgress(50);
 
-    setSaveProgress(60);
-    await updateDoc(doc(db, "users", user.id), updatedFields);
+    const isSent = await sendOtpEmail(
+      registeredEmail,
+      user.name,
+      otpCode,
+      "คุณได้ทำรายการขอเปลี่ยนรหัสผ่านใหม่ในหน้าแก้ไขโปรไฟล์",
+      "🔐 รหัสยืนยัน OTP สำหรับเปลี่ยนรหัสผ่าน - TaiyoAni UI Hub"
+    );
 
-    if (oldName !== newName) {
-      setSaveProgress(80);
-      for (const p of projects) {
-        let isChanged = false;
-        let pData = { ...p };
-        if (pData.createdBy && pData.createdBy.name === oldName) {
-          pData.createdBy.name = newName;
-          pData.createdBy.avatar = updatedFields.avatar;
-          isChanged = true;
-        }
-        pData.tasks = (pData.tasks || []).map(t => {
-          let taskUpdated = { ...t };
-          if (t.assignee === oldName) { taskUpdated.assignee = newName; isChanged = true; }
-          if (t.createdBy && t.createdBy.name === oldName) { taskUpdated.createdBy.name = newName; taskUpdated.createdBy.avatar = updatedFields.avatar; isChanged = true; }
-          if (t.updatedBy && t.updatedBy.name === oldName) { taskUpdated.updatedBy.name = newName; taskUpdated.updatedBy.avatar = updatedFields.avatar; isChanged = true; }
-          return taskUpdated;
-        });
-        if (isChanged) {
-          await updateDoc(doc(db, "projects", p.id), pData);
-        }
-      }
-    }
-
-    setSaveProgress(100);
-    showSaveSuccessModal("บันทึกข้อมูลสำเร็จแล้ว!", "อัปเดตโปรไฟล์ของคุณเรียบร้อย");
-    AudioFX.success();
-
-    setTimeout(() => {
-      hideSaveLoadingModal();
-      closeModal('editProfileModal');
-      updateCurrentUserDisplay();
-    }, 900);
-
-  } catch (err) {
-    console.error("Save profile error:", err);
     hideSaveLoadingModal();
-    AudioFX.delete();
-    alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล กรุณาลองใหม่อีกครั้ง");
+
+    if (isSent) {
+      openChangePasswordOtpModal(registeredEmail);
+    }
+    return;
   }
+
+  // กรณีไม่ได้แก้ไขรหัสผ่าน -> บันทึกโปรไฟล์ได้ทันที
+  await saveProfileChanges(user, updatedFields);
+};
+
+// ================= PASSWORD OTP MODAL CONTROLS =================
+function openChangePasswordOtpModal(email) {
+  AudioFX.click();
+  document.getElementById('pwdOtpTargetEmailDisplay').innerText = email;
+  document.getElementById('pwdChangeOtpInput').value = '';
+  document.getElementById('pwdChangeOtpErrorMsg').style.display = 'none';
+  document.getElementById('changePasswordOtpModal').style.display = 'flex';
+}
+
+window.closeChangePasswordOtpModal = function() {
+  document.getElementById('changePasswordOtpModal').style.display = 'none';
+  pendingPasswordUpdate = null;
+};
+
+window.handleVerifyPasswordOtpSubmit = async function(e) {
+  e.preventDefault();
+  const enteredOtp = document.getElementById('pwdChangeOtpInput').value.trim();
+  const errorMsg = document.getElementById('pwdChangeOtpErrorMsg');
+
+  if (!pendingPasswordUpdate) return;
+
+  if (enteredOtp === pendingPasswordUpdate.otpCode) {
+    AudioFX.success();
+    pendingPasswordUpdate.updatedFields.password = pendingPasswordUpdate.newPassword;
+
+    const user = pendingPasswordUpdate.user;
+    const fields = pendingPasswordUpdate.updatedFields;
+
+    closeChangePasswordOtpModal();
+    await saveProfileChanges(user, fields);
+  } else {
+    AudioFX.delete();
+    errorMsg.innerText = 'รหัส OTP ไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง';
+    errorMsg.style.display = 'block';
+  }
+};
+
+window.handleResendPasswordOtp = async function() {
+  if (!pendingPasswordUpdate || !pendingPasswordUpdate.registeredEmail) return;
+
+  const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
+  pendingPasswordUpdate.otpCode = newOtp;
+
+  AudioFX.click();
+  await sendOtpEmail(
+    pendingPasswordUpdate.registeredEmail,
+    pendingPasswordUpdate.user.name,
+    newOtp,
+    "คุณได้ขอรับรหัสยืนยัน OTP ใหม่สำหรับเปลี่ยนรหัสผ่าน",
+    "🔐 รหัสยืนยัน OTP (ส่งซ้ำ) - TaiyoAni UI Hub"
+  );
 };
 
 // ================= WORKSPACE ACTIONS =================
@@ -4041,8 +4148,9 @@ function updateCurrentUserDisplay() {
   const user = getCurrentUser();
   if (user) {
     const userIsAdmin = isAdmin(user);
+    const userIsStaff = isStaff(user);
     const adminTag = userIsAdmin ? ' 👑' : '';
-    const displayRole = userIsAdmin ? '👑 แอดมิน' : (user.role || (isStaff(user) ? '🛡️ ทีมงาน' : '👤 สมาชิกทั่วไป'));
+    const displayRole = userIsAdmin ? '👑 แอดมิน' : (user.role || (userIsStaff ? '🛡️ ทีมงาน' : '👤 สมาชิกทั่วไป'));
     
     document.getElementById('currentAvatarDisplay').innerHTML = renderAvatarHtml(user.avatar);
     document.getElementById('currentUserNameDisplay').innerText = `${user.name}${adminTag}`;
@@ -4064,6 +4172,14 @@ function updateCurrentUserDisplay() {
     if (bannerAdminBar) {
       bannerAdminBar.style.display = userIsAdmin ? 'flex' : 'none';
     }
+
+    // 🔒 ควบคุมการแสดงผลเมนูด้านล่างสำหรับสมาชิกทั่วไป
+    const canAccessWork = userIsAdmin || userIsStaff;
+    const navProjects = document.getElementById('navBtnProjects');
+    const navRevenue = document.getElementById('navBtnRevenue');
+
+    if (navProjects) navProjects.style.display = canAccessWork ? 'flex' : 'none';
+    if (navRevenue) navRevenue.style.display = canAccessWork ? 'flex' : 'none';
   }
 }
 
@@ -4274,10 +4390,6 @@ function escapeHtml(text) {
     .replace(/'/g, "&#039;");
 }
 
-document.addEventListener('click', () => { requestNotificationPermission(); }, { once: true });
-
-initAuth();
-
 // ================= FORGOT & RESET PASSWORD LOGIC =================
 let resetPasswordTargetUser = null;
 
@@ -4372,3 +4484,164 @@ window.handleResetPasswordSubmit = async function(e) {
     errorMsg2.style.display = 'block';
   }
 };
+
+// ================= DELETE ACCOUNT SYSTEM =================
+window.openDeleteAccountModal = function() {
+  const currentUser = getCurrentUser();
+  if (!currentUser) return;
+
+  if (isAdmin(currentUser)) {
+    AudioFX.delete();
+    alert('⚠️ บัญชีแอดมินหลัก (TaiyoAni) ไม่สามารถลบบัญชีได้');
+    return;
+  }
+
+  AudioFX.click();
+  document.getElementById('deleteAccountPasswordInput').value = '';
+  document.getElementById('deleteAccountErrorMsg').style.display = 'none';
+  document.getElementById('deleteAccountModal').style.display = 'flex';
+};
+
+window.handleConfirmDeleteAccount = async function(e) {
+  e.preventDefault();
+  const currentUser = getCurrentUser();
+  if (!currentUser) return;
+
+  if (isAdmin(currentUser)) {
+    AudioFX.delete();
+    alert('⚠️ บัญชีแอดมินหลัก (TaiyoAni) ไม่สามารถลบบัญชีได้');
+    closeModal('deleteAccountModal');
+    return;
+  }
+
+  const enteredPassword = document.getElementById('deleteAccountPasswordInput').value;
+  const errorMsg = document.getElementById('deleteAccountErrorMsg');
+
+  if (enteredPassword !== currentUser.password) {
+    AudioFX.delete();
+    errorMsg.innerText = 'รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง';
+    errorMsg.style.display = 'block';
+    return;
+  }
+
+  showSaveLoadingModal("กำลังลบบัญชีผู้ใช้...", "ระบบกำลังลบข้อมูลและออกจากระบบ");
+  setSaveProgress(40);
+
+  try {
+    const deletedUserId = currentUser.id;
+
+    await deleteDoc(doc(db, "users", deletedUserId));
+    setSaveProgress(75);
+
+    try {
+      let savedAccounts = JSON.parse(localStorage.getItem('taiyoani_device_accounts') || '[]');
+      savedAccounts = savedAccounts.filter(a => a.id !== deletedUserId);
+      localStorage.setItem('taiyoani_device_accounts', JSON.stringify(savedAccounts));
+    } catch (err) {}
+
+    localStorage.removeItem('taiyoani_active_user_id');
+    currentUserId = null;
+
+    setSaveProgress(100);
+    AudioFX.delete();
+
+    setTimeout(() => {
+      hideSaveLoadingModal();
+      closeModal('deleteAccountModal');
+      closeModal('editProfileModal');
+      closeModal('viewProfileModal');
+      alert('ลบบัญชีผู้ใช้สำเร็จเรียบร้อย');
+      initAuth();
+    }, 700);
+
+  } catch (err) {
+    console.error("Delete account error:", err);
+    hideSaveLoadingModal();
+    AudioFX.delete();
+    errorMsg.innerText = 'เกิดข้อผิดพลาดในการลบบัญชี: ' + (err.message || err);
+    errorMsg.style.display = 'block';
+  }
+};
+
+// ================= iOS DOCK DRAG & SCRUB GESTURE ENGINE =================
+function initDockGestureScrubber() {
+  const dock = document.querySelector('.bottom-dock-nav');
+  if (!dock) return;
+
+  let isDragging = false;
+  let currentTargetBtn = null;
+
+  function getNavItemUnderPoint(x, y) {
+    const el = document.elementFromPoint(x, y);
+    if (!el) return null;
+    return el.closest('.bottom-nav-item');
+  }
+
+  function handleStart(e) {
+    isDragging = true;
+    dock.classList.add('is-scrubbing');
+    handleMove(e);
+  }
+
+  function handleMove(e) {
+    if (!isDragging) return;
+
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    const hoveredItem = getNavItemUnderPoint(clientX, clientY);
+
+    if (hoveredItem && hoveredItem !== currentTargetBtn) {
+      if (currentTargetBtn) {
+        currentTargetBtn.classList.remove('is-scrub-hovered');
+      }
+      currentTargetBtn = hoveredItem;
+      currentTargetBtn.classList.add('is-scrub-hovered');
+
+      AudioFX.click();
+      if ('vibrate' in navigator) navigator.vibrate(8);
+    }
+  }
+
+  function handleEnd() {
+    if (!isDragging) return;
+    isDragging = false;
+    dock.classList.remove('is-scrubbing');
+
+    if (currentTargetBtn) {
+      currentTargetBtn.classList.remove('is-scrub-hovered');
+      
+      const btnId = currentTargetBtn.id;
+      const viewMap = {
+        navBtnHome: 'home',
+        navBtnCommunity: 'community',
+        navBtnProjects: 'projects',
+        navBtnRevenue: 'revenue',
+        navBtnChat: 'chat'
+      };
+
+      const targetView = viewMap[btnId];
+      if (targetView) {
+        window.switchAppView(targetView);
+      }
+      currentTargetBtn = null;
+    }
+  }
+
+  // Touch Events (Mobile/iPad)
+  dock.addEventListener('touchstart', handleStart, { passive: false });
+  window.addEventListener('touchmove', handleMove, { passive: false });
+  window.addEventListener('touchend', handleEnd);
+  window.addEventListener('touchcancel', handleEnd);
+
+  // Mouse Drag Events (PC)
+  dock.addEventListener('mousedown', (e) => {
+    if (e.button === 0) handleStart(e);
+  });
+  window.addEventListener('mousemove', handleMove);
+  window.addEventListener('mouseup', handleEnd);
+}
+
+document.addEventListener('click', () => { requestNotificationPermission(); }, { once: true });
+
+initAuth();
