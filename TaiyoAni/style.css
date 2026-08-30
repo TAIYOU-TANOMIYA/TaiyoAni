@@ -4353,8 +4353,8 @@ body.device-mode-tablet .tasks-grid { grid-template-columns: repeat(2, 1fr) !imp
   rgba(255, 255, 255, 0.06);
 
   /* เอฟเฟกต์หักเหแสงผ่านกระจกมน */
-  backdrop-filter: blur(24px) saturate(220%);
-  -webkit-backdrop-filter: blur(24px) saturate(220%);
+  backdrop-filter: blur(50px) saturate(220%);
+  -webkit-backdrop-filter: blur(50px) saturate(220%);
   
   /* เส้นขอบแก้วคริสตัลคมชัด (Rim Light) */
   border: 1px solid rgba(255, 255, 255, 0.65);
@@ -4402,4 +4402,698 @@ body.device-mode-tablet .tasks-grid { grid-template-columns: repeat(2, 1fr) !imp
     0 12px 28px rgba(0, 0, 0, 0.5), 
     0 0 25px rgba(255, 255, 255, 0.45) !important;
   z-index: 10;
+}
+
+/* ================= INSTAGRAM-GRADE COMMUNITY & STORY SYSTEM ================= */
+
+/* Story Ring & Tray */
+.community-stories-tray {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 6px 14px 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 12px;
+}
+.community-stories-tray::-webkit-scrollbar { display: none; }
+
+.story-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  width: 62px;
+  flex-shrink: 0;
+  transition: transform 0.25s var(--anim-spring);
+}
+.story-item:hover { transform: scale(1.06); }
+
+.story-avatar-ring {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  padding: 2.2px;
+  background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.story-avatar-ring.has-video::after {
+  content: '▶';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  font-size: 0.55rem;
+  background: #dc2743;
+  color: #fff;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #0f172a;
+}
+
+.story-avatar-ring.add-story-ring {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1.5px dashed var(--accent);
+}
+
+.story-avatar-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.story-avatar-inner img, .story-avatar-inner .avatar-chip img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Instagram Post Card */
+.community-post-card {
+  background: var(--glass-bg-card);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), var(--glass-specular);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: transform 0.25s var(--anim-spring), border-color 0.2s ease;
+}
+
+.ig-post-media-container {
+  width: 100%;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+  cursor: pointer;
+  max-height: 480px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ig-post-media-container img {
+  width: 100%;
+  height: 100%;
+  max-height: 480px;
+  object-fit: contain;
+  display: block;
+}
+
+/* Double tap heart splash animation */
+.ig-heart-splash {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  font-size: 4.5rem;
+  color: #f43f5e;
+  pointer-events: none;
+  filter: drop-shadow(0 0 20px rgba(244, 63, 94, 0.8));
+  transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
+  opacity: 0;
+  z-index: 10;
+}
+.ig-heart-splash.active {
+  transform: translate(-50%, -50%) scale(1.2);
+  opacity: 1;
+}
+
+/* Story Viewer Media Layer */
+.story-media-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+
+.story-caption-overlay {
+  position: absolute;
+  bottom: 30px;
+  left: 14px;
+  right: 14px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 10px 14px;
+  border-radius: 12px;
+  color: #ffffff;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  text-align: center;
+  z-index: 5;
+  word-break: break-word;
+}
+
+/* Likes Modal User Row */
+.likes-user-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--glass-border);
+  gap: 10px;
+}
+
+.likes-user-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Comments Thread & Reply Indent */
+.ig-comments-vertical-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 4px;
+}
+
+.ig-comment-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ig-reply-indent-wrapper {
+  margin-left: 36px;
+  border-left: 2px solid rgba(255, 255, 255, 0.12);
+  padding-left: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btn-reply-trigger {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+.btn-reply-trigger:hover { text-decoration: underline; }
+
+/* Reply Target Indicator Banner */
+.comment-reply-banner {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 8px;
+  font-size: 0.78rem;
+  color: #bae6fd;
+  margin-bottom: 6px;
+}
+
+/* ================= FACEBOOK & INSTAGRAM COMMUNITY STYLES ================= */
+
+/* Facebook-style Quick Composer Bar */
+.fb-quick-composer-card {
+  background: var(--glass-bg-card);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2), var(--glass-specular);
+  cursor: pointer;
+  transition: all 0.25s var(--anim-spring);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fb-quick-composer-card:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-light);
+  transform: translateY(-1px);
+}
+
+.fb-composer-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.fb-composer-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--glass-border-light);
+  flex-shrink: 0;
+}
+
+.fb-composer-avatar img,
+.fb-composer-avatar .avatar-chip img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.fb-composer-input-trigger {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--glass-border);
+  border-radius: 9999px;
+  padding: 9px 16px;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.fb-quick-composer-card:hover .fb-composer-input-trigger {
+  background: rgba(0, 0, 0, 0.38);
+  border-color: var(--accent);
+  color: #f8fafc;
+}
+
+.fb-composer-divider {
+  width: 100%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.fb-composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 6px;
+}
+
+.fb-action-btn {
+  background: transparent;
+  border: none;
+  color: #cbd5e1;
+  font-size: 0.82rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.fb-action-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.fb-act-icon {
+  font-size: 1.1rem;
+}
+
+/* ================= FACEBOOK CREATE POST MODAL ================= */
+.fb-create-post-modal {
+  max-width: 520px !important;
+  padding: 16px 18px !important;
+  border-radius: 20px !important;
+  background: linear-gradient(145deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%) !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75), var(--glass-specular) !important;
+}
+
+.fb-modal-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 12px;
+}
+
+.fb-modal-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.fb-modal-header .close-btn {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.fb-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fb-modal-user-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.fb-modal-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--glass-border-light);
+  flex-shrink: 0;
+}
+
+.fb-modal-avatar img,
+.fb-modal-avatar .avatar-chip img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fb-modal-user-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fb-modal-username {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.fb-category-selector-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
+  padding: 2px 8px;
+  border-radius: 6px;
+  gap: 4px;
+}
+
+.fb-cat-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: none;
+  color: #7dd3fc;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding-right: 14px;
+  cursor: pointer;
+  outline: none;
+}
+
+.fb-cat-select option {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+.fb-cat-arrow {
+  position: absolute;
+  right: 6px;
+  font-size: 0.7rem;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.fb-input-title-wrapper {
+  width: 100%;
+}
+
+.fb-input-title {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #ffffff;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.fb-input-title:focus {
+  border-color: var(--accent);
+}
+
+.fb-input-body-wrapper {
+  width: 100%;
+}
+
+.fb-textarea-content {
+  width: 100%;
+  min-height: 110px;
+  max-height: 240px;
+  background: transparent;
+  border: none;
+  color: #f8fafc;
+  font-size: 1rem;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  padding: 4px 0;
+}
+
+.fb-textarea-content::placeholder {
+  color: #64748b;
+  font-size: 1.05rem;
+}
+
+/* Post Media Preview Box */
+.fb-post-preview-container {
+  position: relative;
+  width: 100%;
+  max-height: 220px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fb-post-preview-img {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+}
+
+.fb-btn-remove-media {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  font-size: 0.8rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.fb-btn-remove-media:hover {
+  background: rgba(239, 68, 68, 0.85);
+  transform: scale(1.1);
+}
+
+/* Tags Row */
+.fb-tags-input-row {
+  display: flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  gap: 6px;
+}
+
+.fb-tag-hash {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.fb-input-tags {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #e2e8f0;
+  font-size: 0.8rem;
+  outline: none;
+}
+
+/* Add to your post Tool Bar */
+.fb-add-to-post-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--glass-border-light);
+  box-shadow: var(--glass-specular);
+}
+
+.fb-add-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.fb-add-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fb-tool-icon-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid transparent;
+  color: #ffffff;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.fb-tool-icon-btn:hover {
+  background: rgba(56, 189, 248, 0.25);
+  border-color: var(--accent);
+  transform: scale(1.1);
+}
+
+/* Submit Post Button */
+.btn-fb-submit-post {
+  width: 100%;
+  padding: 10px;
+  background: linear-gradient(135deg, #1877f2 0%, #0284c7 100%);
+  border: 1px solid var(--accent);
+  color: #ffffff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(24, 119, 242, 0.4), var(--glass-specular);
+  transition: all 0.25s var(--anim-spring);
+}
+
+.btn-fb-submit-post:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(24, 119, 242, 0.6);
+}
+
+/* ================= INSTAGRAM POST CARD MEDIA ENHANCEMENTS ================= */
+.ig-post-media-container {
+  position: relative;
+  width: 100%;
+  max-height: 420px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.ig-post-media-container img {
+  width: 100%;
+  height: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  display: block;
+}
+
+/* Heart Pop Double-Tap Animation */
+.ig-heart-splash {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  font-size: 4.5rem;
+  color: #f43f5e;
+  text-shadow: 0 0 20px rgba(244, 63, 94, 0.8);
+  pointer-events: none;
+  z-index: 10;
+  transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.35s ease;
+  opacity: 0;
+}
+
+.ig-heart-splash.active {
+  transform: translate(-50%, -50%) scale(1.2);
+  opacity: 1;
+  animation: heartFade 0.7s forwards ease-in-out;
+}
+
+@keyframes heartFade {
+  0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+  50% { transform: translate(-50%, -50%) scale(1.25); opacity: 1; }
+  80% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.9; }
+  100% { transform: translate(-50%, -50%) scale(1.4); opacity: 0; }
+}
+
+.clickable-title {
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.clickable-title:hover {
+  color: var(--accent);
 }
