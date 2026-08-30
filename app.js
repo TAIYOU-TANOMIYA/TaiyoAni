@@ -25,9 +25,7 @@ const EMAILJS_TEMPLATE_ID = "template_0x0kyls";
 
 if (EMAILJS_PUBLIC_KEY && window.emailjs) {
   try {
-    window.emailjs.init({
-      publicKey: EMAILJS_PUBLIC_KEY
-    });
+    window.emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
   } catch (e) {
     console.warn("EmailJS init warning:", e);
   }
@@ -63,7 +61,7 @@ async function sendOtpEmail(targetEmail, userName, otpCode, introMessage = "ร�
     } catch (err) {
       console.error("EmailJS sending failed:", err);
       const errMsg = err?.text || err?.message || JSON.stringify(err);
-      alert(`⚠️ ส่งอีเมลไม่สำเร็จ (${errMsg})\n\nรหัส OTP สำหรับทดสอบของคุณคือ: ${otpCode}\n(กรุณาตรวจเช็กการตั้งค่า EmailJS หรือดูในโฟลเดอร์สแปม/จดหมายขยะ)`);
+      alert(`⚠️ ส่งอีเมลไม่สำเร็จ (${errMsg})\n\nรหัส OTP สำหรับทดสอบของคุณคือ: ${otpCode}`);
       return false;
     }
   } else {
@@ -159,7 +157,7 @@ const AudioFX = {
 };
 
 document.addEventListener('click', (e) => {
-  if (e.target.closest('button') || e.target.closest('.avatar-opt') || e.target.closest('.project-item') || e.target.closest('.word-tool-btn') || e.target.closest('.emoji-btn-opt') || e.target.closest('.category-select-pill')) {
+  if (e.target.closest('button') || e.target.closest('.avatar-opt') || e.target.closest('.project-item') || e.target.closest('.word-tool-btn') || e.target.closest('.emoji-btn-opt') || e.target.closest('.category-select-pill') || e.target.closest('.fb-action-btn') || e.target.closest('.fb-tool-icon-btn')) {
     AudioFX.click();
   }
 });
@@ -194,6 +192,12 @@ let modalTempSearchCategory = 'all';
 let communitySearchQuery = '';
 let activeDetailPostId = null;
 
+// Instagram & Facebook Upgrade States
+let activeReplyTarget = null;
+let selectedStoryMediaBase64 = null;
+let selectedStoryMediaType = 'text';
+let selectedCommunityPostImageBase64 = null;
+
 // Story Player States
 let storyViewerQueue = [];
 let currentStorySlideIndex = 0;
@@ -201,8 +205,8 @@ let storyTimerInterval = null;
 let storyProgressStep = 0;
 const STORY_DURATION_MS = 5000;
 
-// Discord Chat & Voice Call / Voice Room States
-let activeChatMode = 'team'; // 'team' | 'dm' | 'group'
+// Discord Chat & Voice Call States
+let activeChatMode = 'team';
 let activeDmTargetUser = null;
 let activeGroupId = null;
 let activeGroupData = null;
@@ -212,7 +216,7 @@ let groupChatMessages = [];
 let dmUnsubscribe = null;
 let selectedChatImageBase64 = null;
 
-// Voice Call 1-on-1 States (สำหรับแชทส่วนตัว DM)
+// Voice Call 1-on-1 States
 let isVoiceCallActive = false;
 let isVoiceMuted = false;
 let voiceCallTimerInterval = null;
@@ -223,12 +227,12 @@ let currentPeerConnection = null;
 let localVoiceStream = null;
 let incomingCallData = null;
 
-// Group Voice Room WebRTC Mesh States (สำหรับห้องเสียงกลุ่ม)
+// WebRTC Group Voice Room States
 let activeVoiceRoomId = null;
 let voiceRoomParticipantsUnsubscribe = null;
 let voiceRoomSignalsUnsubscribe = null;
 let isUserInVoiceRoom = false;
-let voiceRoomPeers = {}; // { [peerUserId]: RTCPeerConnection }
+let voiceRoomPeers = {};
 
 // Audio Hardware States
 let isMicTesting = false;
@@ -291,7 +295,7 @@ function formatCurrency(amount) {
   return '฿ ' + num.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
-// ================= SYSTEM & HARDWARE NOTIFICATION MANAGER =================
+// ================= SYSTEM NOTIFICATION MANAGER =================
 async function requestNotificationPermission() {
   if ('Notification' in window && Notification.permission !== 'granted') {
     try {
@@ -758,10 +762,92 @@ function updateFilterActiveIndicator() {
   }
 }
 
-// ================= 24-HOUR COMMUNITY STORIES SYSTEM =================
+// ================= 1. ENHANCED STORIES SYSTEM (IMAGES & VIDEOS) =================
+window.handleStoryMediaSelect = function(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const isVideo = file.type.startsWith('video/');
+  const preview = document.getElementById('storyMediaPreviewContainer');
+  const bgGroup = document.getElementById('storyBgColorPickerGroup');
+
+  if (isVideo) {
+    if (file.size > 1024 * 1024) {
+      AudioFX.delete();
+      alert('⚠️ ไฟล์วิดีโอสตอรี่มีขนาดใหญ่เกิน 1MB กรุณาบีบอัดไฟล์ก่อนอัปโหลด');
+      event.target.value = '';
+      return;
+    }
+
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.src = URL.createObjectURL(file);
+    video.onloadedmetadata = function() {
+      URL.revokeObjectURL(video.src);
+      if (video.duration > 60) {
+        AudioFX.delete();
+        alert('⚠️ วิดีโอสตอรี่ต้องมีความยาวไม่เกิน 60 วินาที');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        selectedStoryMediaBase64 = e.target.result;
+        selectedStoryMediaType = 'video';
+        document.getElementById('storyMediaDataInput').value = selectedStoryMediaBase64;
+        document.getElementById('storyMediaTypeInput').value = 'video';
+        if (preview) {
+          preview.style.display = 'flex';
+          preview.innerHTML = `<video src="${selectedStoryMediaBase64}" autoplay muted loop style="width:100%; height:100%; object-fit:cover;"></video><button type="button" class="btn-sm delete" style="position: absolute; top: 6px; right: 6px; z-index: 5;" onclick="removeStoryMediaAttachment()">✕ นำออก</button>`;
+        }
+        if (bgGroup) bgGroup.style.display = 'none';
+      };
+      reader.readAsDataURL(file);
+    };
+  } else {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        const canvas = document.createElement('canvas');
+        const maxDim = 1080;
+        let w = img.width, h = img.height;
+        if (w > h && w > maxDim) { h = Math.round((h * maxDim) / w); w = maxDim; }
+        else if (h > maxDim) { w = Math.round((w * maxDim) / h); h = maxDim; }
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        selectedStoryMediaBase64 = canvas.toDataURL(file.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.85);
+        selectedStoryMediaType = 'image';
+        document.getElementById('storyMediaDataInput').value = selectedStoryMediaBase64;
+        document.getElementById('storyMediaTypeInput').value = 'image';
+        if (preview) {
+          preview.style.display = 'flex';
+          preview.innerHTML = `<img src="${selectedStoryMediaBase64}" style="width:100%; height:100%; object-fit:cover;"><button type="button" class="btn-sm delete" style="position: absolute; top: 6px; right: 6px; z-index: 5;" onclick="removeStoryMediaAttachment()">✕ นำออก</button>`;
+        }
+        if (bgGroup) bgGroup.style.display = 'none';
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+};
+
+window.removeStoryMediaAttachment = function() {
+  selectedStoryMediaBase64 = null;
+  selectedStoryMediaType = 'text';
+  document.getElementById('storyMediaDataInput').value = '';
+  document.getElementById('storyMediaTypeInput').value = 'text';
+  document.getElementById('storyFileInput').value = '';
+  const preview = document.getElementById('storyMediaPreviewContainer');
+  const bgGroup = document.getElementById('storyBgColorPickerGroup');
+  if (preview) preview.style.display = 'none';
+  if (bgGroup) bgGroup.style.display = 'block';
+};
+
 window.openCreateStoryModal = function() {
   AudioFX.click();
   document.getElementById('storyTextInput').value = '';
+  removeStoryMediaAttachment();
   document.getElementById('createStoryModal').style.display = 'flex';
 };
 
@@ -771,15 +857,22 @@ window.handleCreateStorySubmit = async function(e) {
   if (!currentUser) return;
 
   const text = document.getElementById('storyTextInput').value.trim();
-  if (!text) return;
-
+  const mediaData = document.getElementById('storyMediaDataInput').value;
+  const mediaType = document.getElementById('storyMediaTypeInput').value;
   const selectedBg = document.querySelector('input[name="storyBg"]:checked')?.value || 'linear-gradient(135deg, #38bdf8, #818cf8)';
+
+  if (!text && !mediaData) {
+    alert('กรุณาพิมพ์ข้อความ หรือเลือกไฟล์ภาพ/วิดีโอ');
+    return;
+  }
 
   const newStory = {
     authorId: currentUser.id,
     authorName: currentUser.name,
     authorAvatar: currentUser.avatar,
-    text: text,
+    text: text || '',
+    mediaData: mediaData || null,
+    mediaType: mediaType || 'text',
     bg: selectedBg,
     createdAt: Date.now(),
     timestamp: serverTimestamp()
@@ -787,6 +880,7 @@ window.handleCreateStorySubmit = async function(e) {
 
   AudioFX.success();
   await addDoc(collection(db, "community_stories"), newStory);
+  removeStoryMediaAttachment();
   closeModal('createStoryModal');
 };
 
@@ -815,28 +909,26 @@ function renderStoriesTray() {
   const groupedByUser = {};
 
   activeStories.forEach(s => {
-    if (!groupedByUser[s.authorId]) {
-      groupedByUser[s.authorId] = [];
-    }
+    if (!groupedByUser[s.authorId]) groupedByUser[s.authorId] = [];
     groupedByUser[s.authorId].push(s);
   });
 
   const userIds = Object.keys(groupedByUser);
-
   if (userIds.length === 0) {
-    feedList.innerHTML = '<div style="font-size:0.75rem; color:var(--text-muted); padding-left: 6px; white-space:nowrap;">ยังไม่มีสตอรี่ใน 24 ชม. นี้</div>';
+    feedList.innerHTML = '<div style="font-size:0.75rem; color:var(--text-muted); padding-left:6px; white-space:nowrap;">ยังไม่มีสตอรี่ใน 24 ชม. นี้</div>';
     return;
   }
 
   userIds.forEach(uid => {
     const userStories = groupedByUser[uid];
     const latestStory = userStories[userStories.length - 1];
-    
+    const hasVideo = userStories.some(s => s.mediaType === 'video');
+
     const item = document.createElement('div');
     item.className = 'story-item';
     item.onclick = () => openStoryViewer(uid);
     item.innerHTML = `
-      <div class="story-avatar-ring">
+      <div class="story-avatar-ring ${hasVideo ? 'has-video' : ''}">
         <div class="story-avatar-inner">
           ${renderAvatarHtml(latestStory.authorAvatar)}
         </div>
@@ -872,28 +964,47 @@ function showCurrentStorySlide() {
   const authorName = document.getElementById('storyViewerAuthorName');
   const timeAgo = document.getElementById('storyViewerTimeAgo');
   const textDisplay = document.getElementById('storyViewerTextDisplay');
+  const mediaLayer = document.getElementById('storyViewerMediaLayer');
   const delBtn = document.getElementById('btnDeleteCurrentStory');
   const fill = document.getElementById('storyProgressBarFill');
 
-  if (card) card.style.background = story.bg || 'linear-gradient(135deg, #38bdf8, #818cf8)';
   if (avatar) avatar.innerHTML = renderAvatarHtml(story.authorAvatar);
   if (authorName) authorName.innerText = story.authorName;
-  if (textDisplay) textDisplay.innerText = story.text;
+
+  if (mediaLayer) {
+    mediaLayer.innerHTML = '';
+    if (story.mediaType === 'video' && story.mediaData) {
+      mediaLayer.innerHTML = `<video src="${story.mediaData}" class="story-media-layer" autoplay playsinline></video>`;
+      if (card) card.style.background = '#000';
+    } else if (story.mediaType === 'image' && story.mediaData) {
+      mediaLayer.innerHTML = `<img src="${story.mediaData}" class="story-media-layer">`;
+      if (card) card.style.background = '#000';
+    } else {
+      if (card) card.style.background = story.bg || 'linear-gradient(135deg, #38bdf8, #818cf8)';
+    }
+  }
+
+  if (textDisplay) {
+    if (story.text) {
+      textDisplay.innerText = story.text;
+      textDisplay.parentElement.className = (story.mediaData) ? 'story-caption-overlay' : 'story-viewer-content';
+      textDisplay.parentElement.style.display = 'block';
+    } else {
+      textDisplay.parentElement.style.display = 'none';
+    }
+  }
 
   const now = Date.now();
   const createdTime = story.createdAt || (story.timestamp?.toDate ? story.timestamp.toDate().getTime() : now);
-  const diffHours = Math.max(0, Math.floor((now - createdTime) / (1000 * 60 * 60)));
   const diffMins = Math.max(0, Math.floor((now - createdTime) / (1000 * 60)));
+  const diffHours = Math.floor(diffMins / 60);
 
   if (timeAgo) {
-    if (diffMins < 1) timeAgo.innerText = 'เมื่อสักครู่';
-    else if (diffMins < 60) timeAgo.innerText = `${diffMins} นาทีที่แล้ว`;
-    else timeAgo.innerText = `${diffHours} ชม. ที่แล้ว`;
+    timeAgo.innerText = diffMins < 1 ? 'เมื่อสักครู่' : (diffMins < 60 ? `${diffMins} นาทีที่แล้ว` : `${diffHours} ชม. ที่แล้ว`);
   }
 
   const currentUser = getCurrentUser();
-  const canDelete = currentUser && (isAdmin(currentUser) || currentUser.id === story.authorId);
-  if (delBtn) delBtn.style.display = canDelete ? 'flex' : 'none';
+  if (delBtn) delBtn.style.display = (currentUser && (isAdmin(currentUser) || currentUser.id === story.authorId)) ? 'flex' : 'none';
 
   storyProgressStep = 0;
   if (fill) fill.style.width = '0%';
@@ -958,15 +1069,128 @@ window.handleDeleteCurrentStory = async function() {
   }
 };
 
-// ================= COMMUNITY POSTS HUB SYSTEM =================
-window.openCommunityPostModal = function() {
+// ================= COMMUNITY POST MODAL CONTROLLER =================
+window.openCommunityPostModal = function(initialAction = null) {
   AudioFX.click();
-  document.getElementById('communityCategorySelect').value = 'idea';
+  const currentUser = getCurrentUser();
+
+  const modalAvatar = document.getElementById('createPostModalAvatar');
+  const modalUsername = document.getElementById('createPostModalUserName');
+  const contentInput = document.getElementById('communityContentInput');
+
+  if (currentUser) {
+    if (modalAvatar) modalAvatar.innerHTML = renderAvatarHtml(currentUser.avatar);
+    if (modalUsername) modalUsername.innerText = currentUser.name;
+    if (contentInput) contentInput.placeholder = `คุณกำลังคิดอะไรอยู่, ${currentUser.name}?`;
+  }
+
+  document.getElementById('communityCategorySelect').value = (initialAction === 'idea') ? 'idea' : 'idea';
   document.getElementById('communityTitleInput').value = '';
-  document.getElementById('communityContentInput').value = '';
+  if (contentInput) contentInput.value = '';
   document.getElementById('communityTagsInput').value = '';
+  removeCommunityPostImage();
+
   document.getElementById('communityPostModal').style.display = 'flex';
+
+  setTimeout(() => {
+    if (initialAction === 'image') {
+      document.getElementById('communityPostFileInput')?.click();
+    } else if (initialAction === 'tag') {
+      document.getElementById('communityTagsInput')?.focus();
+    } else {
+      contentInput?.focus();
+    }
+  }, 100);
 };
+
+window.handleCommunityPostImageSelect = function(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      const maxDim = 1200;
+      let w = img.width, h = img.height;
+      if (w > h && w > maxDim) { h = Math.round((h * maxDim) / w); w = maxDim; }
+      else if (h > maxDim) { w = Math.round((w * maxDim) / h); h = maxDim; }
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+
+      selectedCommunityPostImageBase64 = canvas.toDataURL('image/jpeg', 0.85);
+      document.getElementById('communityPostImageData').value = selectedCommunityPostImageBase64;
+      const preview = document.getElementById('communityPostImagePreview');
+      const previewImg = document.getElementById('communityPostPreviewImg');
+      if (preview && previewImg) {
+        previewImg.src = selectedCommunityPostImageBase64;
+        preview.style.display = 'block';
+      }
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+window.removeCommunityPostImage = function() {
+  selectedCommunityPostImageBase64 = null;
+  const dataInput = document.getElementById('communityPostImageData');
+  const fileInput = document.getElementById('communityPostFileInput');
+  const preview = document.getElementById('communityPostImagePreview');
+  const previewImg = document.getElementById('communityPostPreviewImg');
+
+  if (dataInput) dataInput.value = '';
+  if (fileInput) fileInput.value = '';
+  if (previewImg) previewImg.src = '';
+  if (preview) preview.style.display = 'none';
+};
+
+window.focusTagsInput = function() {
+  AudioFX.click();
+  document.getElementById('communityTagsInput')?.focus();
+};
+
+window.togglePostEmojiPicker = function(event) {
+  event.stopPropagation();
+  AudioFX.click();
+  const popover = document.getElementById('postEmojiPickerPopover');
+  if (!popover) return;
+
+  const isShown = popover.style.display === 'grid';
+  if (isShown) {
+    popover.style.display = 'none';
+  } else {
+    popover.innerHTML = '';
+    EMOJI_LIST.forEach(emoji => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'emoji-btn-opt';
+      btn.innerText = emoji;
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const contentInput = document.getElementById('communityContentInput');
+        if (contentInput) {
+          contentInput.value += emoji;
+          contentInput.focus();
+        }
+        popover.style.display = 'none';
+      };
+      popover.appendChild(btn);
+    });
+    popover.style.display = 'grid';
+  }
+};
+
+document.addEventListener('click', (e) => {
+  const popover = document.getElementById('postEmojiPickerPopover');
+  if (popover && popover.style.display === 'grid') {
+    if (!popover.contains(e.target)) {
+      popover.style.display = 'none';
+    }
+  }
+});
 
 window.handleCreateCommunityPost = async function(e) {
   e.preventDefault();
@@ -976,6 +1200,7 @@ window.handleCreateCommunityPost = async function(e) {
   const category = document.getElementById('communityCategorySelect').value;
   const title = document.getElementById('communityTitleInput').value.trim();
   const content = document.getElementById('communityContentInput').value.trim();
+  const image = document.getElementById('communityPostImageData').value;
   const rawTags = document.getElementById('communityTagsInput').value.trim();
 
   if (!title || !content) return;
@@ -991,6 +1216,7 @@ window.handleCreateCommunityPost = async function(e) {
     title,
     content,
     category,
+    image: image || null,
     tags,
     likes: 0,
     likedBy: [],
@@ -1005,6 +1231,7 @@ window.handleCreateCommunityPost = async function(e) {
 
   AudioFX.success();
   await addDoc(collection(db, "community_posts"), newPost);
+  removeCommunityPostImage();
   closeModal('communityPostModal');
 };
 
@@ -1034,6 +1261,50 @@ window.handleLikeCommunityPost = async function(postId) {
   }
 };
 
+window.handlePostMediaDoubleTap = function(postId, event) {
+  const container = event.currentTarget;
+  const heart = container.querySelector('.ig-heart-splash');
+  if (heart) {
+    heart.classList.add('active');
+    setTimeout(() => heart.classList.remove('active'), 600);
+  }
+  handleLikeCommunityPost(postId);
+};
+
+window.openPostLikesModal = function(postId) {
+  const post = communityPosts.find(p => p.id === postId);
+  if (!post) return;
+
+  const container = document.getElementById('postLikesListContainer');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const likedByIds = Array.isArray(post.likedBy) ? post.likedBy : [];
+  if (likedByIds.length === 0) {
+    container.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted); font-size:0.85rem;">ยังไม่มีผู้กดถูกใจโพสต์นี้</div>';
+  } else {
+    likedByIds.forEach(uid => {
+      const user = teamUsers.find(u => u.id === uid) || { id: uid, name: 'สมาชิก', avatar: '👤', role: 'สมาชิกทั่วไป' };
+      const row = document.createElement('div');
+      row.className = 'likes-user-row';
+      row.innerHTML = `
+        <div class="likes-user-left clickable-profile" onclick="closeModal('postLikesModal'); openUserProfile('${user.id}')">
+          <div class="member-avatar-wrapper">${renderAvatarHtml(user.avatar)}</div>
+          <div>
+            <div style="font-size:0.88rem; font-weight:700; color:#fff;">${escapeHtml(user.name)} ${isAdmin(user) ? '👑' : ''}</div>
+            <div style="font-size:0.72rem; color:var(--text-muted);">${escapeHtml(user.role || 'สมาชิก')}</div>
+          </div>
+        </div>
+        <button type="button" class="btn-dm-start" onclick="closeModal('postLikesModal'); startDirectChat('${user.id}')">💬 ทัก</button>
+      `;
+      container.appendChild(row);
+    });
+  }
+
+  AudioFX.click();
+  document.getElementById('postLikesModal').style.display = 'flex';
+};
+
 window.deleteCommunityPost = async function(postId) {
   const post = communityPosts.find(p => p.id === postId);
   if (!post) return;
@@ -1060,10 +1331,126 @@ window.openCommunityPostDetail = function(postId) {
   if (!post) return;
 
   activeDetailPostId = postId;
+  cancelCommentReply();
   AudioFX.click();
   renderCommunityDetailModal();
   document.getElementById('communityDetailModal').style.display = 'flex';
 };
+
+// ================= 3. VERTICAL COMMENTS & REPLIES THREAD =================
+function renderCommunityPosts() {
+  const feed = document.getElementById('communityPostsFeed');
+  if (!feed) return;
+  feed.innerHTML = '';
+
+  const currentUser = getCurrentUser();
+
+  const composerAvatar = document.getElementById('communityComposerAvatar');
+  const composerPlaceholder = document.getElementById('communityComposerPlaceholder');
+  if (composerAvatar && currentUser) {
+    composerAvatar.innerHTML = renderAvatarHtml(currentUser.avatar);
+  }
+  if (composerPlaceholder && currentUser) {
+    composerPlaceholder.innerText = `คุณกำลังคิดอะไรอยู่, ${currentUser.name}?`;
+  }
+
+  let filtered = [...communityPosts];
+
+  if (activeCommunityFilter !== 'all') filtered = filtered.filter(p => p.category === activeCommunityFilter);
+  if (communitySearchQuery.trim() !== '') {
+    const q = communitySearchQuery.toLowerCase();
+    filtered = filtered.filter(p => 
+      (p.title && p.title.toLowerCase().includes(q)) ||
+      (p.content && p.content.toLowerCase().includes(q)) ||
+      (p.authorName && p.authorName.toLowerCase().includes(q))
+    );
+  }
+
+  if (filtered.length === 0) {
+    feed.innerHTML = `<div style="text-align: center; padding: 46px 16px; color: var(--text-muted);"><div style="font-size: 2.8rem; margin-bottom: 8px;">💡</div><h4>ไม่พบโพสต์</h4></div>`;
+    return;
+  }
+
+  const categoryMap = {
+    idea: { text: '💡 Idea', class: 'tag-idea' },
+    discussion: { text: '💬 Chat', class: 'tag-discussion' },
+    art: { text: '🎨 Art', class: 'tag-art' },
+    qa: { text: '❓ Q&A', class: 'tag-qa' }
+  };
+
+  filtered.forEach(post => {
+    const catInfo = categoryMap[post.category] || categoryMap.idea;
+    const likedBy = Array.isArray(post.likedBy) ? post.likedBy : [];
+    const isLiked = currentUser && likedBy.includes(currentUser.id);
+    const canDelete = isAdmin(currentUser) || (currentUser && post.authorId === currentUser.id);
+    const commentsList = Array.isArray(post.comments) ? post.comments : [];
+
+    const card = document.createElement('div');
+    card.className = 'community-post-card';
+    card.innerHTML = `
+      <div class="ig-post-header">
+        <div class="ig-author-wrapper">
+          <div class="ig-avatar-ring clickable-profile" onclick="openUserProfile('${post.authorId}')">
+            <div class="ig-avatar-inner">${renderAvatarHtml(post.authorAvatar)}</div>
+          </div>
+          <div class="ig-author-meta">
+            <div class="ig-author-name clickable-profile" onclick="openUserProfile('${post.authorId}')">
+              ${escapeHtml(post.authorName)} ${post.authorRole === 'แอดมิน' ? '👑' : ''}
+            </div>
+            <span class="ig-post-time">${escapeHtml(post.time || '')}</span>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span class="post-category-tag ${catInfo.class}">${catInfo.text}</span>
+          ${canDelete ? `<button type="button" class="btn-delete-comment" onclick="deleteCommunityPost('${post.id}')">✕</button>` : ''}
+        </div>
+      </div>
+
+      ${post.image ? `
+        <div class="ig-post-media-container" ondblclick="handlePostMediaDoubleTap('${post.id}', event)" onclick="openLightboxImage('${post.image}')">
+          <div class="ig-heart-splash">❤️</div>
+          <img src="${post.image}" alt="Post Media">
+        </div>
+      ` : ''}
+
+      <div class="ig-post-body">
+        <h3 class="ig-post-title clickable-title" onclick="openCommunityPostDetail('${post.id}')">${escapeHtml(post.title)}</h3>
+        <p class="ig-post-caption">${escapeHtml(post.content)}</p>
+        <div class="ig-tags-container">
+          ${(post.tags || []).map(t => `<span class="ig-tag-chip">${escapeHtml(t)}</span>`).join('')}
+        </div>
+      </div>
+
+      <div class="ig-action-bar">
+        <div class="ig-action-left">
+          <button type="button" class="ig-btn-icon ${isLiked ? 'is-liked' : ''}" onclick="handleLikeCommunityPost('${post.id}')" title="ถูกใจ">
+            <span>${isLiked ? '❤️' : '🤍'}</span>
+          </button>
+          <button type="button" class="ig-btn-icon" onclick="openCommunityPostDetail('${post.id}')" title="ดูรายละเอียดและแสดงความคิดเห็น">
+            <span>💬</span>
+          </button>
+          ${(!currentUser || post.authorId !== currentUser.id) ? `
+            <button type="button" class="ig-btn-icon" onclick="startDirectChat('${post.authorId}')" title="ส่งข้อความส่วนตัว"><span>✈️</span></button>
+          ` : ''}
+        </div>
+        <div class="ig-likes-text clickable-profile" onclick="openPostLikesModal('${post.id}')" title="ดูว่าใครกดถูกใจบ้าง">
+          ถูกใจ ${post.likes || 0} คน ❯
+        </div>
+      </div>
+
+      ${commentsList.length > 0 ? `
+        <div class="ig-comment-preview-box">
+          <button type="button" class="btn-view-all-comments" onclick="openCommunityPostDetail('${post.id}')">
+            💬 ดูความคิดเห็นทั้งหมด (${commentsList.length} ข้อความ) ❯
+          </button>
+        </div>
+      ` : ''}
+    `;
+    feed.appendChild(card);
+  });
+
+  if (activeDetailPostId) renderCommunityDetailModal();
+}
 
 function renderCommunityDetailModal() {
   const post = communityPosts.find(p => p.id === activeDetailPostId);
@@ -1074,49 +1461,37 @@ function renderCommunityDetailModal() {
   const currentUser = getCurrentUser();
   const likedBy = Array.isArray(post.likedBy) ? post.likedBy : [];
   const isLiked = currentUser && likedBy.includes(currentUser.id);
-  const isAuthor = currentUser && post.authorId === currentUser.id;
-  const isPostAdmin = post.authorRole === 'แอดมิน' || (post.authorName && post.authorName.toLowerCase() === 'taiyoani');
-  const canDelete = isAdmin(currentUser) || isAuthor;
   const commentsList = Array.isArray(post.comments) ? post.comments : [];
 
-  const categoryMap = {
-    idea: { text: '💡 Idea', class: 'tag-idea' },
-    discussion: { text: '💬 Chat', class: 'tag-discussion' },
-    art: { text: '🎨 Art', class: 'tag-art' },
-    qa: { text: '❓ Q&A', class: 'tag-qa' }
-  };
-  const catInfo = categoryMap[post.category] || categoryMap.idea;
-
   if (catBox) {
-    catBox.innerHTML = `<span class="post-category-tag ${catInfo.class}">${catInfo.text}</span>`;
+    catBox.innerHTML = `<span class="post-category-tag tag-${post.category || 'idea'}">💡 ${escapeHtml(post.category || 'General')}</span>`;
   }
 
   container.innerHTML = `
     <div class="ig-post-header">
       <div class="ig-author-wrapper">
         <div class="ig-avatar-ring clickable-profile" onclick="closeModal('communityDetailModal'); openUserProfile('${post.authorId}')">
-          <div class="ig-avatar-inner">
-            ${renderAvatarHtml(post.authorAvatar)}
-          </div>
+          <div class="ig-avatar-inner">${renderAvatarHtml(post.authorAvatar)}</div>
         </div>
         <div class="ig-author-meta">
-          <div class="ig-author-name clickable-profile" onclick="openUserProfile('${post.authorId}')">
-            ${escapeHtml(post.authorName)} ${isPostAdmin ? '👑' : ''}
+          <div class="ig-author-name clickable-profile" onclick="closeModal('communityDetailModal'); openUserProfile('${post.authorId}')">
+            ${escapeHtml(post.authorName)} ${post.authorRole === 'แอดมิน' ? '👑' : ''}
           </div>
           <span class="ig-post-time">${escapeHtml(post.time || '')}</span>
         </div>
       </div>
-      ${canDelete ? `
-        <button type="button" class="btn-delete-comment" onclick="deleteCommunityPost('${post.id}')" title="ลบโพสต์" style="font-size: 0.85rem;">ลบโพสต์</button>
-      ` : ''}
     </div>
 
-    <div class="ig-post-body">
-      <h2 style="font-size: 1.25rem; font-weight: 700; color: #fff;">${escapeHtml(post.title)}</h2>
-      <p style="font-size: 0.92rem; color: #cbd5e1; line-height: 1.6; white-space: pre-wrap; margin-top: 6px;">${escapeHtml(post.content)}</p>
-      <div class="ig-tags-container" style="margin-top: 8px;">
-        ${(post.tags || []).map(t => `<span class="ig-tag-chip">${escapeHtml(t)}</span>`).join('')}
+    ${post.image ? `
+      <div class="ig-post-media-container" ondblclick="handlePostMediaDoubleTap('${post.id}', event)" onclick="openLightboxImage('${post.image}')">
+        <div class="ig-heart-splash">❤️</div>
+        <img src="${post.image}" alt="Post Media">
       </div>
+    ` : ''}
+
+    <div class="ig-post-body">
+      <h2 style="font-size: 1.15rem; font-weight: 700; color: #fff;">${escapeHtml(post.title)}</h2>
+      <p style="font-size: 0.9rem; color: #cbd5e1; line-height: 1.55; white-space: pre-wrap;">${escapeHtml(post.content)}</p>
     </div>
 
     <div class="ig-action-bar">
@@ -1124,41 +1499,93 @@ function renderCommunityDetailModal() {
         <button type="button" class="ig-btn-icon ${isLiked ? 'is-liked' : ''}" onclick="handleLikeCommunityPost('${post.id}')">
           <span>${isLiked ? '❤️' : '🤍'}</span>
         </button>
-        <span class="ig-likes-text">ถูกใจ ${post.likes || 0} คน</span>
+        <span class="ig-likes-text clickable-profile" onclick="openPostLikesModal('${post.id}')">ถูกใจ ${post.likes || 0} คน ❯</span>
       </div>
-      <span style="font-size: 0.8rem; color: var(--text-muted);">ทั้งหมด ${commentsList.length} ความคิดเห็น</span>
+      <span style="font-size: 0.8rem; color: var(--text-muted);">${commentsList.length} ความคิดเห็น</span>
     </div>
 
-    <div style="display: flex; direction: column; gap: 8px;">
-      <h4 style="font-size: 0.88rem; color: #94a3b8;">ความคิดเห็นทั้งหมด:</h4>
+    <div class="ig-comments-vertical-list">
+      <h4 style="font-size: 0.86rem; color: #94a3b8; margin-bottom: 4px;">💬 ความคิดเห็นทั้งหมด:</h4>
       ${commentsList.length === 0 ? `
-        <div style="font-size: 0.82rem; color: var(--text-muted); text-align: center; padding: 14px;">ยังไม่มีความคิดเห็นในโพสต์นี้</div>
+        <div style="font-size: 0.82rem; color: var(--text-muted); text-align: center; padding: 18px;">ยังไม่มีความคิดเห็น เป็นคนแรกที่ตอบกลับ!</div>
       ` : commentsList.map(c => {
           const isMine = currentUser && c.authorId === currentUser.id;
           const canDel = isAdmin(currentUser) || isMine;
+          const replies = Array.isArray(c.replies) ? c.replies : [];
           return `
-            <div class="ig-comment-row">
-              <div class="ig-comment-avatar clickable-profile" onclick="closeModal('communityDetailModal'); openUserProfile('${c.authorId}')">
-                ${renderAvatarHtml(c.authorAvatar)}
-              </div>
-              <div class="ig-comment-content">
-                <div>
-                  <span class="ig-comment-user clickable-profile" onclick="closeModal('communityDetailModal'); openUserProfile('${c.authorId}')">
-                    ${escapeHtml(c.authorName)}${c.authorRole === 'แอดมิน' ? ' 👑' : ''}
-                  </span>
-                  <span class="ig-comment-text">${escapeHtml(c.text)}</span>
+            <div class="ig-comment-block">
+              <div class="ig-comment-row">
+                <div class="ig-comment-avatar clickable-profile" onclick="closeModal('communityDetailModal'); openUserProfile('${c.authorId}')">
+                  ${renderAvatarHtml(c.authorAvatar)}
                 </div>
-                <div class="ig-comment-footer">
-                  <span>${escapeHtml(c.time || '')}</span>
-                  ${canDel ? `<button type="button" class="btn-delete-comment" onclick="handleDeleteComment('${post.id}', '${c.id}')">ลบ</button>` : ''}
+                <div class="ig-comment-content">
+                  <div>
+                    <span class="ig-comment-user clickable-profile" onclick="closeModal('communityDetailModal'); openUserProfile('${c.authorId}')">
+                      ${escapeHtml(c.authorName)}${c.authorRole === 'แอดมิน' ? ' 👑' : ''}
+                    </span>
+                    <span class="ig-comment-text">${escapeHtml(c.text)}</span>
+                  </div>
+                  <div class="ig-comment-footer">
+                    <span>${escapeHtml(c.time || '')}</span>
+                    <button type="button" class="btn-reply-trigger" onclick="setCommentReplyTarget('${c.id}', '${escapeHtml(c.authorName)}')">↩️ ตอบกลับ</button>
+                    ${canDel ? `<button type="button" class="btn-delete-comment" onclick="handleDeleteComment('${post.id}', '${c.id}')">ลบ</button>` : ''}
+                  </div>
                 </div>
               </div>
+
+              ${replies.length > 0 ? `
+                <div class="ig-reply-indent-wrapper">
+                  ${replies.map(r => {
+                    const isReplyMine = currentUser && r.authorId === currentUser.id;
+                    const canDelReply = isAdmin(currentUser) || isReplyMine;
+                    return `
+                      <div class="ig-comment-row">
+                        <div class="ig-comment-avatar" style="width:22px; height:22px;">${renderAvatarHtml(r.authorAvatar)}</div>
+                        <div class="ig-comment-content" style="background: rgba(255,255,255,0.04);">
+                          <div>
+                            <span class="ig-comment-user">${escapeHtml(r.authorName)}</span>
+                            <span class="ig-comment-text">${escapeHtml(r.text)}</span>
+                          </div>
+                          <div class="ig-comment-footer">
+                            <span>${escapeHtml(r.time || '')}</span>
+                            ${canDelReply ? `<button type="button" class="btn-delete-comment" onclick="handleDeleteReply('${post.id}', '${c.id}', '${r.id}')">ลบ</button>` : ''}
+                          </div>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              ` : ''}
             </div>
           `;
         }).join('')}
     </div>
   `;
 }
+
+window.setCommentReplyTarget = function(commentId, authorName) {
+  activeReplyTarget = { commentId, authorName };
+  const banner = document.getElementById('commentReplyBanner');
+  const targetText = document.getElementById('replyTargetText');
+  const input = document.getElementById('detailModalCommentInput');
+
+  if (banner && targetText) {
+    targetText.innerText = `กำลังตอบกลับ @${authorName}...`;
+    banner.style.display = 'flex';
+  }
+  if (input) {
+    input.placeholder = `ตอบกลับ @${authorName}...`;
+    input.focus();
+  }
+};
+
+window.cancelCommentReply = function() {
+  activeReplyTarget = null;
+  const banner = document.getElementById('commentReplyBanner');
+  const input = document.getElementById('detailModalCommentInput');
+  if (banner) banner.style.display = 'none';
+  if (input) input.placeholder = 'แสดงความคิดเห็น หรือ ตอบกลับ...';
+};
 
 window.handleModalAddComment = async function(event) {
   event.preventDefault();
@@ -1173,21 +1600,38 @@ window.handleModalAddComment = async function(event) {
   if (!post) return;
 
   const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const newComment = {
-    id: 'cm-' + Date.now(),
-    text: text,
-    authorId: currentUser.id,
-    authorName: currentUser.name,
-    authorAvatar: currentUser.avatar,
-    authorRole: isAdmin(currentUser) ? 'แอดมิน' : (currentUser.role || 'สมาชิกทั่วไป'),
-    time: nowStr
-  };
-
   const currentComments = Array.isArray(post.comments) ? [...post.comments] : [];
-  currentComments.push(newComment);
+
+  if (activeReplyTarget) {
+    const parentComment = currentComments.find(c => c.id === activeReplyTarget.commentId);
+    if (parentComment) {
+      if (!Array.isArray(parentComment.replies)) parentComment.replies = [];
+      parentComment.replies.push({
+        id: 'rep-' + Date.now(),
+        text: text,
+        authorId: currentUser.id,
+        authorName: currentUser.name,
+        authorAvatar: currentUser.avatar,
+        authorRole: isAdmin(currentUser) ? 'แอดมิน' : (currentUser.role || 'สมาชิกทั่วไป'),
+        time: nowStr
+      });
+    }
+  } else {
+    currentComments.push({
+      id: 'cm-' + Date.now(),
+      text: text,
+      authorId: currentUser.id,
+      authorName: currentUser.name,
+      authorAvatar: currentUser.avatar,
+      authorRole: isAdmin(currentUser) ? 'แอดมิน' : (currentUser.role || 'สมาชิกทั่วไป'),
+      time: nowStr,
+      replies: []
+    });
+  }
 
   AudioFX.sendChat();
   inputEl.value = '';
+  cancelCommentReply();
 
   await updateDoc(doc(db, "community_posts", activeDetailPostId), {
     comments: currentComments
@@ -1218,135 +1662,23 @@ window.handleDeleteComment = async function(postId, commentId) {
   }
 };
 
-function renderCommunityPosts() {
-  const feed = document.getElementById('communityPostsFeed');
-  if (!feed) return;
-  feed.innerHTML = '';
+window.handleDeleteReply = async function(postId, commentId, replyId) {
+  const post = communityPosts.find(p => p.id === postId);
+  if (!post || !Array.isArray(post.comments)) return;
 
-  const currentUser = getCurrentUser();
-  let filtered = [...communityPosts];
+  const comment = post.comments.find(c => c.id === commentId);
+  if (!comment || !Array.isArray(comment.replies)) return;
 
-  if (activeCommunityFilter !== 'all') {
-    filtered = filtered.filter(p => p.category === activeCommunityFilter);
+  if (confirm('คุณต้องการลบข้อความตอบกลับนี้ใช่หรือไม่?')) {
+    AudioFX.delete();
+    comment.replies = comment.replies.filter(r => r.id !== replyId);
+    await updateDoc(doc(db, "community_posts", postId), {
+      comments: post.comments
+    });
   }
+};
 
-  if (communitySearchQuery.trim() !== '') {
-    const queryLower = communitySearchQuery.toLowerCase();
-    filtered = filtered.filter(p => 
-      (p.title && p.title.toLowerCase().includes(queryLower)) ||
-      (p.content && p.content.toLowerCase().includes(queryLower)) ||
-      (p.authorName && p.authorName.toLowerCase().includes(queryLower)) ||
-      (p.tags && p.tags.some(t => t.toLowerCase().includes(queryLower)))
-    );
-  }
-
-  if (filtered.length === 0) {
-    feed.innerHTML = `
-      <div style="text-align: center; padding: 46px 16px; color: var(--text-muted);">
-        <div style="font-size: 2.8rem; margin-bottom: 8px;">💡</div>
-        <h4 style="color: #ffffff; font-size: 1.05rem;">ยังไม่มีกระทู้ตามเงื่อนไขที่ค้นหา</h4>
-        <p style="font-size: 0.82rem; margin-top: 4px;">ลองเปลี่ยนคำค้นหา หรือคลิกปุ่ม "✨ ตั้งกระทู้" ด้านบนเพื่อเริ่มแลกเปลี่ยนไอเดีย!</p>
-      </div>
-    `;
-    return;
-  }
-
-  const categoryMap = {
-    idea: { text: '💡 Idea', class: 'tag-idea' },
-    discussion: { text: '💬 Chat', class: 'tag-discussion' },
-    art: { text: '🎨 Art', class: 'tag-art' },
-    qa: { text: '❓ Q&A', class: 'tag-qa' }
-  };
-
-  filtered.forEach(post => {
-    const catInfo = categoryMap[post.category] || categoryMap.idea;
-    const likedBy = Array.isArray(post.likedBy) ? post.likedBy : [];
-    const isLiked = currentUser && likedBy.includes(currentUser.id);
-    const isAuthor = currentUser && post.authorId === currentUser.id;
-    const isPostAdmin = post.authorRole === 'แอดมิน' || (post.authorName && post.authorName.toLowerCase() === 'taiyoani');
-    const canDelete = isAdmin(currentUser) || isAuthor;
-    const commentsList = Array.isArray(post.comments) ? post.comments : [];
-    
-    const previewComments = commentsList.slice(0, 3);
-    const hasMoreComments = commentsList.length > 3;
-
-    const card = document.createElement('div');
-    card.className = 'community-post-card';
-    card.innerHTML = `
-      <div class="ig-post-header">
-        <div class="ig-author-wrapper">
-          <div class="ig-avatar-ring clickable-profile" onclick="openUserProfile('${post.authorId}')" title="ดูโปรไฟล์">
-            <div class="ig-avatar-inner">
-              ${renderAvatarHtml(post.authorAvatar)}
-            </div>
-          </div>
-          <div class="ig-author-meta">
-            <div class="ig-author-name clickable-profile" onclick="openUserProfile('${post.authorId}')">
-              ${escapeHtml(post.authorName)} ${isPostAdmin ? '👑' : ''}
-            </div>
-            <span class="ig-post-time">${escapeHtml(post.time || '')}</span>
-          </div>
-        </div>
-
-        <div style="display: flex; align-items: center; gap: 6px;">
-          <span class="post-category-tag ${catInfo.class}">${catInfo.text}</span>
-          ${canDelete ? `
-            <button type="button" class="btn-delete-comment" onclick="deleteCommunityPost('${post.id}')" title="ลบโพสต์" style="font-size: 0.9rem; padding: 2px 4px;">✕</button>
-          ` : ''}
-        </div>
-      </div>
-
-      <div class="ig-post-body">
-        <h3 class="ig-post-title clickable-title" onclick="openCommunityPostDetail('${post.id}')" title="คลิกเพื่อดูรายละเอียดโพสต์แบบเต็ม">${escapeHtml(post.title)}</h3>
-        <p class="ig-post-caption">${escapeHtml(post.content)}</p>
-        <div class="ig-tags-container">
-          ${(post.tags || []).map(t => `<span class="ig-tag-chip">${escapeHtml(t)}</span>`).join('')}
-        </div>
-      </div>
-
-      <div class="ig-action-bar">
-        <div class="ig-action-left">
-          <button type="button" class="ig-btn-icon ${isLiked ? 'is-liked' : ''}" onclick="handleLikeCommunityPost('${post.id}')" title="ถูกใจ">
-            <span>${isLiked ? '❤️' : '🤍'}</span>
-          </button>
-          <button type="button" class="ig-btn-icon" onclick="openCommunityPostDetail('${post.id}')" title="ดูรายละเอียดและแสดงความคิดเห็น">
-            <span>💬</span>
-          </button>
-          ${!isAuthor ? `
-            <button type="button" class="btn-icon" onclick="startDirectChat('${post.authorId}')" title="ส่งข้อความส่วนตัว (DM)">
-              <span>✈️</span>
-            </button>
-          ` : ''}
-        </div>
-        <div class="ig-likes-text">
-          ถูกใจ ${post.likes || 0} คน
-        </div>
-      </div>
-
-      ${commentsList.length > 0 ? `
-        <div class="ig-comment-preview-box">
-          ${previewComments.map(c => `
-            <div class="ig-preview-comment-item">
-              <span class="ig-preview-user" onclick="openUserProfile('${c.authorId}')">${escapeHtml(c.authorName)}:</span>
-              <span class="ig-preview-text">${escapeHtml(c.text)}</span>
-            </div>
-          `).join('')}
-          
-          <button type="button" class="btn-view-all-comments" onclick="openCommunityPostDetail('${post.id}')">
-            ${hasMoreComments ? `💬 ดูความคิดเห็นทั้งหมด (${commentsList.length} ข้อความ) ❯` : `🔍 ดูรายละเอียดโพสต์แบบเต็ม ❯`}
-          </button>
-        </div>
-      ` : ''}
-    `;
-    feed.appendChild(card);
-  });
-
-  if (activeDetailPostId) {
-    renderCommunityDetailModal();
-  }
-}
-
-// ================= DISCORD-STYLE CHANNELS & GROUPS =================
+// ================= 4. DISCORD-STYLE CHANNELS & GROUPS =================
 window.toggleDiscordSidebar = function() {
   AudioFX.click();
   const sidebar = document.getElementById('discordSidebar');
@@ -1613,7 +1945,276 @@ window.handleDeleteCurrentGroup = async function() {
   }
 };
 
-// ================= 1-ON-1 VOICE CALL SYSTEM (เฉพาะแชทส่วนตัว DM) =================
+// ================= 5. REAL-TIME MULTI-USER WebRTC MESH GROUP VOICE ROOM =================
+window.toggleVoiceRoom = async function() {
+  AudioFX.click();
+  const currentUser = getCurrentUser();
+  const roomId = getVoiceRoomId();
+  if (!currentUser || !roomId) return;
+
+  if (isUserInVoiceRoom) {
+    await leaveVoiceRoom();
+  } else {
+    await joinVoiceRoom(roomId, currentUser);
+  }
+};
+
+async function joinVoiceRoom(roomId, user) {
+  try {
+    const selectedMicId = localStorage.getItem('taiyoani_audio_input_id') || '';
+    const audioConstraints = selectedMicId ? { deviceId: { exact: selectedMicId } } : true;
+    localVoiceStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false });
+
+    isUserInVoiceRoom = true;
+    activeVoiceRoomId = roomId;
+
+    await setDoc(doc(db, "voice_rooms", roomId, "participants", user.id), {
+      userId: user.id,
+      name: user.name,
+      avatar: user.avatar,
+      joinedAt: Date.now()
+    });
+
+    updateVoiceRoomButtonUI(true);
+    triggerHardwareAlert("🔊 เข้าร่วมห้องเสียงแล้ว", `คุณกำลังอยู่ในช่องสนทนาเสียงของกลุ่ม`, user.avatar);
+
+    listenVoiceRoomSignals(roomId, user.id);
+
+  } catch (err) {
+    console.error("Join Voice Room Error:", err);
+    alert("ไม่สามารถเข้าถึงไมโครโฟนได้ กรุณาตรวจสอบและอนุญาตการใช้งานไมค์");
+  }
+}
+
+async function leaveVoiceRoom() {
+  const currentUser = getCurrentUser();
+  if (activeVoiceRoomId && currentUser) {
+    try {
+      await deleteDoc(doc(db, "voice_rooms", activeVoiceRoomId, "participants", currentUser.id));
+    } catch (e) {}
+  }
+
+  if (voiceRoomSignalsUnsubscribe) {
+    voiceRoomSignalsUnsubscribe();
+    voiceRoomSignalsUnsubscribe = null;
+  }
+
+  Object.keys(voiceRoomPeers).forEach(peerId => {
+    try {
+      voiceRoomPeers[peerId].close();
+    } catch(e) {}
+    removeRemoteGroupAudio(peerId);
+  });
+  voiceRoomPeers = {};
+
+  if (localVoiceStream && !isVoiceCallActive) {
+    localVoiceStream.getTracks().forEach(t => t.stop());
+    localVoiceStream = null;
+  }
+
+  isUserInVoiceRoom = false;
+  activeVoiceRoomId = null;
+  updateVoiceRoomButtonUI(false);
+}
+
+function updateVoiceRoomButtonUI(inRoom) {
+  const btn = document.getElementById('btnToggleVoiceRoom');
+  const icon = document.getElementById('voiceRoomBtnIcon');
+  const text = document.getElementById('voiceRoomBtnText');
+  if (!btn) return;
+
+  btn.classList.toggle('in-room', inRoom);
+  if (icon) icon.innerText = inRoom ? '🔴' : '🎧';
+  if (text) text.innerText = inRoom ? 'ออกจากห้องเสียง' : 'เข้าร่วมเสียง';
+}
+
+function listenVoiceRoomParticipants(roomId) {
+  if (voiceRoomParticipantsUnsubscribe) {
+    voiceRoomParticipantsUnsubscribe();
+    voiceRoomParticipantsUnsubscribe = null;
+  }
+
+  const bar = document.getElementById('voiceRoomParticipantsBar');
+  if (!bar) return;
+  bar.innerHTML = '';
+
+  if (!roomId) {
+    bar.style.display = 'none';
+    return;
+  }
+  bar.style.display = 'flex';
+
+  voiceRoomParticipantsUnsubscribe = onSnapshot(collection(db, "voice_rooms", roomId, "participants"), async (snap) => {
+    bar.innerHTML = '';
+    const activeParticipants = [];
+
+    snap.forEach((d) => {
+      const p = d.data();
+      activeParticipants.push(p);
+
+      const chip = document.createElement('div');
+      chip.className = 'voice-participant-chip';
+      chip.title = `${p.name} (กำลังอยู่ในห้องเสียง)`;
+      chip.innerHTML = renderAvatarHtml(p.avatar);
+      bar.appendChild(chip);
+    });
+
+    if (isUserInVoiceRoom && activeVoiceRoomId === roomId && currentUserId) {
+      const otherParticipants = activeParticipants.filter(p => p.userId !== currentUserId);
+
+      for (const peer of otherParticipants) {
+        if (currentUserId < peer.userId && !voiceRoomPeers[peer.userId]) {
+          const pc = createVoiceRoomPeerConnection(peer.userId, roomId);
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+
+          await addDoc(collection(db, "voice_rooms", roomId, "signals"), {
+            senderId: currentUserId,
+            receiverId: peer.userId,
+            type: 'offer',
+            data: { type: offer.type, sdp: offer.sdp },
+            timestamp: Date.now()
+          });
+        }
+      }
+
+      const currentActiveIds = otherParticipants.map(p => p.userId);
+      Object.keys(voiceRoomPeers).forEach(peerId => {
+        if (!currentActiveIds.includes(peerId)) {
+          try { voiceRoomPeers[peerId].close(); } catch(e){}
+          delete voiceRoomPeers[peerId];
+          removeRemoteGroupAudio(peerId);
+        }
+      });
+    }
+  });
+}
+
+function listenVoiceRoomSignals(roomId, myUserId) {
+  if (voiceRoomSignalsUnsubscribe) {
+    voiceRoomSignalsUnsubscribe();
+    voiceRoomSignalsUnsubscribe = null;
+  }
+
+  const signalsQuery = collection(db, "voice_rooms", roomId, "signals");
+  voiceRoomSignalsUnsubscribe = onSnapshot(signalsQuery, async (snap) => {
+    for (const change of snap.docChanges()) {
+      if (change.type === 'added') {
+        const signal = change.doc.data();
+        if (signal.receiverId === myUserId) {
+          await handleIncomingGroupSignal(signal, roomId);
+          try { await deleteDoc(change.doc.ref); } catch(e){}
+        }
+      }
+    }
+  });
+}
+
+async function handleIncomingGroupSignal(signal, roomId) {
+  const peerId = signal.senderId;
+
+  if (signal.type === 'offer') {
+    const pc = createVoiceRoomPeerConnection(peerId, roomId);
+    await pc.setRemoteDescription(new RTCSessionDescription(signal.data));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    await addDoc(collection(db, "voice_rooms", roomId, "signals"), {
+      senderId: currentUserId,
+      receiverId: peerId,
+      type: 'answer',
+      data: { type: answer.type, sdp: answer.sdp },
+      timestamp: Date.now()
+    });
+  } else if (signal.type === 'answer') {
+    const pc = voiceRoomPeers[peerId];
+    if (pc && !pc.currentRemoteDescription) {
+      await pc.setRemoteDescription(new RTCSessionDescription(signal.data));
+    }
+  } else if (signal.type === 'candidate') {
+    const pc = voiceRoomPeers[peerId];
+    if (pc && signal.data) {
+      await pc.addIceCandidate(new RTCIceCandidate(signal.data));
+    }
+  }
+}
+
+function createVoiceRoomPeerConnection(peerId, roomId) {
+  if (voiceRoomPeers[peerId]) {
+    try { voiceRoomPeers[peerId].close(); } catch(e){}
+  }
+
+  const pc = new RTCPeerConnection(RTC_CONFIG);
+  voiceRoomPeers[peerId] = pc;
+
+  if (localVoiceStream) {
+    localVoiceStream.getTracks().forEach(track => {
+      pc.addTrack(track, localVoiceStream);
+    });
+  }
+
+  pc.onicecandidate = (event) => {
+    if (event.candidate) {
+      addDoc(collection(db, "voice_rooms", roomId, "signals"), {
+        senderId: currentUserId,
+        receiverId: peerId,
+        type: 'candidate',
+        data: event.candidate.toJSON(),
+        timestamp: Date.now()
+      }).catch(()=>{});
+    }
+  };
+
+  pc.ontrack = (event) => {
+    if (event.streams && event.streams[0]) {
+      playRemoteGroupAudio(peerId, event.streams[0]);
+    }
+  };
+
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+      removeRemoteGroupAudio(peerId);
+    }
+  };
+
+  return pc;
+}
+
+function playRemoteGroupAudio(peerId, stream) {
+  let container = document.getElementById('groupVoiceAudioContainer');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'groupVoiceAudioContainer';
+    container.style.display = 'none';
+    document.body.appendChild(container);
+  }
+
+  let audioEl = document.getElementById(`audio-peer-${peerId}`);
+  if (!audioEl) {
+    audioEl = document.createElement('audio');
+    audioEl.id = `audio-peer-${peerId}`;
+    audioEl.autoplay = true;
+    audioEl.playsInline = true;
+    container.appendChild(audioEl);
+  }
+
+  audioEl.srcObject = stream;
+  const selectedSpeakerId = localStorage.getItem('taiyoani_audio_output_id');
+  if (selectedSpeakerId && typeof audioEl.setSinkId === 'function') {
+    audioEl.setSinkId(selectedSpeakerId).catch(() => {});
+  }
+  audioEl.play().catch(() => {});
+}
+
+function removeRemoteGroupAudio(peerId) {
+  const audioEl = document.getElementById(`audio-peer-${peerId}`);
+  if (audioEl) {
+    audioEl.srcObject = null;
+    audioEl.remove();
+  }
+}
+
+// ================= 6. 1-ON-1 VOICE CALL SYSTEM =================
 function startIncomingCallListener() {
   if (!currentUserId) return;
   
@@ -1897,282 +2498,7 @@ window.toggleVoiceMute = function() {
   }
 };
 
-// ================= REAL-TIME MULTI-USER WebRTC MESH GROUP VOICE ROOM =================
-window.toggleVoiceRoom = async function() {
-  AudioFX.click();
-  const currentUser = getCurrentUser();
-  const roomId = getVoiceRoomId();
-  if (!currentUser || !roomId) return;
-
-  if (isUserInVoiceRoom) {
-    await leaveVoiceRoom();
-  } else {
-    await joinVoiceRoom(roomId, currentUser);
-  }
-};
-
-async function joinVoiceRoom(roomId, user) {
-  try {
-    const selectedMicId = localStorage.getItem('taiyoani_audio_input_id') || '';
-    const audioConstraints = selectedMicId ? { deviceId: { exact: selectedMicId } } : true;
-    localVoiceStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false });
-
-    isUserInVoiceRoom = true;
-    activeVoiceRoomId = roomId;
-
-    // 1. บันทึกตนเองลงในห้องเสียง Firestore
-    await setDoc(doc(db, "voice_rooms", roomId, "participants", user.id), {
-      userId: user.id,
-      name: user.name,
-      avatar: user.avatar,
-      joinedAt: Date.now()
-    });
-
-    updateVoiceRoomButtonUI(true);
-    triggerHardwareAlert("🔊 เข้าร่วมห้องเสียงแล้ว", `คุณกำลังอยู่ในช่องสนทนาเสียงของกลุ่ม`, user.avatar);
-
-    // 2. ฟังสัญญาณ WebRTC Signals จากเพื่อนร่วมห้อง
-    listenVoiceRoomSignals(roomId, user.id);
-
-  } catch (err) {
-    console.error("Join Voice Room Error:", err);
-    alert("ไม่สามารถเข้าถึงไมโครโฟนได้ กรุณาตรวจสอบและอนุญาตการใช้งานไมค์");
-  }
-}
-
-async function leaveVoiceRoom() {
-  const currentUser = getCurrentUser();
-  if (activeVoiceRoomId && currentUser) {
-    try {
-      await deleteDoc(doc(db, "voice_rooms", activeVoiceRoomId, "participants", currentUser.id));
-    } catch (e) {}
-  }
-
-  if (voiceRoomSignalsUnsubscribe) {
-    voiceRoomSignalsUnsubscribe();
-    voiceRoomSignalsUnsubscribe = null;
-  }
-
-  // ปิด Peer Connections ทั้งหมด
-  Object.keys(voiceRoomPeers).forEach(peerId => {
-    try {
-      voiceRoomPeers[peerId].close();
-    } catch(e) {}
-    removeRemoteGroupAudio(peerId);
-  });
-  voiceRoomPeers = {};
-
-  if (localVoiceStream && !isVoiceCallActive) {
-    localVoiceStream.getTracks().forEach(t => t.stop());
-    localVoiceStream = null;
-  }
-
-  isUserInVoiceRoom = false;
-  activeVoiceRoomId = null;
-  updateVoiceRoomButtonUI(false);
-}
-
-function updateVoiceRoomButtonUI(inRoom) {
-  const btn = document.getElementById('btnToggleVoiceRoom');
-  const icon = document.getElementById('voiceRoomBtnIcon');
-  const text = document.getElementById('voiceRoomBtnText');
-  if (!btn) return;
-
-  btn.classList.toggle('in-room', inRoom);
-  if (icon) icon.innerText = inRoom ? '🔴' : '🎧';
-  if (text) text.innerText = inRoom ? 'ออกจากห้องเสียง' : 'เข้าร่วมเสียง';
-}
-
-function listenVoiceRoomParticipants(roomId) {
-  if (voiceRoomParticipantsUnsubscribe) {
-    voiceRoomParticipantsUnsubscribe();
-    voiceRoomParticipantsUnsubscribe = null;
-  }
-
-  const bar = document.getElementById('voiceRoomParticipantsBar');
-  if (!bar) return;
-  bar.innerHTML = '';
-
-  if (!roomId) {
-    bar.style.display = 'none';
-    return;
-  }
-  bar.style.display = 'flex';
-
-  voiceRoomParticipantsUnsubscribe = onSnapshot(collection(db, "voice_rooms", roomId, "participants"), async (snap) => {
-    bar.innerHTML = '';
-    const activeParticipants = [];
-
-    snap.forEach((d) => {
-      const p = d.data();
-      activeParticipants.push(p);
-
-      const chip = document.createElement('div');
-      chip.className = 'voice-participant-chip';
-      chip.title = `${p.name} (กำลังอยู่ในห้องเสียง)`;
-      chip.innerHTML = renderAvatarHtml(p.avatar);
-      bar.appendChild(chip);
-    });
-
-    // หากเรากำลังอยู่ในห้องเสียง -> เริ่มต้นเชื่อมต่อ WebRTC Mesh กับสมาชิกทุกคน
-    if (isUserInVoiceRoom && activeVoiceRoomId === roomId && currentUserId) {
-      const otherParticipants = activeParticipants.filter(p => p.userId !== currentUserId);
-
-      // สร้าง Offer สำหรับสมาชิกที่ไอดีตามเงื่อนไข (เพื่อหลีกเลี่ยง Offer ชนกัน)
-      for (const peer of otherParticipants) {
-        if (currentUserId < peer.userId && !voiceRoomPeers[peer.userId]) {
-          const pc = createVoiceRoomPeerConnection(peer.userId, roomId);
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-
-          await addDoc(collection(db, "voice_rooms", roomId, "signals"), {
-            senderId: currentUserId,
-            receiverId: peer.userId,
-            type: 'offer',
-            data: { type: offer.type, sdp: offer.sdp },
-            timestamp: Date.now()
-          });
-        }
-      }
-
-      // ปิดเสียงของคนที่ออกจากห้องไปแล้ว
-      const currentActiveIds = otherParticipants.map(p => p.userId);
-      Object.keys(voiceRoomPeers).forEach(peerId => {
-        if (!currentActiveIds.includes(peerId)) {
-          try { voiceRoomPeers[peerId].close(); } catch(e){}
-          delete voiceRoomPeers[peerId];
-          removeRemoteGroupAudio(peerId);
-        }
-      });
-    }
-  });
-}
-
-function listenVoiceRoomSignals(roomId, myUserId) {
-  if (voiceRoomSignalsUnsubscribe) {
-    voiceRoomSignalsUnsubscribe();
-    voiceRoomSignalsUnsubscribe = null;
-  }
-
-  const signalsQuery = collection(db, "voice_rooms", roomId, "signals");
-  voiceRoomSignalsUnsubscribe = onSnapshot(signalsQuery, async (snap) => {
-    for (const change of snap.docChanges()) {
-      if (change.type === 'added') {
-        const signal = change.doc.data();
-        if (signal.receiverId === myUserId) {
-          await handleIncomingGroupSignal(signal, roomId);
-          try { await deleteDoc(change.doc.ref); } catch(e){}
-        }
-      }
-    }
-  });
-}
-
-async function handleIncomingGroupSignal(signal, roomId) {
-  const peerId = signal.senderId;
-
-  if (signal.type === 'offer') {
-    const pc = createVoiceRoomPeerConnection(peerId, roomId);
-    await pc.setRemoteDescription(new RTCSessionDescription(signal.data));
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-
-    await addDoc(collection(db, "voice_rooms", roomId, "signals"), {
-      senderId: currentUserId,
-      receiverId: peerId,
-      type: 'answer',
-      data: { type: answer.type, sdp: answer.sdp },
-      timestamp: Date.now()
-    });
-  } else if (signal.type === 'answer') {
-    const pc = voiceRoomPeers[peerId];
-    if (pc && !pc.currentRemoteDescription) {
-      await pc.setRemoteDescription(new RTCSessionDescription(signal.data));
-    }
-  } else if (signal.type === 'candidate') {
-    const pc = voiceRoomPeers[peerId];
-    if (pc && signal.data) {
-      await pc.addIceCandidate(new RTCIceCandidate(signal.data));
-    }
-  }
-}
-
-function createVoiceRoomPeerConnection(peerId, roomId) {
-  if (voiceRoomPeers[peerId]) {
-    try { voiceRoomPeers[peerId].close(); } catch(e){}
-  }
-
-  const pc = new RTCPeerConnection(RTC_CONFIG);
-  voiceRoomPeers[peerId] = pc;
-
-  if (localVoiceStream) {
-    localVoiceStream.getTracks().forEach(track => {
-      pc.addTrack(track, localVoiceStream);
-    });
-  }
-
-  pc.onicecandidate = (event) => {
-    if (event.candidate) {
-      addDoc(collection(db, "voice_rooms", roomId, "signals"), {
-        senderId: currentUserId,
-        receiverId: peerId,
-        type: 'candidate',
-        data: event.candidate.toJSON(),
-        timestamp: Date.now()
-      }).catch(()=>{});
-    }
-  };
-
-  pc.ontrack = (event) => {
-    if (event.streams && event.streams[0]) {
-      playRemoteGroupAudio(peerId, event.streams[0]);
-    }
-  };
-
-  pc.onconnectionstatechange = () => {
-    if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-      removeRemoteGroupAudio(peerId);
-    }
-  };
-
-  return pc;
-}
-
-function playRemoteGroupAudio(peerId, stream) {
-  let container = document.getElementById('groupVoiceAudioContainer');
-  if (!container) {
-    container = document.createElement('div');
-    container.id = 'groupVoiceAudioContainer';
-    container.style.display = 'none';
-    document.body.appendChild(container);
-  }
-
-  let audioEl = document.getElementById(`audio-peer-${peerId}`);
-  if (!audioEl) {
-    audioEl = document.createElement('audio');
-    audioEl.id = `audio-peer-${peerId}`;
-    audioEl.autoplay = true;
-    audioEl.playsInline = true;
-    container.appendChild(audioEl);
-  }
-
-  audioEl.srcObject = stream;
-  const selectedSpeakerId = localStorage.getItem('taiyoani_audio_output_id');
-  if (selectedSpeakerId && typeof audioEl.setSinkId === 'function') {
-    audioEl.setSinkId(selectedSpeakerId).catch(() => {});
-  }
-  audioEl.play().catch(() => {});
-}
-
-function removeRemoteGroupAudio(peerId) {
-  const audioEl = document.getElementById(`audio-peer-${peerId}`);
-  if (audioEl) {
-    audioEl.srcObject = null;
-    audioEl.remove();
-  }
-}
-
-// ================= MESSAGE SEND & UNSEND =================
+// ================= 7. MESSAGE SEND & UNSEND =================
 window.handleSendChatMessage = async function(e) {
   e.preventDefault();
   const input = document.getElementById('chatTextInput');
@@ -2260,8 +2586,7 @@ function renderChatMessages() {
   if (activeChatMode === 'group') msgsToRender = groupChatMessages;
 
   if (msgsToRender.length === 0) {
-    let emptyNotice = '💬 ยังไม่มีข้อความในห้องนี้';
-    body.innerHTML = `<div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 40px;">${emptyNotice}</div>`;
+    body.innerHTML = `<div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 40px;">💬 ยังไม่มีข้อความในห้องนี้</div>`;
     return;
   }
 
@@ -2301,13 +2626,11 @@ function renderChatMessages() {
 function scrollChatToBottom() {
   const body = document.getElementById('chatMessagesBody');
   if (body) {
-    setTimeout(() => { 
-      body.scrollTop = body.scrollHeight; 
-    }, 60);
+    setTimeout(() => { body.scrollTop = body.scrollHeight; }, 60);
   }
 }
 
-// ================= AUDIO HARDWARE & SETTINGS =================
+// ================= 8. AUDIO HARDWARE & SETTINGS =================
 window.openSettingsModal = async function() {
   AudioFX.click();
   document.getElementById('settingsModal').style.display = 'flex';
@@ -2377,13 +2700,11 @@ window.handleAudioDeviceChange = function() {
     const speakerId = outputSelect.value;
     localStorage.setItem('taiyoani_audio_output_id', speakerId);
     
-    // อัปเดตลำโพงสำหรับสาย 1-on-1
     const remoteAudio = document.getElementById('remoteVoiceAudio');
     if (remoteAudio && typeof remoteAudio.setSinkId === 'function') {
       remoteAudio.setSinkId(speakerId).catch(() => {});
     }
 
-    // อัปเดตลำโพงสำหรับทุกเสียงในห้องเสียงกลุ่ม
     document.querySelectorAll('#groupVoiceAudioContainer audio').forEach(a => {
       if (typeof a.setSinkId === 'function') {
         a.setSinkId(speakerId).catch(() => {});
@@ -2428,7 +2749,7 @@ async function startMicTest() {
 
     isMicTesting = true;
     if (btn) btn.innerText = '⏹️ หยุดทดสอบ';
-    if (statusText) statusText.innerText = '🟢 ไมค์กำลังทำงาน: ลองพูดเพื่อดูความดังของเสียง';
+    if (statusText) statusText.innerText = '🟢 ไมค์กำลังทำงาน: ลองพูดเพื่อดูระดับเสียง';
 
     function drawMeter() {
       if (!isMicTesting) return;
@@ -2447,7 +2768,7 @@ async function startMicTest() {
     drawMeter();
   } catch (err) {
     console.error("Mic test error:", err);
-    alert("ไม่สามารถเข้าถึงไมโครโฟนได้ กรุณาตรวจสอบการอนุญาตใช้งานไมค์ในเบราว์เซอร์");
+    alert("ไม่สามารถเข้าถึงไมโครโฟนได้ กรุณาอนุญาตใช้งานไมค์ในเบราว์เซอร์");
     stopMicTest();
   }
 }
@@ -2495,7 +2816,7 @@ window.testSpeakerSound = function() {
   osc.stop(now + 0.6);
 };
 
-// ================= ADMIN ROLE MANAGEMENT SYSTEM =================
+// ================= 9. ADMIN ROLE MANAGEMENT SYSTEM =================
 window.openAdminRoleModal = function(userId) {
   if (!isAdmin()) {
     AudioFX.delete();
@@ -2542,11 +2863,10 @@ window.handleSaveUserRoleSubmit = async function(e) {
   const targetUserId = document.getElementById('adminTargetUserId').value;
   const selectedRank = document.getElementById('adminRoleSelect').value;
   const customRole = document.getElementById('adminRoleCustomInput').value.trim();
-
   const finalRole = customRole || (selectedRank === 'ทีมงาน' ? 'ทีมงาน' : 'สมาชิกทั่วไป');
 
   closeModal('adminRoleModal');
-  showSaveLoadingModal("กำลังบันทึกการเปลี่ยนยศ...", "กรุณารอสักครู่ ระบบกำลังอัปเดตข้อมูลขึ้นระบบคลาวด์");
+  showSaveLoadingModal("กำลังบันทึกการเปลี่ยนยศ...", "ระบบกำลังอัปเดตข้อมูลขึ้นระบบคลาวด์");
   setSaveProgress(40);
 
   try {
@@ -2573,7 +2893,7 @@ window.handleSaveUserRoleSubmit = async function(e) {
   }
 };
 
-// ================= VIEW PROFILE & BIO SYSTEM =================
+// ================= 10. VIEW PROFILE & BIO SYSTEM =================
 window.openUserProfile = function(userId) {
   const user = teamUsers.find(u => u.id === userId);
   if (!user) return;
@@ -2637,7 +2957,7 @@ window.openCurrentUserProfile = function() {
   }
 };
 
-// ================= CHAT EMOJI & IMAGE ATTACHMENT =================
+// ================= 11. CHAT EMOJI & LIGHTBOX =================
 function renderChatEmojiPicker() {
   const container = document.getElementById('chatEmojiPickerPopover');
   if (!container) return;
@@ -2671,7 +2991,7 @@ document.addEventListener('click', (e) => {
   const picker = document.getElementById('chatEmojiPickerPopover');
   const btn = document.getElementById('btnChatEmojiToggle');
   if (picker && picker.style.display === 'grid') {
-    if (!picker.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+    if (!picker.contains(e.target)) {
       picker.style.display = 'none';
     }
   }
@@ -2740,7 +3060,7 @@ window.closeLightbox = function() {
   if (modal) modal.style.display = 'none';
 };
 
-// ================= SAVE LOADING MODAL CONTROLLERS =================
+// ================= 12. SAVE LOADING CONTROLLERS =================
 function showSaveLoadingModal(title, desc) {
   const modal = document.getElementById('loadingModal');
   const titleEl = document.getElementById('saveLoadingTitle');
@@ -2784,7 +3104,7 @@ function hideSaveLoadingModal() {
   if (modal) modal.style.display = 'none';
 }
 
-// ================= DEVICE MODE SWITCHER =================
+// ================= 13. DEVICE MODE SWITCHER =================
 window.setDeviceMode = function(mode) {
   AudioFX.click();
   const body = document.body;
@@ -2818,7 +3138,7 @@ window.toggleMobileSidebar = function() {
   if (backdrop) backdrop.classList.toggle('active', isMobileSidebarOpen);
 };
 
-// ================= PRESENCE & HEARTBEAT SYSTEM =================
+// ================= 14. PRESENCE & HEARTBEAT SYSTEM =================
 function startHeartbeat() {
   if (!currentUserId) return;
   updateDoc(doc(db, "users", currentUserId), { lastActive: serverTimestamp() }).catch(() => {});
@@ -2831,27 +3151,18 @@ function startHeartbeat() {
 }
 
 function getPresenceStatus(lastActive) {
-  if (!lastActive) {
-    return { isOnline: false, text: 'ออฟไลน์นานแล้ว' };
-  }
+  if (!lastActive) return { isOnline: false, text: 'ออฟไลน์นานแล้ว' };
   const lastTime = lastActive.toDate ? lastActive.toDate().getTime() : (typeof lastActive === 'number' ? lastActive : new Date(lastActive).getTime());
   const diffMs = Date.now() - lastTime;
   const diffMin = Math.floor(diffMs / 60000);
 
-  if (diffMin < 2) {
-    return { isOnline: true, text: '🟢 ออนไลน์' };
-  } else if (diffMin < 60) {
-    return { isOnline: false, text: `${diffMin} น. ที่แล้ว` };
-  } else if (diffMin < 1440) {
-    const diffHr = Math.floor(diffMin / 60);
-    return { isOnline: false, text: `${diffHr} ชม. ที่แล้ว` };
-  } else {
-    const diffDay = Math.floor(diffMin / 1440);
-    return { isOnline: false, text: `${diffDay} วันที่แล้ว` };
-  }
+  if (diffMin < 2) return { isOnline: true, text: '🟢 ออนไลน์' };
+  if (diffMin < 60) return { isOnline: false, text: `${diffMin} น. ที่แล้ว` };
+  if (diffMin < 1440) return { isOnline: false, text: `${Math.floor(diffMin / 60)} ชม. ที่แล้ว` };
+  return { isOnline: false, text: `${Math.floor(diffMin / 1440)} วันที่แล้ว` };
 }
 
-// ================= REAL-TIME FIRESTORE LISTENERS =================
+// ================= 15. REAL-TIME FIRESTORE LISTENERS =================
 function startRealtimeSync() {
   onSnapshot(collection(db, "users"), (snapshot) => {
     teamUsers = [];
@@ -2873,7 +3184,6 @@ function startRealtimeSync() {
   onSnapshot(collection(db, "projects"), (snapshot) => {
     projects = [];
     snapshot.forEach(doc => projects.push(doc.data()));
-    
     if (projects.length > 0 && !activeProjectId) {
       activeProjectId = projects[0].id;
     } else if (projects.length === 0) {
@@ -2935,7 +3245,7 @@ function startRealtimeSync() {
   });
 }
 
-// ================= REVENUE & PAYOUT SYSTEM =================
+// ================= 16. REVENUE & PAYOUT SYSTEM =================
 function renderRevenueWidget() {
   const voice = Number(revenueData.voice) || 0;
   const anim = Number(revenueData.animation) || 0;
@@ -2962,11 +3272,7 @@ function renderRevenueWidget() {
 
   const badge = document.getElementById('revenueUpdatedBadge');
   if (badge) {
-    if (revenueData.updatedTime) {
-      badge.innerText = `อัปเดตล่าสุด: ${revenueData.updatedTime} โดย ${revenueData.updatedBy || 'แอดมิน'}`;
-    } else {
-      badge.innerText = `อัปเดตล่าสุด: พร้อมใช้งาน`;
-    }
+    badge.innerText = revenueData.updatedTime ? `อัปเดตล่าสุด: ${revenueData.updatedTime} โดย ${revenueData.updatedBy || 'แอดมิน'}` : `อัปเดตล่าสุด: พร้อมใช้งาน`;
   }
 
   const transferDateEl = document.getElementById('revenueTransferDateDisplay');
@@ -2974,21 +3280,9 @@ function renderRevenueWidget() {
   const statusBadgeEl = document.getElementById('revenueTransferStatusBadge');
   const payerEl = document.getElementById('revenuePayerDisplay');
 
-  if (transferDateEl) {
-    transferDateEl.innerText = (revenueData.transferDate && revenueData.transferDate.trim() !== '') 
-      ? revenueData.transferDate 
-      : 'ยังไม่ได้กำหนดวันที่';
-  }
-
-  if (transferDetailsEl) {
-    transferDetailsEl.innerText = (revenueData.transferDetails && revenueData.transferDetails.trim() !== '')
-      ? revenueData.transferDetails
-      : 'ยังไม่มีข้อความชี้แจงการโอนเงินจากแอดมิน';
-  }
-
-  if (payerEl) {
-    payerEl.innerText = `${revenueData.updatedBy || 'TaiyoAni'} (Admin)`;
-  }
+  if (transferDateEl) transferDateEl.innerText = (revenueData.transferDate && revenueData.transferDate.trim() !== '') ? revenueData.transferDate : 'ยังไม่ได้กำหนดวันที่';
+  if (transferDetailsEl) transferDetailsEl.innerText = (revenueData.transferDetails && revenueData.transferDetails.trim() !== '') ? revenueData.transferDetails : 'ยังไม่มีข้อความชี้แจงการโอนเงินจากแอดมิน';
+  if (payerEl) payerEl.innerText = `${revenueData.updatedBy || 'TaiyoAni'} (Admin)`;
 
   if (statusBadgeEl) {
     const status = revenueData.transferStatus || 'pending';
@@ -3018,7 +3312,6 @@ window.openRevenueModal = function() {
   document.getElementById('inputRevenueAudio').value = revenueData.audio || 0;
   document.getElementById('inputRevenueOther').value = revenueData.other || 0;
   document.getElementById('inputRevenueNote').value = revenueData.note || '';
-  
   document.getElementById('inputRevenueTransferDate').value = revenueData.transferDate || '';
   document.getElementById('inputRevenueTransferStatus').value = revenueData.transferStatus || 'pending';
   document.getElementById('inputRevenueTransferDetails').value = revenueData.transferDetails || '';
@@ -3038,7 +3331,6 @@ window.handleSaveRevenue = async function(e) {
   const audio = parseFloat(document.getElementById('inputRevenueAudio').value) || 0;
   const other = parseFloat(document.getElementById('inputRevenueOther').value) || 0;
   const note = document.getElementById('inputRevenueNote').value.trim();
-
   const transferDate = document.getElementById('inputRevenueTransferDate').value.trim();
   const transferStatus = document.getElementById('inputRevenueTransferStatus').value;
   const transferDetails = document.getElementById('inputRevenueTransferDetails').value.trim();
@@ -3048,14 +3340,7 @@ window.handleSaveRevenue = async function(e) {
 
   AudioFX.success();
   await setDoc(doc(db, "finances", "revenue_stats"), {
-    voice,
-    animation,
-    audio,
-    other,
-    note,
-    transferDate,
-    transferStatus,
-    transferDetails,
+    voice, animation, audio, other, note, transferDate, transferStatus, transferDetails,
     updatedBy: currentUser ? currentUser.name : 'TaiyoAni',
     updatedTime: nowStr,
     timestamp: serverTimestamp()
@@ -3064,12 +3349,9 @@ window.handleSaveRevenue = async function(e) {
   closeModal('revenueModal');
 };
 
-// ================= NEW SCRIPT CREATION =================
+// ================= 17. SCRIPT & WORKSPACE =================
 window.openNewScriptModal = function() {
-  if (!activeProjectId) {
-    alert('กรุณาสร้างหรือเลือกโปรเจกต์ก่อนสร้างสคริปต์');
-    return;
-  }
+  if (!activeProjectId) { alert('กรุณาสร้างหรือเลือกโปรเจกต์ก่อนสร้างสคริปต์'); return; }
   AudioFX.click();
   document.getElementById('newScriptTitleInput').value = '';
   document.getElementById('newScriptDescInput').value = '';
@@ -3109,10 +3391,16 @@ window.handleCreateNewScript = async function(e) {
   openScriptEditor(scriptId);
 };
 
-// ================= MULTI-PAGE WORD SCRIPT EDITOR =================
 window.execWordCmd = function(command, value = null) {
   document.getElementById('wordPaperEditor').focus();
   document.execCommand(command, false, value);
+  saveCurrentPageBuffer();
+  updateWordStats();
+};
+
+window.removeFormat = function() {
+  document.getElementById('wordPaperEditor').focus();
+  document.execCommand('removeFormat', false, null);
   saveCurrentPageBuffer();
   updateWordStats();
 };
@@ -3178,10 +3466,7 @@ window.nextPage = function() {
 };
 
 window.addNewPage = function() {
-  if (currentScriptPages.length >= MAX_PAGES) {
-    alert(`ไม่สามารถเพิ่มหน้าได้เกิน ${MAX_PAGES} หน้า`);
-    return;
-  }
+  if (currentScriptPages.length >= MAX_PAGES) { alert(`ไม่สามารถเพิ่มหน้าได้เกิน ${MAX_PAGES} หน้า`); return; }
   AudioFX.pageFlip();
   saveCurrentPageBuffer();
   currentScriptPages.push('');
@@ -3190,10 +3475,7 @@ window.addNewPage = function() {
 };
 
 window.deleteCurrentPage = function() {
-  if (currentScriptPages.length <= 1) {
-    alert('ต้องมีสคริปต์อย่างน้อย 1 หน้า');
-    return;
-  }
+  if (currentScriptPages.length <= 1) { alert('ต้องมีสคริปต์อย่างน้อย 1 หน้า'); return; }
   if (confirm(`คุณต้องการลบ "หน้าที่ ${activePageIndex + 1}" ใช่หรือไม่?`)) {
     AudioFX.delete();
     currentScriptPages.splice(activePageIndex, 1);
@@ -3275,10 +3557,7 @@ window.handleSaveTaskScript = async function() {
 
   const currentUser = getCurrentUser();
   const isCreator = currentUser && task.createdBy && task.createdBy.name === currentUser.name;
-  if (!isAdmin() && !isCreator) {
-    alert('คุณไม่มีสิทธิ์แก้ไขสคริปต์นี้');
-    return;
-  }
+  if (!isAdmin() && !isCreator) { alert('คุณไม่มีสิทธิ์แก้ไขสคริปต์นี้'); return; }
 
   saveCurrentPageBuffer();
   const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -3301,7 +3580,7 @@ window.handleSaveTaskScript = async function() {
   alert(`💾 บันทึกสคริปต์สำเร็จ (${currentScriptPages.length} หน้า)!`);
 };
 
-// ================= AUTH GATEKEEPER =================
+// ================= 18. AUTH & ACCOUNT MANAGEMENT =================
 function initAuth() {
   initDeviceMode();
   initAppView();
@@ -3433,7 +3712,6 @@ window.handleRemoveBanner = function() {
   document.getElementById('editBannerFileInput').value = '';
 };
 
-// ================= DEVICE-SPECIFIC LOGIN & ACCOUNTS =================
 function renderDeviceAccountsList() {
   const datalist = document.getElementById('deviceAccountsList');
   if (!datalist) return;
@@ -3725,7 +4003,7 @@ window.handleLogout = function() {
   }
 };
 
-// ================= MEMBERS PRESENCE RENDERING =================
+// ================= 19. MEMBERS PRESENCE =================
 function renderMembersPresenceList() {
   const container = document.getElementById('membersPresenceList');
   const homeOnlinePill = document.getElementById('homeOnlineIndicator');
@@ -3803,7 +4081,6 @@ function renderMembersPresenceList() {
   if (dockOnlineCount) dockOnlineCount.innerText = `${onlineCount} ออนไลน์`;
 }
 
-// ================= DIRECT MESSAGING SHORTCUT =================
 window.startDirectChat = function(targetUserId) {
   const targetUser = teamUsers.find(u => u.id === targetUserId);
   if (!targetUser) return;
@@ -3815,13 +4092,10 @@ window.startDirectChat = function(targetUserId) {
   window.switchChatChannel('dm', targetUser.id);
 };
 
-// ================= PROJECT NOTES =================
+// ================= 20. PROJECT NOTES & EDIT PROFILE =================
 window.openProjectNotesModal = function() {
   const currentProj = projects.find(p => p.id === activeProjectId);
-  if (!currentProj) {
-    alert('กรุณาเลือกโปรเจกต์ก่อน');
-    return;
-  }
+  if (!currentProj) { alert('กรุณาเลือกโปรเจกต์ก่อน'); return; }
   AudioFX.click();
   document.getElementById('projectNotesContent').value = currentProj.notes || '';
   
@@ -3853,11 +4127,10 @@ window.handleSaveProjectNotes = async function(e) {
   closeModal('projectNotesModal');
 };
 
-// ================= EDIT PROFILE & PASSWORD OTP SYSTEM =================
 let pendingPasswordUpdate = null;
 
 async function saveProfileChanges(user, updatedFields) {
-  showSaveLoadingModal("กำลังบันทึกข้อมูลโปรไฟล์...", "กรุณารอสักครู่ ระบบกำลังอัปเดตข้อมูลขึ้นระบบคลาวด์");
+  showSaveLoadingModal("กำลังบันทึกข้อมูลโปรไฟล์...", "ระบบกำลังอัปเดตข้อมูลขึ้นระบบคลาวด์");
   setSaveProgress(30);
 
   try {
@@ -3933,7 +4206,6 @@ window.openEditProfileModal = function() {
     bannerPreview.innerHTML = `<span style="font-size: 0.85rem; color: var(--text-muted);">ไม่มีภาพหน้าปก</span>`;
   }
 
-  // 🔒 ซ่อนปุ่มลบบัญชีหากเป็นบัญชีแอดมิน (TaiyoAni)
   const delBtn = document.getElementById('btnOpenDeleteAccountModal');
   if (delBtn) {
     delBtn.style.display = isAdmin(user) ? 'none' : 'inline-block';
@@ -3973,7 +4245,6 @@ window.handleEditProfileSubmit = async function(e) {
     banner: newBanner || ''
   };
 
-  // 🔒 กรณีผู้ใช้ต้องการเปลี่ยนรหัสผ่านใหม่: ต้องยืนยัน OTP ก่อน
   if (newPassword && newPassword.trim() !== '') {
     if (newPassword.length < 4) {
       AudioFX.delete();
@@ -4016,11 +4287,9 @@ window.handleEditProfileSubmit = async function(e) {
     return;
   }
 
-  // กรณีไม่ได้แก้ไขรหัสผ่าน -> บันทึกโปรไฟล์ได้ทันที
   await saveProfileChanges(user, updatedFields);
 };
 
-// ================= PASSWORD OTP MODAL CONTROLS =================
 function openChangePasswordOtpModal(email) {
   AudioFX.click();
   document.getElementById('pwdOtpTargetEmailDisplay').innerText = email;
@@ -4073,7 +4342,7 @@ window.handleResendPasswordOtp = async function() {
   );
 };
 
-// ================= WORKSPACE ACTIONS =================
+// ================= 21. WORKSPACE PROJECTS & TASKS =================
 window.openAddProjectModal = function() {
   document.getElementById('projTitleInput').value = '';
   document.getElementById('projDescInput').value = '';
@@ -4125,10 +4394,7 @@ window.deleteProject = async function(id) {
 };
 
 window.openAddTaskModal = function() {
-  if (!activeProjectId) {
-    alert('กรุณาสร้างหรือเลือกโปรเจกต์ก่อน');
-    return;
-  }
+  if (!activeProjectId) { alert('กรุณาสร้างหรือเลือกโปรเจกต์ก่อน'); return; }
   populateAssigneeDropdown();
   document.getElementById('taskIdInput').value = '';
   document.getElementById('taskTitleInput').value = '';
@@ -4190,23 +4456,14 @@ window.handleSaveTask = async function(e) {
 
       updatedTasks[taskIndex] = {
         ...existingTask,
-        title, 
-        assignee, 
-        story, 
-        status,
+        title, assignee, story, status,
         updatedBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar, time: nowStr } : null
       };
     }
   } else {
     updatedTasks.push({
       id: 'task-' + Date.now(),
-      title, 
-      assignee, 
-      story, 
-      submissionLink: '',
-      scriptContent: '',
-      status, 
-      likes: 0,
+      title, assignee, story, submissionLink: '', scriptContent: '', status, likes: 0,
       createdBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar } : null,
       updatedBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar, time: nowStr } : null
     });
@@ -4239,7 +4496,6 @@ window.deleteTask = async function(taskId) {
   }
 };
 
-// ================= SUBMIT WORK HANDLER =================
 window.openSubmitWorkModal = function(taskId) {
   const currentProj = projects.find(p => p.id === activeProjectId);
   if (!currentProj) return;
@@ -4288,10 +4544,7 @@ window.handleSaveSubmission = async function(e) {
 };
 
 window.openAddIdeaModal = function() {
-  if (!activeProjectId) {
-    alert('กรุณาสร้างหรือเลือกโปรเจกต์ก่อนเสนอไอเดีย');
-    return;
-  }
+  if (!activeProjectId) { alert('กรุณาสร้างหรือเลือกโปรเจกต์ก่อนเสนอไอเดีย'); return; }
   document.getElementById('ideaTitleInput').value = '';
   document.getElementById('ideaStoryInput').value = '';
   document.getElementById('ideaLinkInput').value = '';
@@ -4346,7 +4599,6 @@ window.handleLikeTask = async function(taskId) {
   await updateDoc(doc(db, "projects", activeProjectId), { tasks: updatedTasks });
 };
 
-// ================= RENDER WORKSPACE UI =================
 function updateCurrentUserDisplay() {
   const user = getCurrentUser();
   if (user) {
@@ -4367,16 +4619,11 @@ function updateCurrentUserDisplay() {
     if (homeRole) homeRole.innerText = displayRole;
 
     const editRevenueBtn = document.getElementById('btnAdminEditRevenue');
-    if (editRevenueBtn) {
-      editRevenueBtn.style.display = userIsAdmin ? 'inline-flex' : 'none';
-    }
+    if (editRevenueBtn) editRevenueBtn.style.display = userIsAdmin ? 'inline-flex' : 'none';
 
     const bannerAdminBar = document.getElementById('homeBannerAdminBar');
-    if (bannerAdminBar) {
-      bannerAdminBar.style.display = userIsAdmin ? 'flex' : 'none';
-    }
+    if (bannerAdminBar) bannerAdminBar.style.display = userIsAdmin ? 'flex' : 'none';
 
-    // 🔒 ควบคุมการแสดงผลเมนูด้านล่างสำหรับสมาชิกทั่วไป
     const canAccessWork = userIsAdmin || userIsStaff;
     const navProjects = document.getElementById('navBtnProjects');
     const navRevenue = document.getElementById('navBtnRevenue');
@@ -4593,7 +4840,7 @@ function escapeHtml(text) {
     .replace(/'/g, "&#039;");
 }
 
-// ================= FORGOT & RESET PASSWORD LOGIC =================
+// ================= 22. FORGOT & RESET PASSWORD =================
 let resetPasswordTargetUser = null;
 
 window.openForgotPasswordModal = function() {
@@ -4688,7 +4935,7 @@ window.handleResetPasswordSubmit = async function(e) {
   }
 };
 
-// ================= DELETE ACCOUNT SYSTEM =================
+// ================= 23. DELETE ACCOUNT SYSTEM =================
 window.openDeleteAccountModal = function() {
   const currentUser = getCurrentUser();
   if (!currentUser) return;
@@ -4766,7 +5013,7 @@ window.handleConfirmDeleteAccount = async function(e) {
   }
 };
 
-// ================= iOS DOCK DRAG & SCRUB GESTURE ENGINE =================
+// ================= 24. iOS DOCK DRAG & SCRUB GESTURE ENGINE =================
 function initDockGestureScrubber() {
   const dock = document.querySelector('.bottom-dock-nav');
   if (!dock) return;
@@ -4831,13 +5078,11 @@ function initDockGestureScrubber() {
     }
   }
 
-  // Touch Events (Mobile/iPad)
   dock.addEventListener('touchstart', handleStart, { passive: false });
   window.addEventListener('touchmove', handleMove, { passive: false });
   window.addEventListener('touchend', handleEnd);
   window.addEventListener('touchcancel', handleEnd);
 
-  // Mouse Drag Events (PC)
   dock.addEventListener('mousedown', (e) => {
     if (e.button === 0) handleStart(e);
   });
@@ -4845,7 +5090,6 @@ function initDockGestureScrubber() {
   window.addEventListener('mouseup', handleEnd);
 }
 
-// ออกจากห้องเสียงอัตโนมัติเมื่อปิดแท็บหรือรีเฟรชหน้าต่าง
 window.addEventListener('beforeunload', () => {
   if (isUserInVoiceRoom && activeVoiceRoomId) {
     leaveVoiceRoom();
