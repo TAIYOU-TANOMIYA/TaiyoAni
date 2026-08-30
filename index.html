@@ -33,29 +33,28 @@
       </div>
 
       <!-- ส่วนเข้าสู่ระบบ -->
-      <!-- ✅ โค้ดใหม่ (ใช้ช่องกรอก Username/Email + ดึงเฉพาะบัญชีในเครื่อง) -->
-<div id="loginSection">
-  <form onsubmit="handleLoginSubmit(event)">
-    <div class="form-group">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-        <label style="margin-bottom: 0;">ชื่อผู้ใช้ หรือ อีเมล *</label>
-        <div style="display: flex; gap: 8px;">
-          <button type="button" class="btn-forget-link" style="color: var(--accent);" onclick="openForgotPasswordModal()">❓ ลืมรหัสผ่าน?</button>
-          <button type="button" class="btn-forget-link" onclick="handleClearDeviceSavedAccounts()" title="ล้างประวัติชื่อที่จำไว้บนเครื่องนี้">🧹 ล้างประวัติในเครื่อง</button>
-        </div>
-      </div>
-      <input type="text" id="loginUsernameInput" class="form-control" placeholder="กรอกชื่อผู้ใช้ หรือ อีเมลของคุณ" list="deviceAccountsList" required autocomplete="username">
-      <datalist id="deviceAccountsList"></datalist>
-    </div>
+      <div id="loginSection">
+        <form onsubmit="handleLoginSubmit(event)">
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label style="margin-bottom: 0;">ชื่อผู้ใช้ หรือ อีเมล *</label>
+              <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn-forget-link" style="color: var(--accent);" onclick="openForgotPasswordModal()">❓ ลืมรหัสผ่าน?</button>
+                <button type="button" class="btn-forget-link" onclick="handleClearDeviceSavedAccounts()" title="ล้างประวัติชื่อที่จำไว้บนเครื่องนี้">🧹 ล้างประวัติในเครื่อง</button>
+              </div>
+            </div>
+            <input type="text" id="loginUsernameInput" class="form-control" placeholder="กรอกชื่อผู้ใช้ หรือ อีเมลของคุณ" list="deviceAccountsList" required autocomplete="username">
+            <datalist id="deviceAccountsList"></datalist>
+          </div>
 
-    <div class="form-group">
-      <label>รหัสผ่าน *</label>
-      <input type="password" id="loginPasswordInput" class="form-control" placeholder="กรอกรหัสผ่านของคุณ" required autocomplete="current-password">
-    </div>
-    <div id="loginErrorMsg" class="auth-error-msg" style="display: none;"></div>
-    <button type="submit" class="btn-primary-auth">เข้าสู่ระบบ</button>
-  </form>
-</div>
+          <div class="form-group">
+            <label>รหัสผ่าน *</label>
+            <input type="password" id="loginPasswordInput" class="form-control" placeholder="กรอกรหัสผ่านของคุณ" required autocomplete="current-password">
+          </div>
+          <div id="loginErrorMsg" class="auth-error-msg" style="display: none;"></div>
+          <button type="submit" class="btn-primary-auth">เข้าสู่ระบบ</button>
+        </form>
+      </div>
 
       <!-- ส่วนสมัครสมาชิกใหม่ -->
       <div id="registerSection" style="display: none;">
@@ -201,15 +200,17 @@
       </div>
     </section>
 
-    <!-- 2. หน้าคอมมูนิตี้ (COMMUNITY VIEW) -->
+    <!-- 2. หน้าคอมมูนิตี้ (COMMUNITY VIEW - FB & IG STYLE) -->
     <section class="app-view-section" id="viewCommunity">
       <div class="community-fullscreen-card">
+        
+        <!-- ส่วนหัวคอมมูนิตี้ขนาดกะทัดรัด -->
         <div class="community-header-compact">
           <div class="community-title-mini">
             <span class="community-mini-icon">💡</span>
             <div class="community-mini-text">
               <h2>คอมมูนิตี้</h2>
-              <p>แลกเปลี่ยนไอเดีย & พูดคุย</p>
+              <p>แลกเปลี่ยนไอเดีย & ข่าวสารทีม</p>
             </div>
           </div>
 
@@ -219,14 +220,10 @@
               <span class="search-btn-text">ค้นหา / กรอง</span>
               <span class="filter-active-dot" id="filterActiveDot" style="display: none;"></span>
             </button>
-
-            <button type="button" class="btn-community-post-compact" onclick="openCommunityPostModal()" title="สร้างกระทู้ใหม่">
-              <span>✨</span>
-              <span>ตั้งกระทู้</span>
-            </button>
           </div>
         </div>
 
+        <!-- 1. แถบสตอรี่สไตล์ Instagram -->
         <div class="community-stories-tray" id="communityStoriesTray">
           <div class="story-item story-create-item" onclick="openCreateStoryModal()">
             <div class="story-avatar-ring add-story-ring">
@@ -241,6 +238,32 @@
           <div class="stories-feed-list" id="storiesFeedList"></div>
         </div>
 
+        <!-- 2. กล่องสร้างโพสต์ด่วนสไตล์ Facebook (Quick Post Composer) -->
+        <div class="fb-quick-composer-card" onclick="openCommunityPostModal()">
+          <div class="fb-composer-top">
+            <div class="fb-composer-avatar" id="communityComposerAvatar">👤</div>
+            <div class="fb-composer-input-trigger">
+              <span id="communityComposerPlaceholder">คุณกำลังคิดอะไรอยู่...?</span>
+            </div>
+          </div>
+          <div class="fb-composer-divider"></div>
+          <div class="fb-composer-actions">
+            <button type="button" class="fb-action-btn" onclick="event.stopPropagation(); openCommunityPostModal('image')">
+              <span class="fb-act-icon" style="color: #45bd62;">🖼️</span>
+              <span>รูปภาพ</span>
+            </button>
+            <button type="button" class="fb-action-btn" onclick="event.stopPropagation(); openCommunityPostModal('idea')">
+              <span class="fb-act-icon" style="color: #f7b125;">💡</span>
+              <span>แชร์ไอเดีย</span>
+            </button>
+            <button type="button" class="fb-action-btn" onclick="event.stopPropagation(); openCommunityPostModal('tag')">
+              <span class="fb-act-icon" style="color: #38bdf8;">🏷️</span>
+              <span>หมวดหมู่</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. รายการโพสต์ในฟีด -->
         <div class="community-feed-container" id="communityPostsFeed"></div>
       </div>
     </section>
@@ -465,27 +488,22 @@
             </div>
 
             <div class="discord-header-actions">
-              <!-- แถบโปรไฟล์ผู้ที่อยู่ในห้องสนทนาเสียง (แสดงเฉพาะแชทกลุ่ม) -->
               <div class="voice-room-participants-bar" id="voiceRoomParticipantsBar" style="display: none;"></div>
 
-              <!-- ปุ่มเข้าร่วม/ออกจากห้องเสียง (แสดงเฉพาะแชทกลุ่ม) -->
               <button type="button" class="btn-voice-room-toggle" id="btnToggleVoiceRoom" onclick="toggleVoiceRoom()" style="display: none;" title="เข้าร่วม/ออกจากห้องเสียง">
                 <span id="voiceRoomBtnIcon">🎧</span>
                 <span id="voiceRoomBtnText">เข้าร่วมเสียง</span>
               </button>
 
-              <!-- ⚙️ ปุ่มตั้งค่าเสียงสำหรับห้องเสียงกลุ่ม (เพิ่มใหม่) -->
               <button type="button" class="btn-chat-tool" id="btnVoiceRoomSettings" onclick="openSettingsModal()" style="display: none;" title="ตั้งค่าไมโครโฟนและลำโพง">
                 ⚙️
               </button>
 
-              <!-- ปุ่มโทรด้วยเสียงแบบ 1-on-1 (แสดงเฉพาะแชทส่วนตัว DM) -->
               <button type="button" class="btn-voice-call" id="btnVoiceCall" onclick="startVoiceCall()" style="display: none;" title="โทรคุยด้วยเสียง">
                 <span>📞</span>
                 <span class="voice-call-text">โทรเสียง</span>
               </button>
 
-              <!-- ปุ่มลบกลุ่มแชท -->
               <button type="button" class="btn-delete-group-header" id="btnDeleteCurrentGroup" onclick="handleDeleteCurrentGroup()" style="display: none;" title="ลบกลุ่มแชทนี้">
                 🗑️ ลบกลุ่ม
               </button>
@@ -596,9 +614,7 @@
     </div>
   </div>
 
-  <!-- ================= MODALS อื่นๆ ================= -->
-
-  <!-- ADD HOME BANNER MODAL -->
+  <!-- ================= HOME BANNER MODAL ================= -->
   <div class="modal-overlay" id="homeBannerModal" style="z-index: 1270;">
     <div class="modal" style="max-width: 520px;">
       <div class="modal-header">
@@ -622,7 +638,7 @@
         </div>
 
         <div class="form-group">
-          <label>อัปโหลดไฟล์สื่อ (ภาพ / GIF / วิดีโอสั้นไม่เกิน 1 นาที และไฟล์ < 750KB) *</label>
+          <label>อัปโหลดไฟล์สื่อ (ภาพ / GIF / วิดีโอสั้นไม่เกิน 1 นาที และไฟล์ &lt; 750KB) *</label>
           <input type="file" id="bannerFileInput" class="form-control" accept="image/*,video/mp4,video/webm" onchange="handleBannerMediaSelect(event)" required>
           <input type="hidden" id="bannerMediaDataInput">
           <input type="hidden" id="bannerMediaTypeInput" value="image">
@@ -642,71 +658,41 @@
     </div>
   </div>
 
-  <!-- COMMUNITY SEARCH MODAL -->
-  <div class="modal-overlay" id="communitySearchModal" style="z-index: 1245;">
+  <!-- ================= 1. CREATE STORY MODAL ================= -->
+  <div class="modal-overlay" id="createStoryModal" style="z-index: 1260;">
     <div class="modal" style="max-width: 460px;">
       <div class="modal-header">
-        <h3 style="display: flex; align-items: center; gap: 8px;">🔍 ค้นหา & กรองกระทู้</h3>
-        <button type="button" class="close-btn" onclick="closeModal('communitySearchModal')">✕</button>
-      </div>
-      
-      <div class="form-group">
-        <label>คำค้นหา (ค้นจากชื่อเรื่อง, เนื้อหา, ชื่อผู้โพสต์ หรือแท็ก):</label>
-        <input type="text" id="modalSearchInput" class="form-control" placeholder="พิมพ์ข้อความที่ต้องการค้นหา...">
-      </div>
-
-      <div class="form-group">
-        <label>หมวดหมู่กระทู้:</label>
-        <div class="search-category-grid">
-          <button type="button" class="category-select-pill active" data-cat="all" onclick="selectSearchCategory('all')">🌟 ทั้งหมด</button>
-          <button type="button" class="category-select-pill" data-cat="idea" onclick="selectSearchCategory('idea')">💡 ไอเดีย</button>
-          <button type="button" class="category-select-pill" data-cat="discussion" onclick="selectSearchCategory('discussion')">💬 พูดคุย</button>
-          <button type="button" class="category-select-pill" data-cat="art" onclick="selectSearchCategory('art')">🎨 อาร์ต</button>
-          <button type="button" class="category-select-pill" data-cat="qa" onclick="selectSearchCategory('qa')">❓ Q&A</button>
-        </div>
-      </div>
-
-      <div class="modal-footer" style="justify-content: space-between; margin-top: 20px;">
-        <button type="button" class="btn-sm delete" onclick="handleResetSearchFilter()">ล้างการค้นหา</button>
-        <div style="display: flex; gap: 8px;">
-          <button type="button" class="btn-sm" onclick="closeModal('communitySearchModal')">ปิด</button>
-          <button type="button" class="btn-create-task" onclick="handleApplySearchFilter()">ค้นหาเลย 🚀</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- CREATE STORY MODAL -->
-  <div class="modal-overlay" id="createStoryModal" style="z-index: 1260;">
-    <div class="modal" style="max-width: 440px;">
-      <div class="modal-header">
-        <h3 style="display: flex; align-items: center; gap: 8px;">📸 เพิ่มสตอรี่ใหม่ (อยู่ได้ 24 ชม.)</h3>
+        <h3 style="display: flex; align-items: center; gap: 8px;">📸 สร้างสตอรี่ใหม่ (24 ชั่วโมง)</h3>
         <button type="button" class="close-btn" onclick="closeModal('createStoryModal')">✕</button>
       </div>
       <form onsubmit="handleCreateStorySubmit(event)">
         <div class="form-group">
-          <label>ข้อความสตอรี่ / อัปเดตสั้นๆ *</label>
-          <textarea id="storyTextInput" class="form-control" style="min-height: 85px;" placeholder="กำลังทำอะไรอยู่? หรือแชร์เรื่องราวสั้นๆ..." required></textarea>
+          <label>อัปโหลดสื่อสตอรี่ (ภาพ / GIF หรือ วิดีโอสั้น ≤ 60 วินาที):</label>
+          <label class="btn-file-upload" style="width: 100%; text-align: center; box-sizing: border-box;">
+            📁 เลือกรูปภาพ หรือ วิดีโอจากเครื่อง
+            <input type="file" id="storyFileInput" accept="image/*,video/mp4,video/webm" onchange="handleStoryMediaSelect(event)">
+          </label>
+          <input type="hidden" id="storyMediaDataInput">
+          <input type="hidden" id="storyMediaTypeInput" value="text">
+          
+          <div id="storyMediaPreviewContainer" style="display: none; margin-top: 10px; width: 100%; height: 160px; border-radius: 12px; overflow: hidden; background: #000; border: 1px solid var(--glass-border); align-items: center; justify-content: center; position: relative;">
+            <button type="button" class="btn-sm delete" style="position: absolute; top: 6px; right: 6px; z-index: 5;" onclick="removeStoryMediaAttachment()">✕ นำออก</button>
+          </div>
         </div>
 
         <div class="form-group">
-          <label>เลือกโทนสีพื้นหลัง:</label>
+          <label>ข้อความสตอรี่ / แคปชัน *</label>
+          <textarea id="storyTextInput" class="form-control" style="min-height: 80px;" placeholder="เขียนเรื่องราวของคุณ หรือใส่แคปชันประกอบภาพ/วิดีโอ..."></textarea>
+        </div>
+
+        <div class="form-group" id="storyBgColorPickerGroup">
+          <label>เลือกโทนสีพื้นหลัง (กรณีไม่มีภาพ/วิดีโอ):</label>
           <div class="story-bg-picker">
-            <label class="bg-color-opt active" style="background: linear-gradient(135deg, #38bdf8, #818cf8);">
-              <input type="radio" name="storyBg" value="linear-gradient(135deg, #38bdf8, #818cf8)" checked>
-            </label>
-            <label class="bg-color-opt" style="background: linear-gradient(135deg, #f43f5e, #fb923c);">
-              <input type="radio" name="storyBg" value="linear-gradient(135deg, #f43f5e, #fb923c)">
-            </label>
-            <label class="bg-color-opt" style="background: linear-gradient(135deg, #10b981, #3b82f6);">
-              <input type="radio" name="storyBg" value="linear-gradient(135deg, #10b981, #3b82f6)">
-            </label>
-            <label class="bg-color-opt" style="background: linear-gradient(135deg, #c084fc, #ec4899);">
-              <input type="radio" name="storyBg" value="linear-gradient(135deg, #c084fc, #ec4899)">
-            </label>
-            <label class="bg-color-opt" style="background: linear-gradient(135deg, #1e293b, #0f172a);">
-              <input type="radio" name="storyBg" value="linear-gradient(135deg, #1e293b, #0f172a)">
-            </label>
+            <label class="bg-color-opt active" style="background: linear-gradient(135deg, #38bdf8, #818cf8);"><input type="radio" name="storyBg" value="linear-gradient(135deg, #38bdf8, #818cf8)" checked></label>
+            <label class="bg-color-opt" style="background: linear-gradient(135deg, #f43f5e, #fb923c);"><input type="radio" name="storyBg" value="linear-gradient(135deg, #f43f5e, #fb923c)"></label>
+            <label class="bg-color-opt" style="background: linear-gradient(135deg, #10b981, #3b82f6);"><input type="radio" name="storyBg" value="linear-gradient(135deg, #10b981, #3b82f6)"></label>
+            <label class="bg-color-opt" style="background: linear-gradient(135deg, #c084fc, #ec4899);"><input type="radio" name="storyBg" value="linear-gradient(135deg, #c084fc, #ec4899)"></label>
+            <label class="bg-color-opt" style="background: linear-gradient(135deg, #1e293b, #0f172a);"><input type="radio" name="storyBg" value="linear-gradient(135deg, #1e293b, #0f172a)"></label>
           </div>
         </div>
 
@@ -718,7 +704,7 @@
     </div>
   </div>
 
-  <!-- STORY VIEWER MODAL -->
+  <!-- ================= 2. STORY VIEWER MODAL ================= -->
   <div class="modal-overlay" id="storyViewerModal" style="z-index: 1300;" onclick="handleStoryViewerBgClick(event)">
     <div class="story-viewer-card" id="storyViewerCard">
       <div class="story-progress-bar-track">
@@ -739,6 +725,8 @@
         </div>
       </div>
 
+      <div id="storyViewerMediaLayer"></div>
+
       <div class="story-viewer-content" id="storyViewerContent">
         <p id="storyViewerTextDisplay"></p>
       </div>
@@ -748,62 +736,145 @@
     </div>
   </div>
 
-  <!-- COMMUNITY POST MODAL -->
+  <!-- ================= 3. CREATE COMMUNITY POST MODAL (FACEBOOK / INSTAGRAM STYLE) ================= -->
   <div class="modal-overlay" id="communityPostModal" style="z-index: 1240;">
-    <div class="modal" style="max-width: 540px;">
-      <div class="modal-header">
-        <h3 style="display: flex; align-items: center; gap: 8px;">✨ สร้างกระทู้ / เสนอไอเดียใหม่</h3>
-        <button type="button" class="close-btn" onclick="closeModal('communityPostModal')">✕</button>
+    <div class="modal fb-create-post-modal">
+      <div class="fb-modal-header">
+        <h3 class="fb-modal-title">สร้างโพสต์</h3>
+        <button type="button" class="close-btn" onclick="closeModal('communityPostModal')" title="ปิดหน้าต่าง">✕</button>
       </div>
-      <form onsubmit="handleCreateCommunityPost(event)">
-        <div class="form-group">
-          <label>เลือกหมวดหมู่ *</label>
-          <select id="communityCategorySelect" class="form-control" required>
-            <option value="idea">💡 ไอเดียใหม่ (New Idea)</option>
-            <option value="discussion">💬 พูดคุยทั่วไป (General Discussion)</option>
-            <option value="art">🎨 อาร์ต & สไตล์ (Art & Design)</option>
-            <option value="qa">❓ สอบถาม / เสนอแนะ (Q&A / Feedback)</option>
-          </select>
+
+      <form onsubmit="handleCreateCommunityPost(event)" class="fb-modal-form">
+        <!-- ข้อมูลโปรไฟล์และตัวเลือกหมวดหมู่ -->
+        <div class="fb-modal-user-row">
+          <div class="fb-modal-avatar" id="createPostModalAvatar">👤</div>
+          <div class="fb-modal-user-meta">
+            <div class="fb-modal-username" id="createPostModalUserName">สมาชิก</div>
+            <div class="fb-category-selector-pill">
+              <span class="fb-cat-icon">🏷️</span>
+              <select id="communityCategorySelect" class="fb-cat-select" required>
+                <option value="idea">💡 ไอเดียใหม่ (New Idea)</option>
+                <option value="discussion">💬 พูดคุยทั่วไป (General Discussion)</option>
+                <option value="art">🎨 อาร์ต & สไตล์ (Art & Design)</option>
+                <option value="qa">❓ สอบถาม / เสนอแนะ (Q&A)</option>
+              </select>
+              <span class="fb-cat-arrow">▾</span>
+            </div>
+          </div>
         </div>
 
-        <div class="form-group">
-          <label>หัวข้อกระทู้ / ชื่อไอเดีย *</label>
-          <input type="text" id="communityTitleInput" class="form-control" placeholder="เช่น ชวนระดมไอเดียฉากต่อสู้, เสนอโทนสีงานใหม่" required>
+        <!-- ช่องกรอกหัวข้อโพสต์ -->
+        <div class="fb-input-title-wrapper">
+          <input type="text" id="communityTitleInput" class="fb-input-title" placeholder="หัวข้อโพสต์ / ชื่อเรื่อง..." required autocomplete="off">
         </div>
 
-        <div class="form-group">
-          <label>รายละเอียด & แนวคิด *</label>
-          <textarea id="communityContentInput" class="form-control" style="min-height: 120px;" placeholder="อธิบายแนวคิด ข้อดี หรือจุดเด่นของไอเดียนี้..." required></textarea>
+        <!-- ช่องกรอกเนื้อหาโพสต์ -->
+        <div class="fb-input-body-wrapper">
+          <textarea id="communityContentInput" class="fb-textarea-content" placeholder="คุณกำลังคิดอะไรอยู่...?" required></textarea>
         </div>
 
-        <div class="form-group">
-          <label>แท็กกำกับ (ใส่เครื่องหมาย # คั่นคำ)</label>
-          <input type="text" id="communityTagsInput" class="form-control" placeholder="เช่น #3D #Blender #Anime #ConceptArt">
+        <!-- พรีวิวรูปภาพที่แนบ -->
+        <div id="communityPostImagePreview" class="fb-post-preview-container" style="display: none;">
+          <button type="button" class="fb-btn-remove-media" onclick="removeCommunityPostImage()" title="ลบรูปภาพ">✕</button>
+          <img src="" id="communityPostPreviewImg" alt="Preview Image" class="fb-post-preview-img">
+        </div>
+        <input type="hidden" id="communityPostImageData">
+
+        <!-- ช่องกรอกแท็ก (#Hashtags) -->
+        <div class="fb-tags-input-row">
+          <span class="fb-tag-hash">#</span>
+          <input type="text" id="communityTagsInput" class="fb-input-tags" placeholder="เพิ่มแท็กกำกับ เช่น 3D Anime Blender (เว้นวรรคคั่นคำ)">
         </div>
 
-        <div class="modal-footer">
-          <button type="button" class="btn-sm" onclick="closeModal('communityPostModal')">ยกเลิก</button>
-          <button type="submit" class="btn-create-task">🚀 โพสต์ลงคอมมูนิตี้</button>
+        <!-- แถบ Add to your post -->
+        <div class="fb-add-to-post-card">
+          <span class="fb-add-label">เพิ่มลงในโพสต์ของคุณ</span>
+          <div class="fb-add-actions">
+            <label class="fb-tool-icon-btn" title="แนบรูปภาพ">
+              <span>🖼️</span>
+              <input type="file" id="communityPostFileInput" accept="image/*" style="display: none;" onchange="handleCommunityPostImageSelect(event)">
+            </label>
+            <button type="button" class="fb-tool-icon-btn" onclick="togglePostEmojiPicker(event)" title="ใส่อิโมจิ">
+              <span>😊</span>
+            </button>
+            <button type="button" class="fb-tool-icon-btn" onclick="focusTagsInput()" title="แท็กกำกับ">
+              <span>🏷️</span>
+            </button>
+          </div>
+          
+          <div class="chat-emoji-popover" id="postEmojiPickerPopover" style="bottom: 50px; right: 10px;"></div>
+        </div>
+
+        <!-- ปุ่มยืนยันการโพสต์ -->
+        <div class="fb-modal-footer">
+          <button type="submit" class="btn-fb-submit-post" id="btnSubmitCommunityPost">โพสต์</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- COMMUNITY POST DETAIL MODAL -->
+  <!-- ================= 4. POST LIKES VIEWER MODAL ================= -->
+  <div class="modal-overlay" id="postLikesModal" style="z-index: 1265;">
+    <div class="modal" style="max-width: 420px; max-height: 80vh; max-height: 80dvh; display: flex; flex-direction: column;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 6px;">❤️ คนที่ถูกใจโพสต์นี้</h3>
+        <button type="button" class="close-btn" onclick="closeModal('postLikesModal')">✕</button>
+      </div>
+      <div id="postLikesListContainer" style="flex: 1 1 auto; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px;"></div>
+    </div>
+  </div>
+
+  <!-- ================= 5. COMMUNITY DETAIL & THREADED COMMENTS MODAL ================= -->
   <div class="modal-overlay" id="communityDetailModal" style="z-index: 1250;">
-    <div class="modal" style="max-width: 600px; max-height: 90vh; max-height: 90dvh; display: flex; flex-direction: column; padding: 20px;">
-      <div class="modal-header" style="margin-bottom: 12px;">
+    <div class="modal" style="max-width: 620px; height: 90vh; height: 90dvh; display: flex; flex-direction: column; padding: 18px;">
+      <div class="modal-header" style="margin-bottom: 10px;">
         <div id="detailModalCategoryBox"></div>
         <button type="button" class="close-btn" onclick="closeModal('communityDetailModal')">✕</button>
       </div>
 
       <div id="communityDetailBody" style="flex: 1 1 auto; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 14px;"></div>
 
-      <div style="padding-top: 12px; border-top: 1px solid var(--glass-border); margin-top: 8px;">
+      <div style="padding-top: 10px; border-top: 1px solid var(--glass-border); margin-top: 8px;">
+        <div class="comment-reply-banner" id="commentReplyBanner">
+          <span id="replyTargetText">กำลังตอบกลับ @User...</span>
+          <button type="button" class="btn-delete-comment" onclick="cancelCommentReply()">✕ ยกเลิก</button>
+        </div>
+
         <form class="ig-comment-input-bar" id="detailModalCommentForm" onsubmit="handleModalAddComment(event)">
-          <input type="text" id="detailModalCommentInput" class="ig-comment-input" placeholder="แสดงความคิดเห็นเพิ่มเติม..." autocomplete="off" required>
-          <button type="submit" class="btn-ig-submit-comment">โพสต์</button>
+          <input type="text" id="detailModalCommentInput" class="ig-comment-input" placeholder="แสดงความคิดเห็น หรือ ตอบกลับ..." autocomplete="off" required>
+          <button type="submit" class="btn-ig-submit-comment">ส่ง</button>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 6. COMMUNITY SEARCH & FILTER MODAL ================= -->
+  <div class="modal-overlay" id="communitySearchModal" style="z-index: 1245;">
+    <div class="modal" style="max-width: 460px;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">🔍 ค้นหาและกรองกระทู้</h3>
+        <button type="button" class="close-btn" onclick="closeModal('communitySearchModal')">✕</button>
+      </div>
+      <div class="form-group">
+        <label>ค้นหาข้อความ / หัวข้อ / ผู้โพสต์:</label>
+        <input type="text" id="modalSearchInput" class="form-control" placeholder="พิมพ์คำค้นหา...">
+      </div>
+      <div class="form-group">
+        <label>หมวดหมู่ที่ต้องการแสดง:</label>
+        <div class="search-category-grid">
+          <button type="button" class="category-select-pill active" data-cat="all" onclick="selectSearchCategory('all')">ทั้งหมด (All)</button>
+          <button type="button" class="category-select-pill" data-cat="idea" onclick="selectSearchCategory('idea')">💡 ไอเดีย (Idea)</button>
+          <button type="button" class="category-select-pill" data-cat="discussion" onclick="selectSearchCategory('discussion')">💬 พูดคุย (Chat)</button>
+          <button type="button" class="category-select-pill" data-cat="art" onclick="selectSearchCategory('art')">🎨 อาร์ต (Art)</button>
+          <button type="button" class="category-select-pill" data-cat="qa" onclick="selectSearchCategory('qa')">❓ ถาม-ตอบ (Q&A)</button>
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content: space-between;">
+        <button type="button" class="btn-sm" onclick="handleResetSearchFilter()">🔄 ล้างตัวกรอง</button>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn-sm" onclick="closeModal('communitySearchModal')">ยกเลิก</button>
+          <button type="button" class="btn-create-task" onclick="handleApplySearchFilter()">🔎 ค้นหา</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1424,7 +1495,6 @@
         ระบบจะส่งรหัส OTP 6 หลักไปยังอีเมลที่ลงทะเบียนไว้
       </p>
 
-      <!-- ขั้นตอนที่ 1: กรอกอีเมลเพื่อขอรับ OTP -->
       <div id="forgotStep1">
         <form onsubmit="handleRequestPasswordResetOtp(event)">
           <div class="form-group" style="text-align: left;">
@@ -1436,7 +1506,6 @@
         </form>
       </div>
 
-      <!-- ขั้นตอนที่ 2: กรอกรหัส OTP และตั้งรหัสผ่านใหม่ -->
       <div id="forgotStep2" style="display: none; text-align: left;">
         <form onsubmit="handleResetPasswordSubmit(event)">
           <div class="form-group">
@@ -1462,9 +1531,7 @@
     </div>
   </div>
 
-  <script type="module" src="app.js"></script>
-
-<!-- DELETE ACCOUNT CONFIRMATION MODAL -->
+  <!-- DELETE ACCOUNT CONFIRMATION MODAL -->
   <div class="modal-overlay" id="deleteAccountModal" style="z-index: 1360;">
     <div class="modal" style="max-width: 430px; text-align: center;">
       <div style="font-size: 2.8rem; margin-bottom: 6px;">⚠️</div>
@@ -1520,5 +1587,6 @@
     </div>
   </div>
 
+  <script type="module" src="app.js"></script>
 </body>
 </html>
