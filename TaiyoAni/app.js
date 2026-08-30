@@ -223,10 +223,12 @@ let currentPeerConnection = null;
 let localVoiceStream = null;
 let incomingCallData = null;
 
-// Voice Room States (สำหรับแชทกลุ่มส่วนตัว Group Chat)
+// Group Voice Room WebRTC Mesh States (สำหรับห้องเสียงกลุ่ม)
 let activeVoiceRoomId = null;
-let voiceRoomUnsubscribe = null;
+let voiceRoomParticipantsUnsubscribe = null;
+let voiceRoomSignalsUnsubscribe = null;
 let isUserInVoiceRoom = false;
+let voiceRoomPeers = {}; // { [peerUserId]: RTCPeerConnection }
 
 // Audio Hardware States
 let isMicTesting = false;
@@ -1098,7 +1100,7 @@ function renderCommunityDetailModal() {
           </div>
         </div>
         <div class="ig-author-meta">
-          <div class="ig-author-name clickable-profile" onclick="closeModal('communityDetailModal'); openUserProfile('${post.authorId}')">
+          <div class="ig-author-name clickable-profile" onclick="openUserProfile('${post.authorId}')">
             ${escapeHtml(post.authorName)} ${isPostAdmin ? '👑' : ''}
           </div>
           <span class="ig-post-time">${escapeHtml(post.time || '')}</span>
@@ -1311,7 +1313,7 @@ function renderCommunityPosts() {
             <span>💬</span>
           </button>
           ${!isAuthor ? `
-            <button type="button" class="ig-btn-icon" onclick="startDirectChat('${post.authorId}')" title="ส่งข้อความส่วนตัว (DM)">
+            <button type="button" class="btn-icon" onclick="startDirectChat('${post.authorId}')" title="ส่งข้อความส่วนตัว (DM)">
               <span>✈️</span>
             </button>
           ` : ''}
@@ -1426,6 +1428,7 @@ function updateDiscordChatHeader(mode, titleName = '') {
   const titleEl = document.getElementById('discordChatHeaderTitle');
   const descEl = document.getElementById('discordChatHeaderDesc');
   const voiceRoomBtn = document.getElementById('btnToggleVoiceRoom');
+  const voiceRoomSettingsBtn = document.getElementById('btnVoiceRoomSettings');
   const voiceCallBtn = document.getElementById('btnVoiceCall');
   const deleteGroupBtn = document.getElementById('btnDeleteCurrentGroup');
   const clearBtn = document.getElementById('btnClearChat');
@@ -1439,6 +1442,7 @@ function updateDiscordChatHeader(mode, titleName = '') {
     if (titleEl) titleEl.innerText = 'ห้องแชทรวมทีม (Main Chat)';
     if (descEl) descEl.innerText = 'พื้นที่พูดคุยรวมทุกคนในทีม (ไม่รองรับการโทร)';
     if (voiceRoomBtn) voiceRoomBtn.style.display = 'none';
+    if (voiceRoomSettingsBtn) voiceRoomSettingsBtn.style.display = 'none';
     if (voiceCallBtn) voiceCallBtn.style.display = 'none';
     if (deleteGroupBtn) deleteGroupBtn.style.display = 'none';
     if (clearBtn) clearBtn.style.display = isAdmin() ? 'inline-flex' : 'none';
@@ -1448,6 +1452,7 @@ function updateDiscordChatHeader(mode, titleName = '') {
     if (descEl) descEl.innerText = 'แชทส่วนตัว 1-on-1 (รองรับการโทรเสียงแบบตัวต่อตัว)';
     if (voiceCallBtn) voiceCallBtn.style.display = 'inline-flex';
     if (voiceRoomBtn) voiceRoomBtn.style.display = 'none';
+    if (voiceRoomSettingsBtn) voiceRoomSettingsBtn.style.display = 'none';
     if (deleteGroupBtn) deleteGroupBtn.style.display = 'none';
     if (clearBtn) clearBtn.style.display = 'none';
   } else if (mode === 'group') {
@@ -1455,6 +1460,7 @@ function updateDiscordChatHeader(mode, titleName = '') {
     if (titleEl) titleEl.innerText = titleName;
     if (descEl) descEl.innerText = 'กลุ่มแชทส่วนตัว (มีช่องสนทนาเสียงประจำกลุ่ม)';
     if (voiceRoomBtn) voiceRoomBtn.style.display = 'inline-flex';
+    if (voiceRoomSettingsBtn) voiceRoomSettingsBtn.style.display = 'inline-flex';
     if (voiceCallBtn) voiceCallBtn.style.display = 'none';
     if (clearBtn) clearBtn.style.display = 'none';
 
@@ -1860,7 +1866,7 @@ function cleanupCallResources() {
   if (callRingtoneInterval) clearInterval(callRingtoneInterval);
   if (voiceCallTimerInterval) clearInterval(voiceCallTimerInterval);
 
-  if (localVoiceStream) {
+  if (localVoiceStream && !isUserInVoiceRoom) {
     localVoiceStream.getTracks().forEach(t => t.stop());
     localVoiceStream = null;
   }
@@ -1891,7 +1897,7 @@ window.toggleVoiceMute = function() {
   }
 };
 
-// ================= VOICE ROOM LOGIC (เฉพาะแชทกลุ่มส่วนตัว Group Chat) =================
+// ================= REAL-TIME MULTI-USER WebRTC MESH GROUP VOICE ROOM =================
 window.toggleVoiceRoom = async function() {
   AudioFX.click();
   const currentUser = getCurrentUser();
@@ -1907,21 +1913,30 @@ window.toggleVoiceRoom = async function() {
 
 async function joinVoiceRoom(roomId, user) {
   try {
-    localVoiceStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    const selectedMicId = localStorage.getItem('taiyoani_audio_input_id') || '';
+    const audioConstraints = selectedMicId ? { deviceId: { exact: selectedMicId } } : true;
+    localVoiceStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false });
+
     isUserInVoiceRoom = true;
     activeVoiceRoomId = roomId;
 
+    // 1. บันทึกตนเองลงในห้องเสียง Firestore
     await setDoc(doc(db, "voice_rooms", roomId, "participants", user.id), {
       userId: user.id,
       name: user.name,
       avatar: user.avatar,
-      joinedAt: serverTimestamp()
+      joinedAt: Date.now()
     });
 
     updateVoiceRoomButtonUI(true);
     triggerHardwareAlert("🔊 เข้าร่วมห้องเสียงแล้ว", `คุณกำลังอยู่ในช่องสนทนาเสียงของกลุ่ม`, user.avatar);
+
+    // 2. ฟังสัญญาณ WebRTC Signals จากเพื่อนร่วมห้อง
+    listenVoiceRoomSignals(roomId, user.id);
+
   } catch (err) {
-    alert("ไม่สามารถเข้าถึงไมโครโฟนได้ กรุณาอนุญาตการใช้งานไมค์");
+    console.error("Join Voice Room Error:", err);
+    alert("ไม่สามารถเข้าถึงไมโครโฟนได้ กรุณาตรวจสอบและอนุญาตการใช้งานไมค์");
   }
 }
 
@@ -1933,7 +1948,21 @@ async function leaveVoiceRoom() {
     } catch (e) {}
   }
 
-  if (localVoiceStream) {
+  if (voiceRoomSignalsUnsubscribe) {
+    voiceRoomSignalsUnsubscribe();
+    voiceRoomSignalsUnsubscribe = null;
+  }
+
+  // ปิด Peer Connections ทั้งหมด
+  Object.keys(voiceRoomPeers).forEach(peerId => {
+    try {
+      voiceRoomPeers[peerId].close();
+    } catch(e) {}
+    removeRemoteGroupAudio(peerId);
+  });
+  voiceRoomPeers = {};
+
+  if (localVoiceStream && !isVoiceCallActive) {
     localVoiceStream.getTracks().forEach(t => t.stop());
     localVoiceStream = null;
   }
@@ -1955,9 +1984,9 @@ function updateVoiceRoomButtonUI(inRoom) {
 }
 
 function listenVoiceRoomParticipants(roomId) {
-  if (voiceRoomUnsubscribe) {
-    voiceRoomUnsubscribe();
-    voiceRoomUnsubscribe = null;
+  if (voiceRoomParticipantsUnsubscribe) {
+    voiceRoomParticipantsUnsubscribe();
+    voiceRoomParticipantsUnsubscribe = null;
   }
 
   const bar = document.getElementById('voiceRoomParticipantsBar');
@@ -1970,17 +1999,177 @@ function listenVoiceRoomParticipants(roomId) {
   }
   bar.style.display = 'flex';
 
-  voiceRoomUnsubscribe = onSnapshot(collection(db, "voice_rooms", roomId, "participants"), (snap) => {
+  voiceRoomParticipantsUnsubscribe = onSnapshot(collection(db, "voice_rooms", roomId, "participants"), async (snap) => {
     bar.innerHTML = '';
+    const activeParticipants = [];
+
     snap.forEach((d) => {
       const p = d.data();
+      activeParticipants.push(p);
+
       const chip = document.createElement('div');
       chip.className = 'voice-participant-chip';
       chip.title = `${p.name} (กำลังอยู่ในห้องเสียง)`;
       chip.innerHTML = renderAvatarHtml(p.avatar);
       bar.appendChild(chip);
     });
+
+    // หากเรากำลังอยู่ในห้องเสียง -> เริ่มต้นเชื่อมต่อ WebRTC Mesh กับสมาชิกทุกคน
+    if (isUserInVoiceRoom && activeVoiceRoomId === roomId && currentUserId) {
+      const otherParticipants = activeParticipants.filter(p => p.userId !== currentUserId);
+
+      // สร้าง Offer สำหรับสมาชิกที่ไอดีตามเงื่อนไข (เพื่อหลีกเลี่ยง Offer ชนกัน)
+      for (const peer of otherParticipants) {
+        if (currentUserId < peer.userId && !voiceRoomPeers[peer.userId]) {
+          const pc = createVoiceRoomPeerConnection(peer.userId, roomId);
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+
+          await addDoc(collection(db, "voice_rooms", roomId, "signals"), {
+            senderId: currentUserId,
+            receiverId: peer.userId,
+            type: 'offer',
+            data: { type: offer.type, sdp: offer.sdp },
+            timestamp: Date.now()
+          });
+        }
+      }
+
+      // ปิดเสียงของคนที่ออกจากห้องไปแล้ว
+      const currentActiveIds = otherParticipants.map(p => p.userId);
+      Object.keys(voiceRoomPeers).forEach(peerId => {
+        if (!currentActiveIds.includes(peerId)) {
+          try { voiceRoomPeers[peerId].close(); } catch(e){}
+          delete voiceRoomPeers[peerId];
+          removeRemoteGroupAudio(peerId);
+        }
+      });
+    }
   });
+}
+
+function listenVoiceRoomSignals(roomId, myUserId) {
+  if (voiceRoomSignalsUnsubscribe) {
+    voiceRoomSignalsUnsubscribe();
+    voiceRoomSignalsUnsubscribe = null;
+  }
+
+  const signalsQuery = collection(db, "voice_rooms", roomId, "signals");
+  voiceRoomSignalsUnsubscribe = onSnapshot(signalsQuery, async (snap) => {
+    for (const change of snap.docChanges()) {
+      if (change.type === 'added') {
+        const signal = change.doc.data();
+        if (signal.receiverId === myUserId) {
+          await handleIncomingGroupSignal(signal, roomId);
+          try { await deleteDoc(change.doc.ref); } catch(e){}
+        }
+      }
+    }
+  });
+}
+
+async function handleIncomingGroupSignal(signal, roomId) {
+  const peerId = signal.senderId;
+
+  if (signal.type === 'offer') {
+    const pc = createVoiceRoomPeerConnection(peerId, roomId);
+    await pc.setRemoteDescription(new RTCSessionDescription(signal.data));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    await addDoc(collection(db, "voice_rooms", roomId, "signals"), {
+      senderId: currentUserId,
+      receiverId: peerId,
+      type: 'answer',
+      data: { type: answer.type, sdp: answer.sdp },
+      timestamp: Date.now()
+    });
+  } else if (signal.type === 'answer') {
+    const pc = voiceRoomPeers[peerId];
+    if (pc && !pc.currentRemoteDescription) {
+      await pc.setRemoteDescription(new RTCSessionDescription(signal.data));
+    }
+  } else if (signal.type === 'candidate') {
+    const pc = voiceRoomPeers[peerId];
+    if (pc && signal.data) {
+      await pc.addIceCandidate(new RTCIceCandidate(signal.data));
+    }
+  }
+}
+
+function createVoiceRoomPeerConnection(peerId, roomId) {
+  if (voiceRoomPeers[peerId]) {
+    try { voiceRoomPeers[peerId].close(); } catch(e){}
+  }
+
+  const pc = new RTCPeerConnection(RTC_CONFIG);
+  voiceRoomPeers[peerId] = pc;
+
+  if (localVoiceStream) {
+    localVoiceStream.getTracks().forEach(track => {
+      pc.addTrack(track, localVoiceStream);
+    });
+  }
+
+  pc.onicecandidate = (event) => {
+    if (event.candidate) {
+      addDoc(collection(db, "voice_rooms", roomId, "signals"), {
+        senderId: currentUserId,
+        receiverId: peerId,
+        type: 'candidate',
+        data: event.candidate.toJSON(),
+        timestamp: Date.now()
+      }).catch(()=>{});
+    }
+  };
+
+  pc.ontrack = (event) => {
+    if (event.streams && event.streams[0]) {
+      playRemoteGroupAudio(peerId, event.streams[0]);
+    }
+  };
+
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+      removeRemoteGroupAudio(peerId);
+    }
+  };
+
+  return pc;
+}
+
+function playRemoteGroupAudio(peerId, stream) {
+  let container = document.getElementById('groupVoiceAudioContainer');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'groupVoiceAudioContainer';
+    container.style.display = 'none';
+    document.body.appendChild(container);
+  }
+
+  let audioEl = document.getElementById(`audio-peer-${peerId}`);
+  if (!audioEl) {
+    audioEl = document.createElement('audio');
+    audioEl.id = `audio-peer-${peerId}`;
+    audioEl.autoplay = true;
+    audioEl.playsInline = true;
+    container.appendChild(audioEl);
+  }
+
+  audioEl.srcObject = stream;
+  const selectedSpeakerId = localStorage.getItem('taiyoani_audio_output_id');
+  if (selectedSpeakerId && typeof audioEl.setSinkId === 'function') {
+    audioEl.setSinkId(selectedSpeakerId).catch(() => {});
+  }
+  audioEl.play().catch(() => {});
+}
+
+function removeRemoteGroupAudio(peerId) {
+  const audioEl = document.getElementById(`audio-peer-${peerId}`);
+  if (audioEl) {
+    audioEl.srcObject = null;
+    audioEl.remove();
+  }
 }
 
 // ================= MESSAGE SEND & UNSEND =================
@@ -2185,7 +2374,21 @@ window.handleAudioDeviceChange = function() {
     localStorage.setItem('taiyoani_audio_input_id', inputSelect.value);
   }
   if (outputSelect && outputSelect.value) {
-    localStorage.setItem('taiyoani_audio_output_id', outputSelect.value);
+    const speakerId = outputSelect.value;
+    localStorage.setItem('taiyoani_audio_output_id', speakerId);
+    
+    // อัปเดตลำโพงสำหรับสาย 1-on-1
+    const remoteAudio = document.getElementById('remoteVoiceAudio');
+    if (remoteAudio && typeof remoteAudio.setSinkId === 'function') {
+      remoteAudio.setSinkId(speakerId).catch(() => {});
+    }
+
+    // อัปเดตลำโพงสำหรับทุกเสียงในห้องเสียงกลุ่ม
+    document.querySelectorAll('#groupVoiceAudioContainer audio').forEach(a => {
+      if (typeof a.setSinkId === 'function') {
+        a.setSinkId(speakerId).catch(() => {});
+      }
+    });
   }
   if (isMicTesting) {
     stopMicTest();
@@ -3106,7 +3309,7 @@ function initAuth() {
   renderChatEmojiPicker();
   startRealtimeSync();
   startIncomingCallListener();
-  initDockGestureScrubber(); // เรียกใช้งานระบบลากสลับเมนูด้านล่าง
+  initDockGestureScrubber();
 
   if (currentUserId) {
     document.getElementById('authGate').style.display = 'none';
@@ -4641,6 +4844,13 @@ function initDockGestureScrubber() {
   window.addEventListener('mousemove', handleMove);
   window.addEventListener('mouseup', handleEnd);
 }
+
+// ออกจากห้องเสียงอัตโนมัติเมื่อปิดแท็บหรือรีเฟรชหน้าต่าง
+window.addEventListener('beforeunload', () => {
+  if (isUserInVoiceRoom && activeVoiceRoomId) {
+    leaveVoiceRoom();
+  }
+});
 
 document.addEventListener('click', () => { requestNotificationPermission(); }, { once: true });
 
