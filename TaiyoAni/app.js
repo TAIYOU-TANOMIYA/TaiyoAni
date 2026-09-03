@@ -4,6 +4,9 @@ import {
   getFirestore, collection, doc, setDoc, getDocs, 
   onSnapshot, query, orderBy, addDoc, deleteDoc, updateDoc, serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { 
+  getMessaging, getToken, onMessage 
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBsf2pAoaT0OB9cgMBksB2igZGp7y4yWAI",
@@ -15,8 +18,17 @@ const firebaseConfig = {
   measurementId: "G-J76JT5GJJY"
 };
 
+// นำ Web Push VAPID Key ที่ได้จาก Firebase Console มาวางแทนที่ตรงนี้
+const VAPID_KEY = "วาง_VAPID_KEY_จาก_FIREBASE_CONSOLE_ที่นี่";
+
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+let messaging = null;
+try {
+  messaging = getMessaging(app);
+} catch (e) {
+  console.warn("Firebase Messaging not supported on this browser:", e);
+}
 
 // ================= EMAIL CONFIGURATION (EmailJS) =================
 const EMAILJS_PUBLIC_KEY = "7V9Ht6H8soo45HjeR";
@@ -56,12 +68,9 @@ async function sendOtpEmail(targetEmail, userName, otpCode, introMessage = "ร�
         templateParams,
         { publicKey: EMAILJS_PUBLIC_KEY }
       );
-      console.log("EmailJS Success:", res.status, res.text);
       return true;
     } catch (err) {
-      console.error("EmailJS sending failed:", err);
-      const errMsg = err?.text || err?.message || JSON.stringify(err);
-      alert(`⚠️ ส่งอีเมลไม่สำเร็จ (${errMsg})\n\nรหัส OTP สำหรับทดสอบของคุณคือ: ${otpCode}`);
+      alert(`⚠️ ส่งอีเมลไม่สำเร็จ\n\nรหัส OTP สำหรับทดสอบของคุณคือ: ${otpCode}`);
       return false;
     }
   } else {
@@ -180,6 +189,11 @@ let isMobileSidebarOpen = false;
 let initialChatLoadDone = false;
 let pendingVerificationUser = null;
 
+// Notification System States
+let systemNotifications = [];
+let swRegistration = null;
+let lastKnownNotifTimestamp = parseInt(localStorage.getItem('taiyoani_last_read_notif') || '0', 10);
+
 // Home Banner States
 let homeBanners = [];
 let currentBannerSlideIndex = 0;
@@ -295,36 +309,85 @@ function formatCurrency(amount) {
   return '฿ ' + num.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
-// ================= SYSTEM NOTIFICATION MANAGER =================
+// ================= WEB PUSH & FCM TOKEN ENGINE =================
 async function requestNotificationPermission() {
+  if ('serviceWorker' in navigator) {
+    try {
+      swRegistration = await navigator.serviceWorker.register('./sw.js');
+      console.log('Service Worker Registered.');
+    } catch (e) {
+      console.warn('SW register warning:', e);
+    }
+  }
+
   if ('Notification' in window && Notification.permission !== 'granted') {
     try {
       await Notification.requestPermission();
     } catch (e) {}
   }
+
+  // ลงทะเบียนรับ FCM Token ประจำเครื่อง
+  if (messaging && swRegistration && Notification.permission === 'granted') {
+    try {
+      const token = await getToken(messaging, {
+        serviceWorkerRegistration: swRegistration,
+        vapidKey: VAPID_KEY
+      });
+
+      if (token && currentUserId) {
+        // บันทึก FCM Token ลงฐานข้อมูลผู้ใช้เพื่อให้ Cloud Function ส่ง Push หาได้แม้ปิดเว็บ
+        await updateDoc(doc(db, "users", currentUserId), {
+          fcmToken: token,
+          fcmUpdatedAt: Date.now()
+        });
+      }
+    } catch (err) {
+      console.warn("FCM Token registration error:", err);
+    }
+  }
+}
+
+if (messaging) {
+  onMessage(messaging, (payload) => {
+    const title = payload.notification?.title || payload.data?.title || '🔔 แจ้งเตือนใหม่';
+    const body = payload.notification?.body || payload.data?.body || '';
+    triggerHardwareAlert(title, body, './Tanomiya.png');
+  });
+}
+
+// ดักรับสัญญาณเมื่อเปิดแอปมาจาก Notification Bar ของเครื่อง
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'NAVIGATE_VIEW') {
+      window.switchAppView(event.data.view);
+    }
+  });
 }
 
 function triggerHardwareAlert(title, body, iconUrl = './Tanomiya.png', onClickCallback = null) {
   if ('vibrate' in navigator) {
-    navigator.vibrate([180, 80, 180]);
+    navigator.vibrate([300, 100, 300]);
   }
 
   AudioFX.newIncomingMsg();
 
-  if ('Notification' in window && Notification.permission === 'granted') {
-    try {
-      const notif = new Notification(title, {
+  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({
+      type: 'TRIGGER_NOTIFICATION',
+      title: title,
+      options: {
         body: body,
-        icon: iconUrl,
-        badge: './Tanomiya.png',
-        silent: false
-      });
-      if (onClickCallback) {
-        notif.onclick = () => {
-          window.focus();
-          onClickCallback();
-        };
+        icon: iconUrl || './Tanomiya.png',
+        badge: './Tanomiya.png'
       }
+    });
+  } else if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification(title, {
+        body: body,
+        icon: iconUrl || './Tanomiya.png',
+        badge: './Tanomiya.png'
+      });
     } catch (e) {}
   }
 
@@ -357,6 +420,115 @@ function showInAppToast(title, body, iconUrl, onClick) {
     toast.style.transition = 'all 0.3s ease';
     setTimeout(() => toast.remove(), 300);
   }, 4500);
+}
+
+// ================= NOTIFICATION CENTER MANAGER =================
+async function pushSystemNotification({ type, title, body, authorName, authorAvatar, linkView, targetUserId = null }) {
+  try {
+    const currentUser = getCurrentUser();
+    await addDoc(collection(db, "system_notifications"), {
+      type: type || 'post',
+      title: title,
+      body: body,
+      authorName: authorName || (currentUser ? currentUser.name : 'สมาชิก'),
+      authorAvatar: authorAvatar || (currentUser ? currentUser.avatar : '👤'),
+      linkView: linkView || 'home',
+      targetUserId: targetUserId, // null = สมาชิกทุกคนเห็น, ถ้ามี ID = เห็นเฉพาะผู้รับ
+      createdAt: Date.now(),
+      timestamp: serverTimestamp()
+    });
+  } catch (err) {
+    console.warn("Push notification error:", err);
+  }
+}
+
+window.openNotificationsModal = function() {
+  AudioFX.click();
+  renderNotificationsList();
+  const modal = document.getElementById('notificationsModal');
+  if (modal) modal.style.display = 'flex';
+};
+
+window.markAllNotificationsAsRead = function() {
+  AudioFX.success();
+  lastKnownNotifTimestamp = Date.now();
+  localStorage.setItem('taiyoani_last_read_notif', lastKnownNotifTimestamp.toString());
+  updateNotificationBadge();
+  renderNotificationsList();
+};
+
+function updateNotificationBadge() {
+  const badge = document.getElementById('notifBadgeCounter');
+  if (!badge) return;
+
+  const unreadCount = systemNotifications.filter(n => {
+    const time = n.createdAt || 0;
+    return time > lastKnownNotifTimestamp;
+  }).length;
+
+  if (unreadCount > 0) {
+    badge.innerText = unreadCount > 99 ? '99+' : unreadCount;
+    badge.style.display = 'flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function renderNotificationsList() {
+  const container = document.getElementById('notificationsListContainer');
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (systemNotifications.length === 0) {
+    container.innerHTML = '<div style="text-align:center; padding:36px 16px; color:var(--text-muted); font-size:0.85rem;">🔔 ยังไม่มีการแจ้งเตือนกิจกรรมใหม่</div>';
+    return;
+  }
+
+  const typeConfig = {
+    post: { tag: '💡 โพสต์คอมมู', class: 'tag-notif-post' },
+    story: { tag: '📸 สตอรี่ใหม่', class: 'tag-notif-story' },
+    project: { tag: '📁 โปรเจกต์', class: 'tag-notif-project' },
+    task: { tag: '📋 งานในโปรเจกต์', class: 'tag-notif-project' },
+    chat: { tag: '💬 ข้อความแชท', class: 'tag-notif-chat' }
+  };
+
+  systemNotifications.forEach(notif => {
+    const isUnread = (notif.createdAt || 0) > lastKnownNotifTimestamp;
+    const conf = typeConfig[notif.type] || typeConfig.post;
+
+    const card = document.createElement('div');
+    card.className = `notif-card-item ${isUnread ? 'unread' : ''}`;
+    card.onclick = () => {
+      closeModal('notificationsModal');
+      if (notif.linkView) window.switchAppView(notif.linkView);
+    };
+
+    const timeAgo = formatTimeAgo(notif.createdAt);
+
+    card.innerHTML = `
+      <div class="notif-icon-bubble">${renderAvatarHtml(notif.authorAvatar)}</div>
+      <div class="notif-content">
+        <div class="notif-header-row">
+          <span class="notif-title">${escapeHtml(notif.title)}</span>
+          <span class="notif-time">${timeAgo}</span>
+        </div>
+        <div class="notif-body">${escapeHtml(notif.body)}</div>
+        <span class="notif-badge-tag ${conf.class}">${conf.tag}</span>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function formatTimeAgo(timestamp) {
+  if (!timestamp) return 'เมื่อสักครู่';
+  const diffSec = Math.floor((Date.now() - timestamp) / 1000);
+  if (diffSec < 60) return 'เมื่อสักครู่';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} นาทีที่แล้ว`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour} ชม. ที่แล้ว`;
+  return `${Math.floor(diffHour / 24)} วันที่แล้ว`;
 }
 
 // ================= SECTION VIEW ROUTER =================
@@ -762,7 +934,7 @@ function updateFilterActiveIndicator() {
   }
 }
 
-// ================= 1. ENHANCED STORIES SYSTEM (IMAGES & VIDEOS) =================
+// ================= 1. ENHANCED STORIES SYSTEM =================
 window.handleStoryMediaSelect = function(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -880,6 +1052,17 @@ window.handleCreateStorySubmit = async function(e) {
 
   AudioFX.success();
   await addDoc(collection(db, "community_stories"), newStory);
+
+  // แจ้งเตือนสตอรี่ใหม่
+  await pushSystemNotification({
+    type: 'story',
+    title: `${currentUser.name} ลงสตอรี่ใหม่`,
+    body: text || '📸 อัปเดตเรื่องราวใหม่ในคอมมูนิตี้',
+    authorName: currentUser.name,
+    authorAvatar: currentUser.avatar,
+    linkView: 'community'
+  });
+
   removeStoryMediaAttachment();
   closeModal('createStoryModal');
 };
@@ -1069,7 +1252,7 @@ window.handleDeleteCurrentStory = async function() {
   }
 };
 
-// ================= COMMUNITY POST MODAL CONTROLLER =================
+// ================= COMMUNITY POST MODAL & FEED =================
 window.openCommunityPostModal = function(initialAction = null) {
   AudioFX.click();
   const currentUser = getCurrentUser();
@@ -1084,7 +1267,7 @@ window.openCommunityPostModal = function(initialAction = null) {
     if (contentInput) contentInput.placeholder = `คุณกำลังคิดอะไรอยู่, ${currentUser.name}?`;
   }
 
-  document.getElementById('communityCategorySelect').value = (initialAction === 'idea') ? 'idea' : 'idea';
+  document.getElementById('communityCategorySelect').value = 'idea';
   document.getElementById('communityTitleInput').value = '';
   if (contentInput) contentInput.value = '';
   document.getElementById('communityTagsInput').value = '';
@@ -1231,6 +1414,17 @@ window.handleCreateCommunityPost = async function(e) {
 
   AudioFX.success();
   await addDoc(collection(db, "community_posts"), newPost);
+
+  // แจ้งเตือนโพสต์ใหม่
+  await pushSystemNotification({
+    type: 'post',
+    title: `${currentUser.name} โพสต์กระทู้ใหม่`,
+    body: title,
+    authorName: currentUser.name,
+    authorAvatar: currentUser.avatar,
+    linkView: 'community'
+  });
+
   removeCommunityPostImage();
   closeModal('communityPostModal');
 };
@@ -1337,7 +1531,6 @@ window.openCommunityPostDetail = function(postId) {
   document.getElementById('communityDetailModal').style.display = 'flex';
 };
 
-// ================= 3. VERTICAL COMMENTS & REPLIES THREAD =================
 function renderCommunityPosts() {
   const feed = document.getElementById('communityPostsFeed');
   if (!feed) return;
@@ -1678,7 +1871,7 @@ window.handleDeleteReply = async function(postId, commentId, replyId) {
   }
 };
 
-// ================= 4. DISCORD-STYLE CHANNELS & GROUPS =================
+// ================= DISCORD-STYLE CHANNELS & GROUPS =================
 window.toggleDiscordSidebar = function() {
   AudioFX.click();
   const sidebar = document.getElementById('discordSidebar');
@@ -1945,7 +2138,7 @@ window.handleDeleteCurrentGroup = async function() {
   }
 };
 
-// ================= 5. REAL-TIME MULTI-USER WebRTC MESH GROUP VOICE ROOM =================
+// ================= REAL-TIME MULTI-USER WebRTC GROUP VOICE ROOM =================
 window.toggleVoiceRoom = async function() {
   AudioFX.click();
   const currentUser = getCurrentUser();
@@ -2214,7 +2407,7 @@ function removeRemoteGroupAudio(peerId) {
   }
 }
 
-// ================= 6. 1-ON-1 VOICE CALL SYSTEM =================
+// ================= 1-ON-1 VOICE CALL SYSTEM =================
 function startIncomingCallListener() {
   if (!currentUserId) return;
   
@@ -2319,6 +2512,17 @@ window.startVoiceCall = async function() {
   });
 
   activeCallDocId = callDocRef.id;
+
+  // แจ้งเตือนสายเรียกเข้าลงกระดิ่งและระบบ Push
+  await pushSystemNotification({
+    type: 'chat',
+    title: `📞 สายเรียกเข้าจาก ${currentUser.name}`,
+    body: 'กำลังโทรหาคุณผ่านระบบเสียง...',
+    authorName: currentUser.name,
+    authorAvatar: currentUser.avatar,
+    targetUserId: callReceiverId,
+    linkView: 'chat'
+  });
 
   AudioFX.ringtone();
   if (callRingtoneInterval) clearInterval(callRingtoneInterval);
@@ -2498,7 +2702,7 @@ window.toggleVoiceMute = function() {
   }
 };
 
-// ================= 7. MESSAGE SEND & UNSEND =================
+// ================= MESSAGE SEND & UNSEND =================
 window.handleSendChatMessage = async function(e) {
   e.preventDefault();
   const input = document.getElementById('chatTextInput');
@@ -2528,14 +2732,52 @@ window.handleSendChatMessage = async function(e) {
 
   if (activeChatMode === 'team') {
     await addDoc(collection(db, "chats"), payload);
+
+    // แจ้งเตือนแชทห้องรวม
+    await pushSystemNotification({
+      type: 'chat',
+      title: `💬 ${currentUser.name} (ห้องรวม)`,
+      body: text || '📷 ส่งรูปภาพในห้องแชท',
+      authorName: currentUser.name,
+      authorAvatar: currentUser.avatar,
+      linkView: 'chat'
+    });
   } else if (activeChatMode === 'dm' && activeDmTargetUser) {
     const roomId = [currentUser.id, activeDmTargetUser.id].sort().join('_');
     await addDoc(collection(db, "direct_chats", roomId, "messages"), {
       ...payload,
       receiverId: activeDmTargetUser.id
     });
+
+    // แจ้งเตือนแชทส่วนตัว (ขึ้นกระดิ่งและ Push หาเฉพาะผู้รับ)
+    await pushSystemNotification({
+      type: 'chat',
+      title: `💬 ข้อความส่วนตัวจาก ${currentUser.name}`,
+      body: text || '📷 ส่งรูปภาพ',
+      authorName: currentUser.name,
+      authorAvatar: currentUser.avatar,
+      targetUserId: activeDmTargetUser.id,
+      linkView: 'chat'
+    });
   } else if (activeChatMode === 'group' && activeGroupId) {
     await addDoc(collection(db, "group_chats", activeGroupId, "messages"), payload);
+
+    // แจ้งเตือนแชทกลุ่มหาสมาชิกทุกคนในกลุ่ม
+    if (activeGroupData && Array.isArray(activeGroupData.members)) {
+      activeGroupData.members.forEach(async (memberId) => {
+        if (memberId !== currentUser.id) {
+          await pushSystemNotification({
+            type: 'chat',
+            title: `👥 ${currentUser.name} ในกลุ่ม ${activeGroupData.name}`,
+            body: text || '📷 ส่งรูปภาพ',
+            authorName: currentUser.name,
+            authorAvatar: currentUser.avatar,
+            targetUserId: memberId,
+            linkView: 'chat'
+          });
+        }
+      });
+    }
   }
 };
 
@@ -2630,7 +2872,7 @@ function scrollChatToBottom() {
   }
 }
 
-// ================= 8. AUDIO HARDWARE & SETTINGS =================
+// ================= AUDIO HARDWARE & SETTINGS =================
 window.openSettingsModal = async function() {
   AudioFX.click();
   document.getElementById('settingsModal').style.display = 'flex';
@@ -2816,7 +3058,7 @@ window.testSpeakerSound = function() {
   osc.stop(now + 0.6);
 };
 
-// ================= 9. ADMIN ROLE MANAGEMENT SYSTEM =================
+// ================= ADMIN ROLE MANAGEMENT =================
 window.openAdminRoleModal = function(userId) {
   if (!isAdmin()) {
     AudioFX.delete();
@@ -2893,7 +3135,7 @@ window.handleSaveUserRoleSubmit = async function(e) {
   }
 };
 
-// ================= 10. VIEW PROFILE & BIO SYSTEM =================
+// ================= VIEW PROFILE & BIO SYSTEM =================
 window.openUserProfile = function(userId) {
   const user = teamUsers.find(u => u.id === userId);
   if (!user) return;
@@ -2957,7 +3199,7 @@ window.openCurrentUserProfile = function() {
   }
 };
 
-// ================= 11. CHAT EMOJI & LIGHTBOX =================
+// ================= CHAT EMOJI & LIGHTBOX =================
 function renderChatEmojiPicker() {
   const container = document.getElementById('chatEmojiPickerPopover');
   if (!container) return;
@@ -2989,7 +3231,6 @@ window.toggleChatEmojiPicker = function() {
 
 document.addEventListener('click', (e) => {
   const picker = document.getElementById('chatEmojiPickerPopover');
-  const btn = document.getElementById('btnChatEmojiToggle');
   if (picker && picker.style.display === 'grid') {
     if (!picker.contains(e.target)) {
       picker.style.display = 'none';
@@ -3060,7 +3301,7 @@ window.closeLightbox = function() {
   if (modal) modal.style.display = 'none';
 };
 
-// ================= 12. SAVE LOADING CONTROLLERS =================
+// ================= SAVE LOADING CONTROLLERS =================
 function showSaveLoadingModal(title, desc) {
   const modal = document.getElementById('loadingModal');
   const titleEl = document.getElementById('saveLoadingTitle');
@@ -3104,7 +3345,7 @@ function hideSaveLoadingModal() {
   if (modal) modal.style.display = 'none';
 }
 
-// ================= 13. DEVICE MODE SWITCHER =================
+// ================= DEVICE MODE SWITCHER =================
 window.setDeviceMode = function(mode) {
   AudioFX.click();
   const body = document.body;
@@ -3138,7 +3379,7 @@ window.toggleMobileSidebar = function() {
   if (backdrop) backdrop.classList.toggle('active', isMobileSidebarOpen);
 };
 
-// ================= 14. PRESENCE & HEARTBEAT SYSTEM =================
+// ================= PRESENCE & HEARTBEAT SYSTEM =================
 function startHeartbeat() {
   if (!currentUserId) return;
   updateDoc(doc(db, "users", currentUserId), { lastActive: serverTimestamp() }).catch(() => {});
@@ -3162,7 +3403,7 @@ function getPresenceStatus(lastActive) {
   return { isOnline: false, text: `${Math.floor(diffMin / 1440)} วันที่แล้ว` };
 }
 
-// ================= 15. REAL-TIME FIRESTORE LISTENERS =================
+// ================= REAL-TIME FIRESTORE LISTENERS =================
 function startRealtimeSync() {
   onSnapshot(collection(db, "users"), (snapshot) => {
     teamUsers = [];
@@ -3205,16 +3446,6 @@ function startRealtimeSync() {
   onSnapshot(chatQuery, (snapshot) => {
     const newChats = [];
     snapshot.forEach(doc => newChats.push({ id: doc.id, ...doc.data() }));
-
-    if (initialChatLoadDone && activeChatMode === 'team' && newChats.length > chatMessages.length) {
-      const lastMsg = newChats[newChats.length - 1];
-      if (lastMsg && lastMsg.senderId !== currentUserId) {
-        triggerHardwareAlert(`💬 ${lastMsg.senderName} (ห้องรวม)`, lastMsg.text || '📷 ส่งรูปภาพ', lastMsg.senderAvatar, () => {
-          window.switchAppView('chat');
-          window.switchChatChannel('team');
-        });
-      }
-    }
     initialChatLoadDone = true;
     chatMessages = newChats;
     if (activeChatMode === 'team') {
@@ -3243,9 +3474,41 @@ function startRealtimeSync() {
     snapshot.forEach(doc => homeBanners.push({ id: doc.id, ...doc.data() }));
     renderHomeBanners();
   });
+
+  // Real-time Notifications Listener (กรองเฉพาะแจ้งเตือนของตัวเองและส่วนรวม)
+  let initialNotifLoad = true;
+  const notifQuery = query(collection(db, "system_notifications"), orderBy("createdAt", "desc"));
+  onSnapshot(notifQuery, (snapshot) => {
+    const freshNotifs = [];
+    snapshot.forEach(doc => freshNotifs.push({ id: doc.id, ...doc.data() }));
+
+    const myId = currentUserId;
+    const userFilteredNotifs = freshNotifs.filter(n => !n.targetUserId || n.targetUserId === myId);
+
+    if (!initialNotifLoad && freshNotifs.length > 0) {
+      const newest = freshNotifs[0];
+      const currentUser = getCurrentUser();
+
+      // ตรวจสอบว่าเป็นข้อความที่ส่งถึงเรา และไม่ใช่เราเป็นคนทำรายการเอง
+      const isTargetedToMe = !newest.targetUserId || newest.targetUserId === myId;
+      if (newest && isTargetedToMe && (!currentUser || newest.authorName !== currentUser.name)) {
+        triggerHardwareAlert(newest.title, newest.body, newest.authorAvatar, () => {
+          if (newest.linkView) window.switchAppView(newest.linkView);
+        });
+      }
+    }
+
+    initialNotifLoad = false;
+    systemNotifications = userFilteredNotifs.slice(0, 50);
+    updateNotificationBadge();
+    const notifModal = document.getElementById('notificationsModal');
+    if (notifModal && notifModal.style.display === 'flex') {
+      renderNotificationsList();
+    }
+  });
 }
 
-// ================= 16. REVENUE & PAYOUT SYSTEM =================
+// ================= REVENUE & PAYOUT SYSTEM =================
 function renderRevenueWidget() {
   const voice = Number(revenueData.voice) || 0;
   const anim = Number(revenueData.animation) || 0;
@@ -3349,7 +3612,7 @@ window.handleSaveRevenue = async function(e) {
   closeModal('revenueModal');
 };
 
-// ================= 17. SCRIPT & WORKSPACE =================
+// ================= SCRIPT & WORKSPACE =================
 window.openNewScriptModal = function() {
   if (!activeProjectId) { alert('กรุณาสร้างหรือเลือกโปรเจกต์ก่อนสร้างสคริปต์'); return; }
   AudioFX.click();
@@ -3386,6 +3649,16 @@ window.handleCreateNewScript = async function(e) {
   const updatedTasks = [newScriptTask, ...(currentProj.tasks || [])];
   AudioFX.success();
   await updateDoc(doc(db, "projects", activeProjectId), { tasks: updatedTasks });
+
+  // แจ้งเตือนสคริปต์ใหม่
+  await pushSystemNotification({
+    type: 'task',
+    title: `เพิ่มสคริปต์ใหม่: ${title}`,
+    body: desc || 'มีเอกสารบทพากย์ใหม่เพิ่มเข้ามาในโปรเจกต์',
+    authorName: currentUser ? currentUser.name : 'สมาชิก',
+    authorAvatar: currentUser ? currentUser.avatar : '📜',
+    linkView: 'projects'
+  });
   
   closeModal('newScriptModal');
   openScriptEditor(scriptId);
@@ -3580,7 +3853,7 @@ window.handleSaveTaskScript = async function() {
   alert(`💾 บันทึกสคริปต์สำเร็จ (${currentScriptPages.length} หน้า)!`);
 };
 
-// ================= 18. AUTH & ACCOUNT MANAGEMENT =================
+// ================= AUTH & ACCOUNT MANAGEMENT =================
 function initAuth() {
   initDeviceMode();
   initAppView();
@@ -3595,6 +3868,7 @@ function initAuth() {
     document.getElementById('mainAppLayout').style.display = 'flex';
     updateCurrentUserDisplay();
     startHeartbeat();
+    requestNotificationPermission();
   } else {
     document.getElementById('authGate').style.display = 'flex';
     document.getElementById('mainAppLayout').style.display = 'none';
@@ -3803,6 +4077,7 @@ window.handleLoginSubmit = async function(e) {
     updateCurrentUserDisplay();
     renderProjects();
     startHeartbeat();
+    requestNotificationPermission();
   } else {
     AudioFX.delete();
     errorMsg.innerText = 'รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง';
@@ -3968,6 +4243,7 @@ window.handleVerifyOtpSubmit = async function(e) {
     updateCurrentUserDisplay();
     renderProjects();
     startHeartbeat();
+    requestNotificationPermission();
     alert('🎉 ยืนยันตัวตนผ่านอีเมลสำเร็จ ยินดีต้อนรับเข้าสู่ระบบ!');
   } else {
     AudioFX.delete();
@@ -4003,7 +4279,7 @@ window.handleLogout = function() {
   }
 };
 
-// ================= 19. MEMBERS PRESENCE =================
+// ================= MEMBERS PRESENCE =================
 function renderMembersPresenceList() {
   const container = document.getElementById('membersPresenceList');
   const homeOnlinePill = document.getElementById('homeOnlineIndicator');
@@ -4051,10 +4327,7 @@ function renderMembersPresenceList() {
     item.className = 'member-presence-item';
     item.innerHTML = `
       <div class="member-presence-left clickable-profile" onclick="openUserProfile('${user.id}')" title="คลิกเพื่อดูโปรไฟล์">
-        <div class="member-avatar-wrapper">
-          ${renderAvatarHtml(user.avatar)}
-          <span class="status-badge-dot ${presence.isOnline ? 'online' : 'offline'}"></span>
-        </div>
+        <div class="member-avatar-wrapper">${renderAvatarHtml(user.avatar)}<span class="status-badge-dot ${presence.isOnline ? 'online' : 'offline'}"></span></div>
         <div class="member-presence-info">
           <div class="member-presence-name-row">
             <span class="member-presence-name">${escapeHtml(user.name)}${adminTag}</span>
@@ -4092,7 +4365,7 @@ window.startDirectChat = function(targetUserId) {
   window.switchChatChannel('dm', targetUser.id);
 };
 
-// ================= 20. PROJECT NOTES & EDIT PROFILE =================
+// ================= PROJECT NOTES & EDIT PROFILE =================
 window.openProjectNotesModal = function() {
   const currentProj = projects.find(p => p.id === activeProjectId);
   if (!currentProj) { alert('กรุณาเลือกโปรเจกต์ก่อน'); return; }
@@ -4342,7 +4615,7 @@ window.handleResendPasswordOtp = async function() {
   );
 };
 
-// ================= 21. WORKSPACE PROJECTS & TASKS =================
+// ================= WORKSPACE PROJECTS & TASKS =================
 window.openAddProjectModal = function() {
   document.getElementById('projTitleInput').value = '';
   document.getElementById('projDescInput').value = '';
@@ -4369,6 +4642,17 @@ window.handleCreateProject = async function(e) {
   };
 
   await setDoc(doc(db, "projects", projId), newProj);
+
+  // แจ้งเตือนโปรเจกต์ใหม่
+  await pushSystemNotification({
+    type: 'project',
+    title: `เปิดโปรเจกต์ใหม่: ${name}`,
+    body: desc || 'เริ่มโปรเจกต์ใหม่ใน Workspace',
+    authorName: currentUser ? currentUser.name : 'สมาชิก',
+    authorAvatar: currentUser ? currentUser.avatar : '📁',
+    linkView: 'projects'
+  });
+
   activeProjectId = projId;
   closeModal('projectModal');
 };
@@ -4467,6 +4751,18 @@ window.handleSaveTask = async function(e) {
       createdBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar } : null,
       updatedBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar, time: nowStr } : null
     });
+
+    // แจ้งเตือนการมอบหมายงานใหม่
+    const targetUserObj = teamUsers.find(u => u.name === assignee);
+    await pushSystemNotification({
+      type: 'task',
+      title: `มอบหมายงานใหม่: ${title}`,
+      body: `ผู้รับผิดชอบ: ${assignee}`,
+      authorName: currentUser ? currentUser.name : 'สมาชิก',
+      authorAvatar: currentUser ? currentUser.avatar : '📋',
+      targetUserId: targetUserObj ? targetUserObj.id : null,
+      linkView: 'projects'
+    });
   }
 
   AudioFX.success();
@@ -4525,8 +4821,10 @@ window.handleSaveSubmission = async function(e) {
   const currentUser = getCurrentUser();
   const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+  let submittedTaskTitle = '';
   const updatedTasks = currentProj.tasks.map(t => {
     if (t.id === taskId) {
+      submittedTaskTitle = t.title;
       return {
         ...t,
         submissionLink: submissionLink,
@@ -4539,6 +4837,17 @@ window.handleSaveSubmission = async function(e) {
 
   AudioFX.submitWork();
   await updateDoc(doc(db, "projects", activeProjectId), { tasks: updatedTasks });
+
+  // แจ้งเตือนการส่งงาน
+  await pushSystemNotification({
+    type: 'task',
+    title: `${currentUser ? currentUser.name : 'สมาชิก'} ได้ส่งงานแล้ว`,
+    body: `งาน: ${submittedTaskTitle}`,
+    authorName: currentUser ? currentUser.name : 'สมาชิก',
+    authorAvatar: currentUser ? currentUser.avatar : '📤',
+    linkView: 'projects'
+  });
+
   closeModal('submitWorkModal');
   alert('🎉 บันทึกการส่งงานเรียบร้อยแล้ว!');
 };
@@ -4581,6 +4890,17 @@ window.handleSaveIdea = async function(e) {
   ];
 
   await updateDoc(doc(db, "projects", activeProjectId), { tasks: updatedTasks });
+
+  // แจ้งเตือนการเสนอไอเดีย
+  await pushSystemNotification({
+    type: 'task',
+    title: `เสนอไอเดียใหม่: ${title}`,
+    body: story,
+    authorName: currentUser ? currentUser.name : 'สมาชิก',
+    authorAvatar: currentUser ? currentUser.avatar : '💡',
+    linkView: 'projects'
+  });
+
   closeModal('ideaModal');
 };
 
@@ -4840,7 +5160,7 @@ function escapeHtml(text) {
     .replace(/'/g, "&#039;");
 }
 
-// ================= 22. FORGOT & RESET PASSWORD =================
+// ================= FORGOT & RESET PASSWORD =================
 let resetPasswordTargetUser = null;
 
 window.openForgotPasswordModal = function() {
@@ -4916,7 +5236,6 @@ window.handleResetPasswordSubmit = async function(e) {
     AudioFX.delete();
     errorMsg2.innerText = "รหัสผ่านใหม่และการยืนยันรหัสผ่านไม่ตรงกัน";
     errorMsg2.style.display = 'block';
-    return;
   }
 
   try {
@@ -4935,7 +5254,7 @@ window.handleResetPasswordSubmit = async function(e) {
   }
 };
 
-// ================= 23. DELETE ACCOUNT SYSTEM =================
+// ================= DELETE ACCOUNT SYSTEM =================
 window.openDeleteAccountModal = function() {
   const currentUser = getCurrentUser();
   if (!currentUser) return;
@@ -5013,7 +5332,7 @@ window.handleConfirmDeleteAccount = async function(e) {
   }
 };
 
-// ================= 24. iOS DOCK DRAG & SCRUB GESTURE ENGINE =================
+// ================= iOS DOCK DRAG & SCRUB GESTURE ENGINE =================
 function initDockGestureScrubber() {
   const dock = document.querySelector('.bottom-dock-nav');
   if (!dock) return;
