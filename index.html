@@ -12,6 +12,61 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="device-mode-auto">
+  <!-- ================= LOCK SCREEN OVERLAY ================= -->
+  <div class="lock-screen-overlay" id="lockScreenOverlay" style="display: none;">
+    <div class="lock-screen-top">
+      <div class="lock-status-icon" id="lockPadlockIcon">🔒</div>
+      <div class="lock-clock-time" id="lockClockTimeDisplay">00:00:00</div>
+      <div class="lock-clock-date" id="lockClockDateDisplay">วัน... ที่ ...</div>
+    </div>
+
+    <!-- 📢 แบนเนอร์แสดงข่าวสารและโปรเจกต์บนหน้าล็อกสกรีน -->
+    <div class="lock-banner-stage">
+      <div class="lock-banner-carousel" id="lockBannerCarousel">
+        <div class="lock-banner-track" id="lockBannerTrack"></div>
+        <div class="lock-banner-dots" id="lockBannerDotsContainer"></div>
+      </div>
+    </div>
+
+    <!-- ส่วนกรอกรหัส PIN ปลดล็อก -->
+    <div class="lock-screen-auth-box" id="lockAuthBox">
+      <div class="lock-user-badge">
+        <div class="lock-user-avatar" id="lockUserAvatarDisplay">👤</div>
+        <span class="lock-user-name" id="lockUserNameDisplay">TaiyoAni User</span>
+      </div>
+
+      <div class="pin-dots-display" id="pinDotsDisplay">
+        <span class="pin-dot"></span>
+        <span class="pin-dot"></span>
+        <span class="pin-dot"></span>
+        <span class="pin-dot"></span>
+      </div>
+      <div class="lock-error-msg" id="lockErrorMsg" style="display: none;">รหัส PIN ไม่ถูกต้อง</div>
+
+      <div class="pin-keypad-grid" id="pinKeypadGrid">
+        <button type="button" class="btn-keypad-num" onclick="enterPinDigit('1')">1</button>
+        <button type="button" class="btn-keypad-num" onclick="enterPinDigit('2')">2</button>
+        <button type="button" class="btn-keypad-num" onclick="enterPinDigit('3')">3</button>
+        <button type="button" class="btn-keypad-num" onclick="enterPinDigit('4')">4</button>
+        <button type="button" class="btn-keypad-num" onclick="enterPinDigit('5')">5</button>
+        <button type="button" class="btn-keypad-num" onclick="enterPinDigit('6')">6</button>
+        <button type="button" class="btn-keypad-num" onclick="enterPinDigit('7')">7</button>
+        <button type="button" class="btn-keypad-num" onclick="enterPinDigit('8')">8</button>
+        <button type="button" class="btn-keypad-num" onclick="enterPinDigit('9')">9</button>
+        <button type="button" class="btn-keypad-num action-btn" onclick="clearPinInput()">C</button>
+        <button type="button" class="btn-keypad-num" onclick="enterPinDigit('0')">0</button>
+        <button type="button" class="btn-keypad-num action-btn" onclick="deletePinDigit()">⌫</button>
+      </div>
+
+      <button type="button" class="btn-quick-unlock" id="btnQuickUnlock" onclick="unlockAppScreen()" style="display: none;">
+        แตะเพื่อปลดล็อกหน้าจอ 🔓
+      </button>
+    </div>
+
+    <div class="lock-screen-bottom-hint">
+      TaiyoAni Workspace System • ปลอดภัย & เข้ารหัส @2026
+    </div>
+  </div>
 
   <!-- กล่องแสดงป๊อปอัปแจ้งเตือนภายในแอป (In-App Glass Toast) -->
   <div id="inAppToastContainer" class="in-app-toast-container"></div>
@@ -155,6 +210,7 @@
   <div class="app-layout" id="mainAppLayout" style="display: none;">
 
     <!-- 1. หน้าโฮม (HOME VIEW) -->
+    <!-- 1. หน้าโฮม (HOME VIEW) -->
     <section class="app-view-section active" id="viewHome">
       <div class="home-top-left-profile clickable-profile" onclick="openCurrentUserProfile()" title="คลิกเพื่อดูโปรไฟล์ของคุณ">
         <div class="home-profile-avatar" id="homeUserAvatarDisplay"></div>
@@ -164,17 +220,16 @@
         </div>
       </div>
 
-      <div class="home-top-center-clock" id="homeTopCenterClock">
-        <div class="home-clock-time" id="homeClockTimeDisplay">00:00:00</div>
-        <div class="home-clock-date" id="homeClockDateDisplay">วัน... ที่ ...</div>
-      </div>
-
       <div class="home-top-right-actions">
+        <!-- ปุ่มล็อกหน้าจอ -->
+        <button type="button" class="btn-glass-icon-circle" onclick="lockAppScreen()" title="ล็อกหน้าจอ">
+          <span>🔒</span>
+        </button>
+
         <button type="button" class="btn-glass-icon-circle" onclick="openNotificationsModal()" title="ศูนย์แจ้งเตือนกิจกรรมทีม">
           <span>🔔</span>
           <span class="home-members-badge notif-bell-badge" id="notifBadgeCounter" style="display: none;">0</span>
         </button>
-
         <button type="button" class="btn-glass-icon-circle" onclick="openTeamMembersModal()" title="รายชื่อสมาชิกในทีม">
           <span>👥</span>
           <span class="home-members-badge" id="homeOnlineIndicator">0</span>
@@ -528,7 +583,7 @@
           </div>
 
           <form class="chat-input-row" onsubmit="handleSendChatMessage(event)">
-            <button type="button" class="btn-chat-tool" id="btnChatEmojiToggle" onclick="toggleChatEmojiPicker()" title="ใส่อิโมจิ">😊</button>
+            <button type="button" class="btn-chat-tool" id="btnChatEmojiToggle" onclick="toggleChatEmojiPicker(event)" title="ใส่อิโมจิ">😊</button>
             <label class="btn-chat-tool" title="แนบรูปภาพส่งในแชท">
               📷
               <input type="file" id="chatFileInput" accept="image/*" style="display: none;" onchange="handleChatImageSelect(event)">
@@ -1435,57 +1490,114 @@
     </div>
   </div>
 
-  <!-- SETTINGS & AUDIO HARDWARE MODAL -->
+  <!-- SETTINGS & AUDIO HARDWARE MODAL (หมวดหมู่แท็บใหม่) -->
   <div class="modal-overlay" id="settingsModal" style="z-index: 1280;">
-    <div class="modal" style="max-width: 520px;">
+    <div class="modal settings-modal-categorized">
       <div class="modal-header">
-        <h3 style="display: flex; align-items: center; gap: 8px;">⚙️ ตั้งค่าอุปกรณ์เสียง (Voice & Audio Hardware)</h3>
+        <h3 style="display: flex; align-items: center; gap: 8px;">⚙️ การตั้งค่าระบบ (System Settings)</h3>
         <button type="button" class="close-btn" onclick="closeSettingsModal()">✕</button>
       </div>
+
+      <!-- แถบเลือกหมวดหมู่การตั้งค่า -->
+      <div class="settings-category-tabs">
+        <button type="button" class="settings-tab-btn active" id="tabBtnSettingAudio" onclick="switchSettingsTab('audio')">
+          🎙️ อุปกรณ์เสียง
+        </button>
+        <button type="button" class="settings-tab-btn" id="tabBtnSettingSecurity" onclick="switchSettingsTab('security')">
+          🔐 ล็อกหน้าจอ & PIN
+        </button>
+        <button type="button" class="settings-tab-btn" id="tabBtnSettingGeneral" onclick="switchSettingsTab('general')">
+          🔔 การแจ้งเตือน & เครื่อง
+        </button>
+      </div>
       
-      <div class="settings-body">
-        <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px;">
-          ระบบจะตรวจจับไมโครโฟนและลำโพงในอุปกรณ์ของคุณอัตโนมัติ เพื่อให้พร้อมสำหรับการคุยด้วยเสียง
-        </p>
+      <!-- เนื้อหาแต่ละหมวดหมู่ -->
+      <div class="settings-categorized-body">
+        
+        <!-- หมวดที่ 1: อุปกรณ์เสียง -->
+        <div class="settings-tab-pane active" id="paneSettingAudio">
+          <p class="settings-pane-desc">จัดการไมโครโฟนและลำโพงที่เชื่อมต่อกับอุปกรณ์ของคุณสำหรับการสนทนาเสียง</p>
 
-        <div class="form-group">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <label style="margin-bottom: 0;">🎙️ อุปกรณ์รับเสียง (Microphone Input):</label>
-            <button type="button" class="btn-sm" style="padding: 2px 8px; font-size: 0.72rem;" onclick="refreshAudioDevices()">🔄 ค้นหาใหม่</button>
-          </div>
-          <select id="settingAudioInputSelect" class="form-control" onchange="handleAudioDeviceChange()"></select>
-        </div>
-
-        <div class="audio-test-box">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="font-size: 0.8rem; font-weight: 600; color: #f8fafc;">ระดับเสียงไมโครโฟน (Live Mic Meter):</span>
-            <button type="button" id="btnToggleMicTest" class="btn-sm" onclick="toggleMicTest()">🎙️ เริ่มทดสอบไมค์</button>
-          </div>
-          <div class="audio-meter-track">
-            <div class="audio-meter-fill" id="audioMeterFill"></div>
-          </div>
-          <div id="micTestStatusText" style="font-size: 0.72rem; color: var(--text-muted); margin-top: 6px;">กดเริ่มทดสอบ แล้วลองพูดเพื่อดูการตอบสนองของไมค์</div>
-        </div>
-
-        <div class="form-group" style="margin-top: 14px;">
-          <label>🔊 อุปกรณ์ส่งออกเสียง (Speaker / Output):</label>
-          <select id="settingAudioOutputSelect" class="form-control" onchange="handleAudioDeviceChange()"></select>
-        </div>
-
-        <div class="audio-test-box">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-              <div style="font-size: 0.8rem; font-weight: 600; color: #f8fafc;">ทดสอบเสียงลำโพง (Speaker Test):</div>
-              <div style="font-size: 0.72rem; color: var(--text-muted);">ส่งสัญญาณเสียงทดสอบเพื่อตรวจเช็กความชัดเจน</div>
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label style="margin-bottom: 0;">🎙️ อุปกรณ์รับเสียง (Microphone Input):</label>
+              <button type="button" class="btn-sm" style="padding: 2px 8px; font-size: 0.72rem;" onclick="refreshAudioDevices()">🔄 ค้นหาใหม่</button>
             </div>
-            <button type="button" class="btn-sm" onclick="testSpeakerSound()">🔔 เล่นเสียงทดสอบ</button>
+            <select id="settingAudioInputSelect" class="form-control" onchange="handleAudioDeviceChange()"></select>
+          </div>
+
+          <div class="audio-test-box">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 0.8rem; font-weight: 600; color: #f8fafc;">ระดับเสียงไมโครโฟนสด (Live Mic Meter):</span>
+              <button type="button" id="btnToggleMicTest" class="btn-sm" onclick="toggleMicTest()">🎙️ เริ่มทดสอบไมค์</button>
+            </div>
+            <div class="audio-meter-track">
+              <div class="audio-meter-fill" id="audioMeterFill"></div>
+            </div>
+            <div id="micTestStatusText" style="font-size: 0.72rem; color: var(--text-muted); margin-top: 6px;">กดเริ่มทดสอบ แล้วลองพูดเพื่อดูการตอบสนองของไมค์</div>
+          </div>
+
+          <div class="form-group" style="margin-top: 14px;">
+            <label>🔊 อุปกรณ์ส่งออกเสียง (Speaker / Output):</label>
+            <select id="settingAudioOutputSelect" class="form-control" onchange="handleAudioDeviceChange()"></select>
+          </div>
+
+          <div class="audio-test-box">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-size: 0.8rem; font-weight: 600; color: #f8fafc;">ทดสอบเสียงลำโพง (Speaker Test):</div>
+                <div style="font-size: 0.72rem; color: var(--text-muted);">ส่งสัญญาณเสียงทดสอบเพื่อตรวจเช็กความชัดเจน</div>
+              </div>
+              <button type="button" class="btn-sm" onclick="testSpeakerSound()">🔔 เล่นเสียงทดสอบ</button>
+            </div>
           </div>
         </div>
+
+        <!-- หมวดที่ 2: ความปลอดภัย & ล็อกหน้าจอ -->
+        <div class="settings-tab-pane" id="paneSettingSecurity">
+          <p class="settings-pane-desc">ตั้งรหัสผ่านล็อกหน้าจอ (PIN 4 หลัก) เพื่อป้องกันไม่ให้ผู้อื่นเข้าถึง Workspace ตอนคุณไม่อยู่</p>
+
+          <div class="settings-card-box">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 0.85rem; font-weight: 700; color: #fff;">สถานะระบบล็อกหน้าจอ:</span>
+              <span id="currentLockStatusText" style="font-size: 0.78rem; font-weight: 600;">⚪ ปิดใช้งาน</span>
+            </div>
+            <div class="form-group" style="margin-bottom: 10px;">
+              <label>ตั้งรหัสผ่าน PIN ใหม่ (ตัวเลข 4 หลัก):</label>
+              <input type="password" id="settingLockPinInput" class="form-control" placeholder="กรอกเลข 4 หลัก (เว้นว่าง = ยกเลิกรหัส)" maxlength="4" pattern="[0-9]*" inputmode="numeric">
+            </div>
+            <button type="button" class="btn-create-task" onclick="saveLockScreenPin()" style="width: 100%; justify-content: center;">
+              💾 บันทึกรหัส PIN ล็อกหน้าจอ
+            </button>
+          </div>
+        </div>
+
+        <!-- หมวดที่ 3: การแจ้งเตือน & อุปกรณ์ -->
+        <div class="settings-tab-pane" id="paneSettingGeneral">
+          <p class="settings-pane-desc">จัดการการอนุญาตแจ้งเตือนระดับฮาร์ดแวร์และการจดจำอุปกรณ์</p>
+
+          <div class="settings-card-box">
+            <div style="font-size: 0.85rem; font-weight: 700; color: #fff; margin-bottom: 6px;">🔔 การแจ้งเตือนระดับฮาร์ดแวร์ (OS Push Alerts)</div>
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 10px;">รับแจ้งเตือนเมื่อมีสายโทรเข้า แชทส่วนตัว หรืออัปเดตโปรเจกต์</p>
+            <button type="button" class="btn-sm" onclick="requestNotificationPermission()">
+              📢 ขอสิทธิ์ส่งการแจ้งเตือนใหม่
+            </button>
+          </div>
+
+          <div class="settings-card-box" style="margin-top: 10px;">
+            <div style="font-size: 0.85rem; font-weight: 700; color: #f87171; margin-bottom: 6px;">🧹 ล้างประวัติบัญชีบนอุปกรณ์</div>
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 10px;">ลบรายชื่อล็อกอินที่บันทึกไว้ในเบราว์เซอร์เครื่องนี้</p>
+            <button type="button" class="btn-sm delete" onclick="handleClearDeviceSavedAccounts()">
+              ล้างประวัติการจำชื่อ
+            </button>
+          </div>
+        </div>
+
       </div>
 
       <div class="modal-footer" style="margin-top: 16px;">
         <button type="button" class="btn-create-task" onclick="closeSettingsModal()" style="width: 100%; justify-content: center;">
-          💾 บันทึกและเสร็จสิ้น
+          เสร็จสิ้น
         </button>
       </div>
     </div>
