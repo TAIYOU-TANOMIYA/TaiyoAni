@@ -170,6 +170,11 @@
       </div>
 
       <div class="home-top-right-actions">
+        <button type="button" class="btn-glass-icon-circle" onclick="openNotificationsModal()" title="ศูนย์แจ้งเตือนกิจกรรมทีม">
+          <span>🔔</span>
+          <span class="home-members-badge notif-bell-badge" id="notifBadgeCounter" style="display: none;">0</span>
+        </button>
+
         <button type="button" class="btn-glass-icon-circle" onclick="openTeamMembersModal()" title="รายชื่อสมาชิกในทีม">
           <span>👥</span>
           <span class="home-members-badge" id="homeOnlineIndicator">0</span>
@@ -1584,6 +1589,27 @@
           <button type="button" class="btn-sm" onclick="closeChangePasswordOtpModal()">ยกเลิก</button>
         </div>
       </form>
+    </div>
+  </div>
+
+<div class="modal-overlay" id="notificationsModal" style="z-index: 1290;">
+    <div class="modal notif-center-modal">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.4rem;">🔔</span>
+          <div>
+            <h3 style="font-size: 1.1rem; color: #fff;">ศูนย์แจ้งเตือนกิจกรรม</h3>
+            <span style="font-size: 0.72rem; color: var(--text-muted);">อัปเดตแบบเรียลไทม์จากสมาชิกในทีม</span>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <button type="button" class="btn-sm" onclick="markAllNotificationsAsRead()" style="font-size: 0.72rem; padding: 4px 8px;">✔️ อ่านทั้งหมด</button>
+          <button type="button" class="close-btn" onclick="closeModal('notificationsModal')">✕</button>
+        </div>
+      </div>
+
+      <div class="notif-list-viewport" id="notificationsListContainer">
+        </div>
     </div>
   </div>
 
