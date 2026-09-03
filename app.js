@@ -18,7 +18,6 @@ const firebaseConfig = {
   measurementId: "G-J76JT5GJJY"
 };
 
-// นำ Web Push VAPID Key ที่ได้จาก Firebase Console มาวางแทนที่ตรงนี้
 const VAPID_KEY = "วาง_VAPID_KEY_จาก_FIREBASE_CONSOLE_ที่นี่";
 
 const app = initializeApp(firebaseConfig);
@@ -62,7 +61,7 @@ async function sendOtpEmail(targetEmail, userName, otpCode, introMessage = "ร�
 
   if (EMAILJS_PUBLIC_KEY && EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID && window.emailjs) {
     try {
-      const res = await window.emailjs.send(
+      await window.emailjs.send(
         EMAILJS_SERVICE_ID,
         EMAILJS_TEMPLATE_ID,
         templateParams,
@@ -200,6 +199,12 @@ let currentBannerSlideIndex = 0;
 let bannerAutoSlideTimer = null;
 const BANNER_AUTO_SLIDE_INTERVAL = 6000;
 
+// Lock Screen States
+let enteredPinBuffer = '';
+let isScreenLocked = false;
+let currentLockBannerIndex = 0;
+let lockBannerTimer = null;
+
 // Search & Filter States
 let activeCommunityFilter = 'all';
 let modalTempSearchCategory = 'all';
@@ -314,7 +319,6 @@ async function requestNotificationPermission() {
   if ('serviceWorker' in navigator) {
     try {
       swRegistration = await navigator.serviceWorker.register('./sw.js');
-      console.log('Service Worker Registered.');
     } catch (e) {
       console.warn('SW register warning:', e);
     }
@@ -326,7 +330,6 @@ async function requestNotificationPermission() {
     } catch (e) {}
   }
 
-  // ลงทะเบียนรับ FCM Token ประจำเครื่อง
   if (messaging && swRegistration && Notification.permission === 'granted') {
     try {
       const token = await getToken(messaging, {
@@ -335,7 +338,6 @@ async function requestNotificationPermission() {
       });
 
       if (token && currentUserId) {
-        // บันทึก FCM Token ลงฐานข้อมูลผู้ใช้เพื่อให้ Cloud Function ส่ง Push หาได้แม้ปิดเว็บ
         await updateDoc(doc(db, "users", currentUserId), {
           fcmToken: token,
           fcmUpdatedAt: Date.now()
@@ -355,7 +357,6 @@ if (messaging) {
   });
 }
 
-// ดักรับสัญญาณเมื่อเปิดแอปมาจาก Notification Bar ของเครื่อง
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'NAVIGATE_VIEW') {
@@ -433,7 +434,7 @@ async function pushSystemNotification({ type, title, body, authorName, authorAva
       authorName: authorName || (currentUser ? currentUser.name : 'สมาชิก'),
       authorAvatar: authorAvatar || (currentUser ? currentUser.avatar : '👤'),
       linkView: linkView || 'home',
-      targetUserId: targetUserId, // null = สมาชิกทุกคนเห็น, ถ้ามี ID = เห็นเฉพาะผู้รับ
+      targetUserId: targetUserId,
       createdAt: Date.now(),
       timestamp: serverTimestamp()
     });
@@ -531,6 +532,409 @@ function formatTimeAgo(timestamp) {
   return `${Math.floor(diffHour / 24)} วันที่แล้ว`;
 }
 
+// ================= LOCK SCREEN & PIN SYSTEM =================
+function getStoredLockPin() {
+  const uid = currentUserId || 'guest';
+  return localStorage.getItem(`taiyoani_lock_pin_${uid}`) || '';
+}
+
+window.lockAppScreen = function() {
+  AudioFX.click();
+  isScreenLocked = true;
+  enteredPinBuffer = '';
+  updatePinDots();
+
+  const overlay = document.getElementById('lockScreenOverlay');
+  const errorMsg = document.getElementById('lockErrorMsg');
+  const dotsDisplay = document.getElementById('pinDotsDisplay');
+  const keypad = document.getElementById('pinKeypadGrid');
+  const quickUnlockBtn = document.getElementById('btnQuickUnlock');
+  const userAvatar = document.getElementById('lockUserAvatarDisplay');
+  const userName = document.getElementById('lockUserNameDisplay');
+
+  if (errorMsg) errorMsg.style.display = 'none';
+
+  const currentUser = getCurrentUser();
+  if (currentUser) {
+    if (userAvatar) userAvatar.innerHTML = renderAvatarHtml(currentUser.avatar);
+    if (userName) userName.innerText = currentUser.name;
+  }
+
+  const storedPin = getStoredLockPin();
+  if (storedPin && storedPin.trim() !== '') {
+    if (dotsDisplay) dotsDisplay.style.display = 'flex';
+    if (keypad) keypad.style.display = 'grid';
+    if (quickUnlockBtn) quickUnlockBtn.style.display = 'none';
+  } else {
+    if (dotsDisplay) dotsDisplay.style.display = 'none';
+    if (keypad) keypad.style.display = 'none';
+    if (quickUnlockBtn) quickUnlockBtn.style.display = 'inline-flex';
+  }
+
+  renderLockBanners();
+
+  if (overlay) overlay.style.display = 'flex';
+};
+
+window.unlockAppScreen = function() {
+  AudioFX.success();
+  isScreenLocked = false;
+  enteredPinBuffer = '';
+  if (lockBannerTimer) clearInterval(lockBannerTimer);
+  const overlay = document.getElementById('lockScreenOverlay');
+  if (overlay) overlay.style.display = 'none';
+};
+
+window.enterPinDigit = function(digit) {
+  if (enteredPinBuffer.length >= 4) return;
+  AudioFX.click();
+  enteredPinBuffer += digit;
+  updatePinDots();
+
+  if (enteredPinBuffer.length === 4) {
+    validateEnteredPin();
+  }
+};
+
+window.deletePinDigit = function() {
+  if (enteredPinBuffer.length > 0) {
+    AudioFX.delete();
+    enteredPinBuffer = enteredPinBuffer.slice(0, -1);
+    updatePinDots();
+  }
+};
+
+window.clearPinInput = function() {
+  AudioFX.delete();
+  enteredPinBuffer = '';
+  updatePinDots();
+};
+
+function updatePinDots() {
+  const dots = document.querySelectorAll('#pinDotsDisplay .pin-dot');
+  dots.forEach((dot, index) => {
+    if (index < enteredPinBuffer.length) {
+      dot.classList.add('filled');
+    } else {
+      dot.classList.remove('filled');
+    }
+  });
+}
+
+function validateEnteredPin() {
+  const storedPin = getStoredLockPin();
+  const errorMsg = document.getElementById('lockErrorMsg');
+
+  if (enteredPinBuffer === storedPin) {
+    unlockAppScreen();
+  } else {
+    AudioFX.delete();
+    if (errorMsg) {
+      errorMsg.style.display = 'block';
+    }
+    const keypad = document.getElementById('pinKeypadGrid');
+    if (keypad) {
+      keypad.style.animation = 'none';
+      keypad.offsetHeight;
+      keypad.style.animation = 'shakeKeypad 0.35s ease';
+    }
+    setTimeout(() => {
+      enteredPinBuffer = '';
+      updatePinDots();
+    }, 400);
+  }
+}
+
+window.saveLockScreenPin = function() {
+  const input = document.getElementById('settingLockPinInput');
+  if (!input) return;
+  const pin = input.value.trim();
+  const uid = currentUserId || 'guest';
+
+  if (pin !== '' && !/^\d{4}$/.test(pin)) {
+    AudioFX.delete();
+    alert('รหัส PIN ต้องเป็นตัวเลข 4 หลักเท่านั้น');
+    return;
+  }
+
+  AudioFX.success();
+  if (pin === '') {
+    localStorage.removeItem(`taiyoani_lock_pin_${uid}`);
+    alert('ยกเลิกการตั้งรหัสผ่านล็อกหน้าจอเรียบร้อยแล้ว');
+  } else {
+    localStorage.setItem(`taiyoani_lock_pin_${uid}`, pin);
+    alert('ตั้งรหัส PIN 4 หลักสำหรับล็อกหน้าจอเรียบร้อยแล้ว');
+  }
+
+  input.value = '';
+  updateLockStatusInSettings();
+};
+
+function updateLockStatusInSettings() {
+  const text = document.getElementById('currentLockStatusText');
+  if (!text) return;
+  const pin = getStoredLockPin();
+  if (pin) {
+    text.innerText = '🟢 เปิดใช้งาน PIN แล้ว';
+    text.style.color = '#6ee7b7';
+  } else {
+    text.innerText = '⚪ ปิดใช้งาน (แตะปลดล็อกได้ทันที)';
+    text.style.color = '#94a3b8';
+  }
+}
+
+function renderLockBanners() {
+  const track = document.getElementById('lockBannerTrack');
+  const dots = document.getElementById('lockBannerDotsContainer');
+  if (!track || !dots) return;
+
+  track.innerHTML = '';
+  dots.innerHTML = '';
+
+  const banners = homeBanners.length > 0 ? homeBanners : [{
+    title: '✨ ยินดีต้อนรับสู่ TaiyoAni Hub',
+    subtitle: 'ระบบบริหารงาน ออกแบบ และแอนิเมชั่นประจำทีม',
+    mediaType: 'image',
+    mediaData: './Tanomiya.png'
+  }];
+
+  if (currentLockBannerIndex >= banners.length) currentLockBannerIndex = 0;
+
+  banners.forEach((b, idx) => {
+    const slide = document.createElement('div');
+    slide.className = `lock-banner-slide ${idx === currentLockBannerIndex ? 'active' : ''}`;
+
+    let mediaHtml = b.mediaType === 'video'
+      ? `<video src="${b.mediaData}" autoplay muted loop playsinline></video>`
+      : `<img src="${b.mediaData}" alt="Banner">`;
+
+    slide.innerHTML = `
+      ${mediaHtml}
+      <div class="lock-banner-overlay-info">
+        <h4>${escapeHtml(b.title)}</h4>
+        <p>${escapeHtml(b.subtitle || '')}</p>
+      </div>
+    `;
+    track.appendChild(slide);
+
+    const dot = document.createElement('div');
+    dot.className = `lock-banner-dot ${idx === currentLockBannerIndex ? 'active' : ''}`;
+    dots.appendChild(dot);
+  });
+
+  if (lockBannerTimer) clearInterval(lockBannerTimer);
+  if (banners.length > 1) {
+    lockBannerTimer = setInterval(() => {
+      currentLockBannerIndex = (currentLockBannerIndex + 1) % banners.length;
+      document.querySelectorAll('.lock-banner-slide').forEach((s, i) => s.classList.toggle('active', i === currentLockBannerIndex));
+      document.querySelectorAll('.lock-banner-dot').forEach((d, i) => d.classList.toggle('active', i === currentLockBannerIndex));
+    }, 5500);
+  }
+}
+
+// ================= CATEGORIZED SETTINGS MODAL =================
+window.switchSettingsTab = function(tabName) {
+  AudioFX.click();
+  document.querySelectorAll('.settings-tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.settings-tab-pane').forEach(pane => pane.classList.remove('active'));
+
+  const activeBtn = document.getElementById(`tabBtnSetting${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`);
+  const activePane = document.getElementById(`paneSetting${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`);
+
+  if (activeBtn) activeBtn.classList.add('active');
+  if (activePane) activePane.classList.add('active');
+
+  if (tabName === 'security') {
+    updateLockStatusInSettings();
+  }
+};
+
+window.openSettingsModal = async function() {
+  AudioFX.click();
+  document.getElementById('settingsModal').style.display = 'flex';
+  updateLockStatusInSettings();
+  await refreshAudioDevices();
+};
+
+window.closeSettingsModal = function() {
+  stopMicTest();
+  document.getElementById('settingsModal').style.display = 'none';
+};
+
+window.refreshAudioDevices = async function() {
+  try {
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop());
+      } catch (e) {}
+    }
+
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const inputSelect = document.getElementById('settingAudioInputSelect');
+    const outputSelect = document.getElementById('settingAudioOutputSelect');
+
+    if (!inputSelect || !outputSelect) return;
+
+    inputSelect.innerHTML = '';
+    outputSelect.innerHTML = '';
+
+    const savedInputId = localStorage.getItem('taiyoani_audio_input_id') || '';
+    const savedOutputId = localStorage.getItem('taiyoani_audio_output_id') || '';
+
+    let micCount = 0;
+    let speakerCount = 0;
+
+    devices.forEach((device) => {
+      const opt = document.createElement('option');
+      opt.value = device.deviceId;
+
+      if (device.kind === 'audioinput') {
+        micCount++;
+        opt.innerText = device.label || `ไมโครโฟน ${micCount}`;
+        if (device.deviceId === savedInputId) opt.selected = true;
+        inputSelect.appendChild(opt);
+      } else if (device.kind === 'audiooutput') {
+        speakerCount++;
+        opt.innerText = device.label || `ลำโพง / หูฟัง ${speakerCount}`;
+        if (device.deviceId === savedOutputId) opt.selected = true;
+        outputSelect.appendChild(opt);
+      }
+    });
+
+    if (micCount === 0) inputSelect.innerHTML = '<option value="">ไม่พบอุปกรณ์ไมโครโฟน</option>';
+    if (speakerCount === 0) outputSelect.innerHTML = '<option value="">ลำโพงเริ่มต้นของระบบ (Default Speaker)</option>';
+  } catch (err) {
+    console.warn("Hardware enumeration error:", err);
+  }
+};
+
+window.handleAudioDeviceChange = function() {
+  const inputSelect = document.getElementById('settingAudioInputSelect');
+  const outputSelect = document.getElementById('settingAudioOutputSelect');
+  if (inputSelect && inputSelect.value) {
+    localStorage.setItem('taiyoani_audio_input_id', inputSelect.value);
+  }
+  if (outputSelect && outputSelect.value) {
+    const speakerId = outputSelect.value;
+    localStorage.setItem('taiyoani_audio_output_id', speakerId);
+    
+    const remoteAudio = document.getElementById('remoteVoiceAudio');
+    if (remoteAudio && typeof remoteAudio.setSinkId === 'function') {
+      remoteAudio.setSinkId(speakerId).catch(() => {});
+    }
+
+    document.querySelectorAll('#groupVoiceAudioContainer audio').forEach(a => {
+      if (typeof a.setSinkId === 'function') {
+        a.setSinkId(speakerId).catch(() => {});
+      }
+    });
+  }
+  if (isMicTesting) {
+    stopMicTest();
+    startMicTest();
+  }
+};
+
+window.toggleMicTest = function() {
+  AudioFX.click();
+  if (isMicTesting) {
+    stopMicTest();
+  } else {
+    startMicTest();
+  }
+};
+
+async function startMicTest() {
+  const meterFill = document.getElementById('audioMeterFill');
+  const btn = document.getElementById('btnToggleMicTest');
+  const statusText = document.getElementById('micTestStatusText');
+  const selectedMicId = document.getElementById('settingAudioInputSelect')?.value;
+
+  try {
+    const constraints = {
+      audio: selectedMicId ? { deviceId: { exact: selectedMicId } } : true
+    };
+
+    micTestStream = await navigator.mediaDevices.getUserMedia(constraints);
+    micTestAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = micTestAudioCtx.createMediaStreamSource(micTestStream);
+    micTestAnalyser = micTestAudioCtx.createAnalyser();
+    micTestAnalyser.fftSize = 256;
+    source.connect(micTestAnalyser);
+
+    const bufferLength = micTestAnalyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    isMicTesting = true;
+    if (btn) btn.innerText = '⏹️ หยุดทดสอบ';
+    if (statusText) statusText.innerText = '🟢 ไมค์กำลังทำงาน: ลองพูดเพื่อดูระดับเสียง';
+
+    function drawMeter() {
+      if (!isMicTesting) return;
+      micTestAnalyser.getByteFrequencyData(dataArray);
+
+      let sum = 0;
+      for (let i = 0; i < bufferLength; i++) {
+        sum += dataArray[i];
+      }
+      let avg = sum / bufferLength;
+      let percent = Math.min(100, Math.round((avg / 128) * 100 * 1.5));
+
+      if (meterFill) meterFill.style.width = `${percent}%`;
+      micTestAnimId = requestAnimationFrame(drawMeter);
+    }
+    drawMeter();
+  } catch (err) {
+    console.error("Mic test error:", err);
+    alert("ไม่สามารถเข้าถึงไมโครโฟนได้ กรุณาอนุญาตใช้งานไมค์ในเบราว์เซอร์");
+    stopMicTest();
+  }
+}
+
+function stopMicTest() {
+  isMicTesting = false;
+  if (micTestAnimId) cancelAnimationFrame(micTestAnimId);
+  if (micTestStream) {
+    micTestStream.getTracks().forEach(track => track.stop());
+    micTestStream = null;
+  }
+  if (micTestAudioCtx && micTestAudioCtx.state !== 'closed') {
+    micTestAudioCtx.close();
+    micTestAudioCtx = null;
+  }
+  const meterFill = document.getElementById('audioMeterFill');
+  const btn = document.getElementById('btnToggleMicTest');
+  const statusText = document.getElementById('micTestStatusText');
+  if (meterFill) meterFill.style.width = '0%';
+  if (btn) btn.innerText = '🎙️ เริ่มทดสอบไมค์';
+  if (statusText) statusText.innerText = 'กดเริ่มทดสอบ แล้วลองพูดเพื่อดูการตอบสนองของไมค์';
+}
+
+window.testSpeakerSound = function() {
+  AudioFX.init();
+  if (!AudioFX.ctx) return;
+
+  const now = AudioFX.ctx.currentTime;
+  const osc = AudioFX.ctx.createOscillator();
+  const gain = AudioFX.ctx.createGain();
+
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(523.25, now);
+  osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.12);
+  osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.24);
+  osc.frequency.exponentialRampToValueAtTime(1046.50, now + 0.36);
+
+  gain.gain.setValueAtTime(0.12, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+
+  osc.connect(gain);
+  gain.connect(AudioFX.ctx.destination);
+
+  osc.start(now);
+  osc.stop(now + 0.6);
+};
+
 // ================= SECTION VIEW ROUTER =================
 window.switchAppView = function(viewName) {
   AudioFX.click();
@@ -591,7 +995,7 @@ function initAppView() {
   }
 }
 
-// ================= LIVE CLOCK SYSTEM FOR HOME =================
+// ================= LIVE CLOCK (FOR LOCK SCREEN ONLY) =================
 function startLiveClock() {
   function updateClock() {
     const now = new Date();
@@ -603,10 +1007,10 @@ function startLiveClock() {
       day: 'numeric' 
     });
 
-    const timeEl = document.getElementById('homeClockTimeDisplay');
-    const dateEl = document.getElementById('homeClockDateDisplay');
-    if (timeEl) timeEl.innerText = timeStr;
-    if (dateEl) dateEl.innerText = dateStr;
+    const lockTimeEl = document.getElementById('lockClockTimeDisplay');
+    const lockDateEl = document.getElementById('lockClockDateDisplay');
+    if (lockTimeEl) lockTimeEl.innerText = timeStr;
+    if (lockDateEl) lockDateEl.innerText = dateStr;
   }
   updateClock();
   setInterval(updateClock, 1000);
@@ -1053,7 +1457,6 @@ window.handleCreateStorySubmit = async function(e) {
   AudioFX.success();
   await addDoc(collection(db, "community_stories"), newStory);
 
-  // แจ้งเตือนสตอรี่ใหม่
   await pushSystemNotification({
     type: 'story',
     title: `${currentUser.name} ลงสตอรี่ใหม่`,
@@ -1415,7 +1818,6 @@ window.handleCreateCommunityPost = async function(e) {
   AudioFX.success();
   await addDoc(collection(db, "community_posts"), newPost);
 
-  // แจ้งเตือนโพสต์ใหม่
   await pushSystemNotification({
     type: 'post',
     title: `${currentUser.name} โพสต์กระทู้ใหม่`,
@@ -2513,7 +2915,6 @@ window.startVoiceCall = async function() {
 
   activeCallDocId = callDocRef.id;
 
-  // แจ้งเตือนสายเรียกเข้าลงกระดิ่งและระบบ Push
   await pushSystemNotification({
     type: 'chat',
     title: `📞 สายเรียกเข้าจาก ${currentUser.name}`,
@@ -2733,7 +3134,6 @@ window.handleSendChatMessage = async function(e) {
   if (activeChatMode === 'team') {
     await addDoc(collection(db, "chats"), payload);
 
-    // แจ้งเตือนแชทห้องรวม
     await pushSystemNotification({
       type: 'chat',
       title: `💬 ${currentUser.name} (ห้องรวม)`,
@@ -2749,7 +3149,6 @@ window.handleSendChatMessage = async function(e) {
       receiverId: activeDmTargetUser.id
     });
 
-    // แจ้งเตือนแชทส่วนตัว (ขึ้นกระดิ่งและ Push หาเฉพาะผู้รับ)
     await pushSystemNotification({
       type: 'chat',
       title: `💬 ข้อความส่วนตัวจาก ${currentUser.name}`,
@@ -2762,7 +3161,6 @@ window.handleSendChatMessage = async function(e) {
   } else if (activeChatMode === 'group' && activeGroupId) {
     await addDoc(collection(db, "group_chats", activeGroupId, "messages"), payload);
 
-    // แจ้งเตือนแชทกลุ่มหาสมาชิกทุกคนในกลุ่ม
     if (activeGroupData && Array.isArray(activeGroupData.members)) {
       activeGroupData.members.forEach(async (memberId) => {
         if (memberId !== currentUser.id) {
@@ -2872,333 +3270,6 @@ function scrollChatToBottom() {
   }
 }
 
-// ================= AUDIO HARDWARE & SETTINGS =================
-window.openSettingsModal = async function() {
-  AudioFX.click();
-  document.getElementById('settingsModal').style.display = 'flex';
-  await refreshAudioDevices();
-};
-
-window.closeSettingsModal = function() {
-  stopMicTest();
-  document.getElementById('settingsModal').style.display = 'none';
-};
-
-window.refreshAudioDevices = async function() {
-  try {
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach(track => track.stop());
-      } catch (e) {}
-    }
-
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const inputSelect = document.getElementById('settingAudioInputSelect');
-    const outputSelect = document.getElementById('settingAudioOutputSelect');
-
-    if (!inputSelect || !outputSelect) return;
-
-    inputSelect.innerHTML = '';
-    outputSelect.innerHTML = '';
-
-    const savedInputId = localStorage.getItem('taiyoani_audio_input_id') || '';
-    const savedOutputId = localStorage.getItem('taiyoani_audio_output_id') || '';
-
-    let micCount = 0;
-    let speakerCount = 0;
-
-    devices.forEach((device) => {
-      const opt = document.createElement('option');
-      opt.value = device.deviceId;
-
-      if (device.kind === 'audioinput') {
-        micCount++;
-        opt.innerText = device.label || `ไมโครโฟน ${micCount}`;
-        if (device.deviceId === savedInputId) opt.selected = true;
-        inputSelect.appendChild(opt);
-      } else if (device.kind === 'audiooutput') {
-        speakerCount++;
-        opt.innerText = device.label || `ลำโพง / หูฟัง ${speakerCount}`;
-        if (device.deviceId === savedOutputId) opt.selected = true;
-        outputSelect.appendChild(opt);
-      }
-    });
-
-    if (micCount === 0) inputSelect.innerHTML = '<option value="">ไม่พบอุปกรณ์ไมโครโฟน</option>';
-    if (speakerCount === 0) outputSelect.innerHTML = '<option value="">ลำโพงเริ่มต้นของระบบ (Default Speaker)</option>';
-  } catch (err) {
-    console.warn("Hardware enumeration error:", err);
-  }
-};
-
-window.handleAudioDeviceChange = function() {
-  const inputSelect = document.getElementById('settingAudioInputSelect');
-  const outputSelect = document.getElementById('settingAudioOutputSelect');
-  if (inputSelect && inputSelect.value) {
-    localStorage.setItem('taiyoani_audio_input_id', inputSelect.value);
-  }
-  if (outputSelect && outputSelect.value) {
-    const speakerId = outputSelect.value;
-    localStorage.setItem('taiyoani_audio_output_id', speakerId);
-    
-    const remoteAudio = document.getElementById('remoteVoiceAudio');
-    if (remoteAudio && typeof remoteAudio.setSinkId === 'function') {
-      remoteAudio.setSinkId(speakerId).catch(() => {});
-    }
-
-    document.querySelectorAll('#groupVoiceAudioContainer audio').forEach(a => {
-      if (typeof a.setSinkId === 'function') {
-        a.setSinkId(speakerId).catch(() => {});
-      }
-    });
-  }
-  if (isMicTesting) {
-    stopMicTest();
-    startMicTest();
-  }
-};
-
-window.toggleMicTest = function() {
-  AudioFX.click();
-  if (isMicTesting) {
-    stopMicTest();
-  } else {
-    startMicTest();
-  }
-};
-
-async function startMicTest() {
-  const meterFill = document.getElementById('audioMeterFill');
-  const btn = document.getElementById('btnToggleMicTest');
-  const statusText = document.getElementById('micTestStatusText');
-  const selectedMicId = document.getElementById('settingAudioInputSelect')?.value;
-
-  try {
-    const constraints = {
-      audio: selectedMicId ? { deviceId: { exact: selectedMicId } } : true
-    };
-
-    micTestStream = await navigator.mediaDevices.getUserMedia(constraints);
-    micTestAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const source = micTestAudioCtx.createMediaStreamSource(micTestStream);
-    micTestAnalyser = micTestAudioCtx.createAnalyser();
-    micTestAnalyser.fftSize = 256;
-    source.connect(micTestAnalyser);
-
-    const bufferLength = micTestAnalyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-
-    isMicTesting = true;
-    if (btn) btn.innerText = '⏹️ หยุดทดสอบ';
-    if (statusText) statusText.innerText = '🟢 ไมค์กำลังทำงาน: ลองพูดเพื่อดูระดับเสียง';
-
-    function drawMeter() {
-      if (!isMicTesting) return;
-      micTestAnalyser.getByteFrequencyData(dataArray);
-
-      let sum = 0;
-      for (let i = 0; i < bufferLength; i++) {
-        sum += dataArray[i];
-      }
-      let avg = sum / bufferLength;
-      let percent = Math.min(100, Math.round((avg / 128) * 100 * 1.5));
-
-      if (meterFill) meterFill.style.width = `${percent}%`;
-      micTestAnimId = requestAnimationFrame(drawMeter);
-    }
-    drawMeter();
-  } catch (err) {
-    console.error("Mic test error:", err);
-    alert("ไม่สามารถเข้าถึงไมโครโฟนได้ กรุณาอนุญาตใช้งานไมค์ในเบราว์เซอร์");
-    stopMicTest();
-  }
-}
-
-function stopMicTest() {
-  isMicTesting = false;
-  if (micTestAnimId) cancelAnimationFrame(micTestAnimId);
-  if (micTestStream) {
-    micTestStream.getTracks().forEach(track => track.stop());
-    micTestStream = null;
-  }
-  if (micTestAudioCtx && micTestAudioCtx.state !== 'closed') {
-    micTestAudioCtx.close();
-    micTestAudioCtx = null;
-  }
-  const meterFill = document.getElementById('audioMeterFill');
-  const btn = document.getElementById('btnToggleMicTest');
-  const statusText = document.getElementById('micTestStatusText');
-  if (meterFill) meterFill.style.width = '0%';
-  if (btn) btn.innerText = '🎙️ เริ่มทดสอบไมค์';
-  if (statusText) statusText.innerText = 'กดเริ่มทดสอบ แล้วลองพูดเพื่อดูการตอบสนองของไมค์';
-}
-
-window.testSpeakerSound = function() {
-  AudioFX.init();
-  if (!AudioFX.ctx) return;
-
-  const now = AudioFX.ctx.currentTime;
-  const osc = AudioFX.ctx.createOscillator();
-  const gain = AudioFX.ctx.createGain();
-
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(523.25, now);
-  osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.12);
-  osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.24);
-  osc.frequency.exponentialRampToValueAtTime(1046.50, now + 0.36);
-
-  gain.gain.setValueAtTime(0.12, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-
-  osc.connect(gain);
-  gain.connect(AudioFX.ctx.destination);
-
-  osc.start(now);
-  osc.stop(now + 0.6);
-};
-
-// ================= ADMIN ROLE MANAGEMENT =================
-window.openAdminRoleModal = function(userId) {
-  if (!isAdmin()) {
-    AudioFX.delete();
-    alert('เฉพาะแอดมิน (TaiyoAni) เท่านั้นที่มีสิทธิ์ปรับยศสมาชิก');
-    return;
-  }
-
-  const user = teamUsers.find(u => u.id === userId);
-  if (!user) return;
-
-  AudioFX.click();
-  closeModal('teamMembersModal');
-  closeModal('viewProfileModal');
-
-  document.getElementById('adminTargetUserId').value = user.id;
-  document.getElementById('adminTargetUserName').innerText = user.name;
-  document.getElementById('adminTargetUserCurrentRole').innerText = `ยศปัจจุบัน: ${isAdmin(user) ? 'แอดมิน' : (user.role || 'สมาชิกทั่วไป')}`;
-  document.getElementById('adminTargetUserAvatar').innerHTML = renderAvatarHtml(user.avatar);
-
-  const isUserStaff = isStaff(user) && !isAdmin(user);
-  document.getElementById('adminRoleSelect').value = isUserStaff ? 'ทีมงาน' : 'สมาชิกทั่วไป';
-  document.getElementById('adminRoleCustomInput').value = user.customRole || user.role || '';
-
-  document.getElementById('adminRoleModal').style.display = 'flex';
-};
-
-window.handleAdminRoleSelectChange = function() {
-  const selectVal = document.getElementById('adminRoleSelect').value;
-  const customInput = document.getElementById('adminRoleCustomInput');
-  if (selectVal === 'สมาชิกทั่วไป' && (!customInput.value || customInput.value.includes('ทีมงาน'))) {
-    customInput.value = 'สมาชิกทั่วไป';
-  } else if (selectVal === 'ทีมงาน' && (!customInput.value || customInput.value.includes('สมาชิกทั่วไป'))) {
-    customInput.value = 'ทีมงาน';
-  }
-};
-
-window.handleSaveUserRoleSubmit = async function(e) {
-  e.preventDefault();
-  if (!isAdmin()) {
-    alert('เฉพาะแอดมินเท่านั้นที่มีสิทธิ์เปลี่ยนยศ');
-    return;
-  }
-
-  const targetUserId = document.getElementById('adminTargetUserId').value;
-  const selectedRank = document.getElementById('adminRoleSelect').value;
-  const customRole = document.getElementById('adminRoleCustomInput').value.trim();
-  const finalRole = customRole || (selectedRank === 'ทีมงาน' ? 'ทีมงาน' : 'สมาชิกทั่วไป');
-
-  closeModal('adminRoleModal');
-  showSaveLoadingModal("กำลังบันทึกการเปลี่ยนยศ...", "ระบบกำลังอัปเดตข้อมูลขึ้นระบบคลาวด์");
-  setSaveProgress(40);
-
-  try {
-    await updateDoc(doc(db, "users", targetUserId), {
-      role: finalRole,
-      rankType: selectedRank,
-      customRole: customRole
-    });
-
-    setSaveProgress(100);
-    showSaveSuccessModal("ปรับยศสมาชิกสำเร็จ!", `เปลี่ยนยศเป็น "${finalRole}" เรียบร้อยแล้ว`);
-    AudioFX.success();
-
-    setTimeout(() => {
-      hideSaveLoadingModal();
-      updateCurrentUserDisplay();
-      renderMembersPresenceList();
-    }, 900);
-  } catch (err) {
-    console.error("Change role error:", err);
-    hideSaveLoadingModal();
-    AudioFX.delete();
-    alert("เกิดข้อผิดพลาดในการบันทึกยศ กรุณาลองใหม่อีกครั้ง");
-  }
-};
-
-// ================= VIEW PROFILE & BIO SYSTEM =================
-window.openUserProfile = function(userId) {
-  const user = teamUsers.find(u => u.id === userId);
-  if (!user) return;
-
-  closeModal('teamMembersModal');
-  AudioFX.click();
-
-  const isSelf = currentUserId && user.id === currentUserId;
-  const userIsAdmin = isAdmin(user);
-  const adminTag = userIsAdmin ? ' 👑 (Admin)' : '';
-  const presence = getPresenceStatus(user.lastActive);
-  const displayRole = userIsAdmin ? '👑 แอดมิน' : (user.role || (isStaff(user) ? '🛡️ ทีมงาน' : '👤 สมาชิกทั่วไป'));
-
-  const bannerContainer = document.getElementById('viewProfileBannerDisplay');
-  if (bannerContainer) {
-    if (user.banner) {
-      bannerContainer.innerHTML = `<img src="${escapeHtml(user.banner)}" alt="Cover Banner">`;
-    } else {
-      bannerContainer.innerHTML = '';
-    }
-  }
-
-  document.getElementById('viewProfileAvatarDisplay').innerHTML = renderAvatarHtml(user.avatar);
-  document.getElementById('viewProfileNameDisplay').innerText = `${user.name}${adminTag}`;
-  document.getElementById('viewProfileRoleDisplay').innerText = displayRole;
-  document.getElementById('viewProfileStatusDisplay').innerHTML = `<span style="color: ${presence.isOnline ? '#6ee7b7' : '#94a3b8'}">${presence.text}</span>`;
-  document.getElementById('viewProfileEmailDisplay').innerText = user.email || 'ไม่ได้ระบุ';
-  document.getElementById('viewProfileBioDisplay').innerText = user.bio && user.bio.trim() !== '' ? user.bio : 'ผู้ใช้นี้ยังไม่ได้ระบุคำแนะนำตัว';
-
-  const actionsContainer = document.getElementById('viewProfileActionsContainer');
-  let adminBtnHtml = '';
-  if (isAdmin() && !isSelf && !userIsAdmin) {
-    adminBtnHtml = `
-      <button type="button" class="btn-admin-manage-role" onclick="openAdminRoleModal('${user.id}')">
-        🎖️ ปรับยศสมาชิก (Admin)
-      </button>
-    `;
-  }
-
-  if (isSelf) {
-    actionsContainer.innerHTML = `
-      <button type="button" class="btn-create-task" onclick="closeModal('viewProfileModal'); openEditProfileModal();">
-        ✏️ แก้ไขข้อมูลโปรไฟล์ของคุณ
-      </button>
-    `;
-  } else {
-    actionsContainer.innerHTML = `
-      <button type="button" class="btn-dm-start" style="padding: 8px 18px; font-size: 0.85rem;" onclick="closeModal('viewProfileModal'); startDirectChat('${user.id}');">
-        💬 ส่งข้อความส่วนตัว (DM)
-      </button>
-      ${adminBtnHtml}
-    `;
-  }
-
-  document.getElementById('viewProfileModal').style.display = 'flex';
-};
-
-window.openCurrentUserProfile = function() {
-  if (currentUserId) {
-    window.openUserProfile(currentUserId);
-  }
-};
-
 // ================= CHAT EMOJI & LIGHTBOX =================
 function renderChatEmojiPicker() {
   const container = document.getElementById('chatEmojiPickerPopover');
@@ -3210,17 +3281,21 @@ function renderChatEmojiPicker() {
     btn.type = 'button';
     btn.className = 'emoji-btn-opt';
     btn.innerText = emoji;
-    btn.onclick = () => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
       const input = document.getElementById('chatTextInput');
-      input.value += emoji;
-      input.focus();
+      if (input) {
+        input.value += emoji;
+        input.focus();
+      }
       container.style.display = 'none';
     };
     container.appendChild(btn);
   });
 }
 
-window.toggleChatEmojiPicker = function() {
+window.toggleChatEmojiPicker = function(event) {
+  if (event) event.stopPropagation();
   AudioFX.click();
   const picker = document.getElementById('chatEmojiPickerPopover');
   if (picker) {
@@ -3231,8 +3306,9 @@ window.toggleChatEmojiPicker = function() {
 
 document.addEventListener('click', (e) => {
   const picker = document.getElementById('chatEmojiPickerPopover');
+  const toggleBtn = document.getElementById('btnChatEmojiToggle');
   if (picker && picker.style.display === 'grid') {
-    if (!picker.contains(e.target)) {
+    if (!picker.contains(e.target) && !toggleBtn?.contains(e.target)) {
       picker.style.display = 'none';
     }
   }
@@ -3473,9 +3549,9 @@ function startRealtimeSync() {
     homeBanners = [];
     snapshot.forEach(doc => homeBanners.push({ id: doc.id, ...doc.data() }));
     renderHomeBanners();
+    renderLockBanners();
   });
 
-  // Real-time Notifications Listener (กรองเฉพาะแจ้งเตือนของตัวเองและส่วนรวม)
   let initialNotifLoad = true;
   const notifQuery = query(collection(db, "system_notifications"), orderBy("createdAt", "desc"));
   onSnapshot(notifQuery, (snapshot) => {
@@ -3489,7 +3565,6 @@ function startRealtimeSync() {
       const newest = freshNotifs[0];
       const currentUser = getCurrentUser();
 
-      // ตรวจสอบว่าเป็นข้อความที่ส่งถึงเรา และไม่ใช่เราเป็นคนทำรายการเอง
       const isTargetedToMe = !newest.targetUserId || newest.targetUserId === myId;
       if (newest && isTargetedToMe && (!currentUser || newest.authorName !== currentUser.name)) {
         triggerHardwareAlert(newest.title, newest.body, newest.authorAvatar, () => {
@@ -3650,7 +3725,6 @@ window.handleCreateNewScript = async function(e) {
   AudioFX.success();
   await updateDoc(doc(db, "projects", activeProjectId), { tasks: updatedTasks });
 
-  // แจ้งเตือนสคริปต์ใหม่
   await pushSystemNotification({
     type: 'task',
     title: `เพิ่มสคริปต์ใหม่: ${title}`,
@@ -3869,6 +3943,11 @@ function initAuth() {
     updateCurrentUserDisplay();
     startHeartbeat();
     requestNotificationPermission();
+
+    const pin = getStoredLockPin();
+    if (pin && pin.trim() !== '') {
+      window.lockAppScreen();
+    }
   } else {
     document.getElementById('authGate').style.display = 'flex';
     document.getElementById('mainAppLayout').style.display = 'none';
@@ -4078,6 +4157,11 @@ window.handleLoginSubmit = async function(e) {
     renderProjects();
     startHeartbeat();
     requestNotificationPermission();
+
+    const pin = getStoredLockPin();
+    if (pin && pin.trim() !== '') {
+      window.lockAppScreen();
+    }
   } else {
     AudioFX.delete();
     errorMsg.innerText = 'รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง';
@@ -4643,7 +4727,6 @@ window.handleCreateProject = async function(e) {
 
   await setDoc(doc(db, "projects", projId), newProj);
 
-  // แจ้งเตือนโปรเจกต์ใหม่
   await pushSystemNotification({
     type: 'project',
     title: `เปิดโปรเจกต์ใหม่: ${name}`,
@@ -4752,7 +4835,6 @@ window.handleSaveTask = async function(e) {
       updatedBy: currentUser ? { name: currentUser.name, avatar: currentUser.avatar, time: nowStr } : null
     });
 
-    // แจ้งเตือนการมอบหมายงานใหม่
     const targetUserObj = teamUsers.find(u => u.name === assignee);
     await pushSystemNotification({
       type: 'task',
@@ -4838,7 +4920,6 @@ window.handleSaveSubmission = async function(e) {
   AudioFX.submitWork();
   await updateDoc(doc(db, "projects", activeProjectId), { tasks: updatedTasks });
 
-  // แจ้งเตือนการส่งงาน
   await pushSystemNotification({
     type: 'task',
     title: `${currentUser ? currentUser.name : 'สมาชิก'} ได้ส่งงานแล้ว`,
@@ -4891,7 +4972,6 @@ window.handleSaveIdea = async function(e) {
 
   await updateDoc(doc(db, "projects", activeProjectId), { tasks: updatedTasks });
 
-  // แจ้งเตือนการเสนอไอเดีย
   await pushSystemNotification({
     type: 'task',
     title: `เสนอไอเดียใหม่: ${title}`,
