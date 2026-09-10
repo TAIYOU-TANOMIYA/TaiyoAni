@@ -3465,17 +3465,17 @@ body.device-mode-tablet .tasks-grid { grid-template-columns: repeat(2, 1fr) !imp
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 0; /* ไร้ขอบรอบนอก ยืดเต็มจอแนวตั้ง */
+  padding: 0;
   margin: 0;
   width: 100%;
   height: 100%;
   display: flex;
   justify-content: center;
   align-items: stretch;
-  z-index: 5; /* อยู่ใต้ Dock Bar */
+  z-index: 5;
 }
 
-/* ================= 2. การ์ดคอมมูแนบขอบบน-ล่างสนิท ไร้ระยะเว้น ================= */
+/* ================= 2. การ์ดคอมมูเลื่อนลงได้ทั้งหน้า (ทั้งส่วนหัว, สตอรี่, โพสต์ด่วน และฟีด) ================= */
 .community-fullscreen-card {
   width: 100%;
   max-width: 960px;
@@ -3487,48 +3487,41 @@ body.device-mode-tablet .tasks-grid { grid-template-columns: repeat(2, 1fr) !imp
   -webkit-backdrop-filter: blur(34px) saturate(180%);
   border-left: 1px solid var(--glass-border-light);
   border-right: 1px solid var(--glass-border-light);
-  border-top: none;    /* ตัดขอบบนออกเพื่อให้แนบเนียนกับขอบจอ */
-  border-bottom: none; /* ตัดขอบล่างออกเพื่อให้ทะลุลงไปสุดจอ */
-  border-radius: 0;   /* ตัดความโค้งมนบน-ล่างออกเพื่อให้เต็มสัดส่วน */
+  border-top: none;
+  border-bottom: none;
+  border-radius: 0;
   box-shadow: var(--glass-shadow);
   padding: 16px 18px 0 18px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto !important; /* 👈 เลื่อนได้ทั้งหน้าจอ */
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   position: relative;
 }
 
-/* ================= 3. ฟีดกระทู้ + เอฟเฟกต์เฟด (FADE MASK) ทั้งบนและล่าง ================= */
+.community-fullscreen-card::-webkit-scrollbar {
+  width: 5px;
+}
+.community-fullscreen-card::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 5px;
+}
+
+/* ================= 3. ฟีดกระทู้ไหลต่อเนื่อง + เผื่อระยะไม่ให้โดนแถบเมนูบัง ================= */
 .community-feed-container {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  flex: 0 0 auto;
+  min-height: auto;
+  overflow: visible !important; /* ไม่ล็อกการเลื่อนเฉพาะฟีด เพื่อให้ทั้งหน้าเลื่อนไปด้วยกัน */
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding-top: 14px;
-  padding-right: 4px;
-  padding-bottom: 105px; /* เผื่อระยะให้เลื่อนกระทู้สุดท้ายขึ้นมาพ้นแถบเมนูด้านล่าง */
-  
-  /* เอฟเฟกต์ค่อยๆ เฟดไล่ระดับทั้งขอบบน (24px) และขอบล่าง (90px) */
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    #000000 24px,
-    #000000 calc(100% - 90px),
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    #000000 24px,
-    #000000 calc(100% - 90px),
-    transparent 100%
-  );
+  padding-top: 10px;
+  padding-bottom: 120px !important; /* 👈 เผื่อระยะ 120px ให้เลื่อนกระทู้สุดท้ายขึ้นมาพ้นแถบเมนูด้านล่าง 100% */
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
 }
 
-/* ปรับระยะขอบหน้าจอสำหรับมือถือ */
 @media (max-width: 768px) {
   #viewCommunity.active {
     padding: 0;
@@ -3538,10 +3531,9 @@ body.device-mode-tablet .tasks-grid { grid-template-columns: repeat(2, 1fr) !imp
     border: none;
   }
   .community-feed-container {
-    padding-bottom: 95px;
+    padding-bottom: 110px !important;
   }
 }
-
 /* ================= ELONGATED iOS BOTTOM DOCK NAV ================= */
 .bottom-dock-nav {
   position: fixed;
@@ -5636,4 +5628,508 @@ body.device-mode-tablet .tasks-grid { grid-template-columns: repeat(2, 1fr) !imp
   .lock-banner-carousel {
     aspect-ratio: 16 / 9;
   }
+}
+
+/* ================= HOME DEVICE SWITCHER BAR ================= */
+.home-device-switcher-bar {
+  margin-top: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid var(--glass-border-light);
+  box-shadow: var(--glass-shadow), var(--glass-specular);
+  border-radius: 9999px;
+  padding: 6px 14px 6px 16px;
+  z-index: 10;
+  transition: all 0.25s var(--anim-spring);
+}
+
+.home-device-switcher-bar:hover {
+  border-color: var(--accent);
+  box-shadow: 0 8px 24px var(--accent-glow), var(--glass-specular);
+}
+
+.home-device-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  white-space: nowrap;
+}
+
+.home-device-switcher-bar .device-switcher-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.home-device-switcher-bar .btn-device-opt {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
+  color: #cbd5e1;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--glass-specular);
+  transition: all 0.2s var(--anim-spring);
+  white-space: nowrap;
+}
+
+.home-device-switcher-bar .btn-device-opt:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.home-device-switcher-bar .btn-device-opt.active {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.4) 0%, rgba(14, 165, 233, 0.55) 100%);
+  border-color: var(--accent);
+  color: #ffffff;
+  box-shadow: 0 0 12px var(--accent-glow), var(--glass-specular);
+  transform: translateY(-1px) scale(1.04);
+}
+
+@media (max-width: 768px) {
+  .home-device-switcher-bar {
+    flex-direction: column;
+    gap: 8px;
+    border-radius: 18px;
+    padding: 10px 14px;
+    width: 100%;
+    max-width: 360px;
+  }
+  .home-device-switcher-bar .device-switcher-buttons {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+  }
+  .home-device-switcher-bar .btn-device-opt {
+    padding: 6px 2px;
+    font-size: 0.68rem;
+    text-align: center;
+  }
+}
+
+/* ================= REALISTIC DEVICE VIEWPORT ENGINE ================= */
+/* 1. โหมดมือถือ (Mobile Mode) - บีบสัดส่วนจอเป็น Phone Frame เสมือนจริง */
+body.device-mode-mobile {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+body.device-mode-mobile .app-layout {
+  max-width: 440px !important;
+  width: 100% !important;
+  margin: 0 auto !important;
+  border-left: 1px solid var(--glass-border-light) !important;
+  border-right: 1px solid var(--glass-border-light) !important;
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.8) !important;
+  padding: 8px 8px 78px 8px !important;
+}
+
+body.device-mode-mobile .home-center-stage {
+  padding: 70px 10px 20px 10px !important;
+}
+
+body.device-mode-mobile .home-banner-carousel {
+  aspect-ratio: 4 / 3 !important;
+}
+
+body.device-mode-mobile .banner-info-box h3 {
+  font-size: 1.05rem !important;
+}
+
+body.device-mode-mobile .banner-info-box p {
+  font-size: 0.75rem !important;
+}
+
+body.device-mode-mobile .home-top-right-actions {
+  gap: 6px !important;
+  right: 8px !important;
+}
+
+body.device-mode-mobile .btn-glass-icon-circle {
+  width: 36px !important;
+  height: 36px !important;
+  font-size: 1.05rem !important;
+}
+
+body.device-mode-mobile .bottom-dock-nav {
+  bottom: 12px !important;
+  min-width: unset !important;
+  width: calc(100% - 20px) !important;
+  max-width: 400px !important;
+  padding: 6px 10px !important;
+  gap: 4px !important;
+}
+
+body.device-mode-mobile .bottom-nav-item {
+  padding: 6px 8px !important;
+  min-width: 50px !important;
+  flex: 1 !important;
+}
+
+body.device-mode-mobile .bottom-nav-icon {
+  font-size: 1.3rem !important;
+}
+
+body.device-mode-mobile .bottom-nav-text {
+  font-size: 0.62rem !important;
+}
+
+body.device-mode-mobile .community-fullscreen-card {
+  padding: 12px 12px 0 12px !important;
+}
+
+/* 2. โหมดแท็บเล็ต (Tablet Mode / iPad) */
+body.device-mode-tablet {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+body.device-mode-tablet .app-layout {
+  max-width: 820px !important;
+  width: 100% !important;
+  margin: 0 auto !important;
+  border-left: 1px solid var(--glass-border-light) !important;
+  border-right: 1px solid var(--glass-border-light) !important;
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.7) !important;
+}
+
+body.device-mode-tablet .home-banner-carousel {
+  aspect-ratio: 16 / 10 !important;
+}
+
+body.device-mode-tablet .bottom-dock-nav {
+  max-width: 550px !important;
+}
+
+/* 3. โหมดคอมพิวเตอร์ (Desktop Mode / PC) */
+body.device-mode-desktop .app-layout {
+  max-width: 100vw !important;
+  margin: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+body.device-mode-desktop .home-banner-carousel {
+  aspect-ratio: 16 / 9 !important;
+  max-height: 440px !important;
+}
+
+/* 4. โหมดอัตโนมัติ (Auto Mode) */
+body.device-mode-auto .app-layout {
+  max-width: 100vw !important;
+  margin: 0 !important;
+  border: none !important;
+}
+
+/* ================= DISCORD-STYLE CHAT LAYOUT (FULLSCREEN & INPUT VISIBLE) ================= */
+#viewChat.active {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0 0 92px 0 !important; /* 👈 ยกฐานล่างขึ้น 92px เพื่อให้ช่องพิมพ์ข้อความลอยอยู่เหนือแถบเมนูด้านล่าง ไม่โดนบัง */
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  z-index: 5;
+}
+
+.discord-chat-layout {
+  width: 100%;
+  max-width: 100% !important; /* กางขยายหน้าแชทเต็มขอบจอ 100% */
+  height: 100% !important;
+  min-height: 0;
+  max-height: 100% !important;
+  background: var(--glass-bg);
+  backdrop-filter: blur(34px) saturate(190%);
+  -webkit-backdrop-filter: blur(34px) saturate(190%);
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  border-bottom: 1px solid var(--glass-border-light);
+  box-shadow: var(--glass-shadow), var(--glass-specular);
+  border-radius: 0 0 16px 16px;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+.discord-chat-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  overflow: hidden;
+}
+
+/* ปรับระยะบนจอมือถือ */
+@media (max-width: 768px) {
+  #viewChat.active {
+    padding: 0 0 82px 0 !important; /* ปรับให้พอดีกับแถบเมนูในจอมือถือ */
+  }
+  .discord-chat-layout {
+    border-radius: 0;
+  }
+}
+
+/* ================= REVENUE & PAYOUT VIEW (FULLSCREEN & EDGE-TO-EDGE) ================= */
+#viewRevenue.active {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  z-index: 5;
+}
+
+.revenue-fullscreen-card {
+  width: 100%;
+  max-width: 980px;
+  height: 100%;
+  min-height: 100%;
+  max-height: 100%;
+  background: var(--glass-bg);
+  backdrop-filter: blur(34px) saturate(190%);
+  -webkit-backdrop-filter: blur(34px) saturate(190%);
+  border-left: 1px solid var(--glass-border-light);
+  border-right: 1px solid var(--glass-border-light);
+  border-top: none;
+  border-bottom: none;
+  border-radius: 0;
+  box-shadow: var(--glass-shadow), var(--glass-specular);
+  padding: 20px 24px 0 24px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.revenue-scroll-viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-right: 4px;
+  padding-bottom: 125px !important; /* 👈 เผื่อระยะ 125px ให้เลื่อนข้อมูลการโอนเงินพ้นแถบเมนูแคปซูล ไม่โดนบัง */
+}
+
+@media (max-width: 768px) {
+  .revenue-fullscreen-card {
+    padding: 14px 14px 0 14px !important;
+    border: none !important;
+  }
+  .revenue-scroll-viewport {
+    padding-bottom: 115px !important;
+  }
+}
+
+/* ================= PROJECTS WORKSPACE VIEW (FULLSCREEN & SCROLL SAFETY) ================= */
+#viewProjects.active {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  gap: 0; /* แนบสนิทเต็มขอบจอ */
+  z-index: 5;
+}
+
+/* Sidebar ด้านซ้ายในหน้าโปรเจกต์ */
+#viewProjects .sidebar {
+  border-radius: 0;
+  border-top: none;
+  border-bottom: none;
+  border-left: none;
+  height: 100%;
+  padding-bottom: 24px;
+}
+
+/* หน้าต่างบอร์ดจัดการงานหลัก */
+.main-window {
+  flex: 1;
+  background: var(--glass-bg);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  border-top: none;
+  border-bottom: none;
+  border-right: none;
+  border-left: 1px solid var(--glass-border-light);
+  border-radius: 0;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+/* พื้นที่แสดงรายการการ์ดงานและสคริปต์ */
+.board-viewport {
+  padding: 18px 20px 125px 20px !important; /* 👈 ยกฐานล่างขึ้น 125px เพื่อให้การ์ดงานแถวล่างสุดเลื่อนพ้นแถบเมนู ไม่โดนบัง */
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+  .main-window {
+    border-left: none;
+  }
+  .board-viewport {
+    padding: 14px 12px 115px 12px !important;
+  }
+}
+
+/* ================= COMMUNITY VIEW (GRADUAL FADE TOP & BOTTOM) ================= */
+.community-fullscreen-card {
+  width: 100%;
+  max-width: 960px;
+  height: 100%;
+  min-height: 100%;
+  max-height: 100%;
+  background: var(--glass-bg);
+  backdrop-filter: blur(34px) saturate(180%);
+  -webkit-backdrop-filter: blur(34px) saturate(180%);
+  border-left: 1px solid var(--glass-border-light);
+  border-right: 1px solid var(--glass-border-light);
+  border-top: none;
+  border-bottom: none;
+  border-radius: 0;
+  box-shadow: var(--glass-shadow);
+  padding: 16px 18px 0 18px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+
+  /* ✨ เอฟเฟกต์ค่อยๆ เฟดทั้งบน (24px) และล่าง (100px) */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000000 24px,
+    #000000 calc(100% - 100px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000000 24px,
+    #000000 calc(100% - 100px),
+    transparent 100%
+  );
+}
+
+/* ================= REVENUE VIEW (GRADUAL FADE TOP & BOTTOM) ================= */
+.revenue-scroll-viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 10px 4px 125px 4px !important;
+
+  /* ✨ เอฟเฟกต์ค่อยๆ เฟดทั้งบน (24px) และล่าง (105px) */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000000 24px,
+    #000000 calc(100% - 105px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000000 24px,
+    #000000 calc(100% - 105px),
+    transparent 100%
+  );
+}
+
+/* ================= PROJECTS BOARD (GRADUAL FADE TOP & BOTTOM) ================= */
+.board-viewport {
+  padding: 18px 20px 125px 20px !important;
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+
+  /* ✨ เอฟเฟกต์ค่อยๆ เฟดการ์ดงานทั้งบน (24px) และล่าง (105px) */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000000 24px,
+    #000000 calc(100% - 105px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000000 24px,
+    #000000 calc(100% - 105px),
+    transparent 100%
+  );
+}
+
+/* ================= CHAT MESSAGES (GRADUAL FADE TOP & BOTTOM) ================= */
+.chat-messages-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 16px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  /* ✨ เอฟเฟกต์ค่อยๆ เฟดข้อความทั้งขอบบน (24px) และขอบล่าง (18px) */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000000 24px,
+    #000000 calc(100% - 18px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000000 24px,
+    #000000 calc(100% - 18px),
+    transparent 100%
+  );
 }
