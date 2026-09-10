@@ -6133,3 +6133,317 @@ body.device-mode-auto .app-layout {
     transparent 100%
   );
 }
+
+/* ================= 1. COMMUNITY VIEW (ENHANCED DARK FADE TOP & BOTTOM) ================= */
+#viewCommunity.active {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  z-index: 5;
+}
+
+/* 🌟 ม่านมืดเฟดขอบบน (Dark Vignette Top) 🌟 */
+#viewCommunity::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 55px;
+  background: linear-gradient(
+    to bottom,
+    rgba(8, 12, 22, 0.85) 0%,
+    rgba(8, 12, 22, 0.45) 50%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* 🌟 ม่านมืดเฟดขอบล่าง (Dark Vignette Bottom เหนือแถบเมนู) 🌟 */
+#viewCommunity::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 135px;
+  background: linear-gradient(
+    to top,
+    rgba(8, 12, 22, 0.95) 25%,
+    rgba(8, 12, 22, 0.6) 65%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* การ์ดคอมมูนิตี้พร้อมเอฟเฟกต์ Mask Fade เข้าสู่ความมืด */
+.community-fullscreen-card {
+  width: 100%;
+  max-width: 960px;
+  height: 100%;
+  min-height: 100%;
+  max-height: 100%;
+  background: var(--glass-bg);
+  backdrop-filter: blur(34px) saturate(180%);
+  -webkit-backdrop-filter: blur(34px) saturate(180%);
+  border-left: 1px solid var(--glass-border-light);
+  border-right: 1px solid var(--glass-border-light);
+  border-top: none;
+  border-bottom: none;
+  border-radius: 0;
+  box-shadow: var(--glass-shadow);
+  padding: 16px 18px 0 18px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+
+  /* ค่อยๆ ละลายเนื้อหาเข้าสู่ม่านมืดทั้งบนและล่าง */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000000 28px,
+    #000000 calc(100% - 110px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000000 28px,
+    #000000 calc(100% - 110px),
+    transparent 100%
+  );
+}
+
+/* ================= 2. TEAM MEMBERS MODAL (DESKTOP / TABLET / MOBILE OPTIMIZED) ================= */
+.team-members-modal-box {
+  width: 100%;
+  max-width: 480px;
+  max-height: 82vh;
+  max-height: 82dvh;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 20px !important;
+  border-radius: var(--radius-lg);
+  box-sizing: border-box;
+}
+
+.dock-members-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dock-members-list::-webkit-scrollbar {
+  width: 4px;
+}
+.dock-members-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.member-presence-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--glass-bg-card);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2), var(--glass-specular);
+  gap: 10px;
+  transition: all 0.2s var(--anim-spring);
+}
+
+.member-presence-item:hover {
+  border-color: var(--glass-border-light);
+  transform: translateY(-1px);
+}
+
+.member-presence-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.member-presence-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.member-presence-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.member-presence-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+
+.member-presence-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* 📱 ปรับแต่งสำหรับหน้าจอมือถือ (Smartphones & Mobile Mode) */
+@media (max-width: 768px), (pointer: coarse) and (max-width: 768px) {
+  .team-members-modal-box,
+  body.device-mode-mobile .team-members-modal-box {
+    width: calc(100vw - 24px) !important;
+    max-width: 410px !important;
+    max-height: 80vh !important;
+    max-height: 80dvh !important;
+    padding: 16px 12px !important;
+    border-radius: 18px !important;
+  }
+
+  .member-presence-item {
+    padding: 8px 10px !important;
+    gap: 8px !important;
+  }
+
+  .member-avatar-wrapper {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .member-presence-name {
+    font-size: 0.84rem !important;
+    max-width: 110px !important;
+  }
+
+  .member-role-badge {
+    font-size: 0.62rem !important;
+    padding: 1px 5px !important;
+  }
+
+  .member-presence-status {
+    font-size: 0.68rem !important;
+    line-height: 1.3;
+  }
+
+  /* จัดปุ่มแอ็กชันบนมือถือให้เป็นระเบียบ ไม่เบียดตัวหนังสือ */
+  .member-presence-actions {
+    gap: 4px !important;
+  }
+
+  .btn-dm-start,
+  .btn-admin-manage-role {
+    padding: 5px 8px !important;
+    font-size: 0.72rem !important;
+    border-radius: 6px !important;
+  }
+}
+
+/* 📱 ปรับแต่งสำหรับหน้าจอแท็บเล็ต (iPad & Tablet Mode) */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .team-members-modal-box,
+  body.device-mode-tablet .team-members-modal-box {
+    max-width: 560px !important;
+    width: 86vw !important;
+    padding: 22px 22px !important;
+  }
+
+  .dock-members-list {
+    gap: 10px !important;
+  }
+
+  .member-presence-item {
+    padding: 12px 16px !important;
+  }
+
+  .member-avatar-wrapper {
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  .member-presence-name {
+    font-size: 0.96rem !important;
+    max-width: 190px !important;
+  }
+
+  .member-presence-status {
+    font-size: 0.75rem !important;
+  }
+
+  .btn-dm-start,
+  .btn-admin-manage-role {
+    padding: 6px 12px !important;
+    font-size: 0.8rem !important;
+  }
+}
+
+/* ================= FIXED DESKTOP LOCK SCREEN RESPONSIVE ================= */
+@media (min-width: 860px) {
+  .lock-screen-overlay[style*="display: flex"],
+  .lock-screen-overlay[style*="display: grid"] {
+    display: grid !important;
+    grid-template-columns: 1.1fr 0.9fr;
+    grid-template-rows: auto 1fr auto;
+    align-items: center;
+    justify-items: center;
+    gap: 16px 40px;
+    padding: 32px 48px;
+  }
+  
+  .lock-screen-overlay[style*="display: flex"] .lock-screen-top,
+  .lock-screen-overlay[style*="display: grid"] .lock-screen-top {
+    grid-column: 1 / -1;
+  }
+  
+  .lock-screen-overlay[style*="display: flex"] .lock-banner-stage,
+  .lock-screen-overlay[style*="display: grid"] .lock-banner-stage {
+    grid-column: 1;
+    max-width: 460px;
+  }
+  
+  .lock-screen-overlay[style*="display: flex"] .lock-screen-auth-box,
+  .lock-screen-overlay[style*="display: grid"] .lock-screen-auth-box {
+    grid-column: 2;
+    max-width: 320px;
+  }
+  
+  .lock-screen-overlay[style*="display: flex"] .btn-keypad-num,
+  .lock-screen-overlay[style*="display: grid"] .btn-keypad-num {
+    width: 64px;
+    height: 64px;
+    font-size: 1.45rem;
+  }
+  
+  .lock-screen-overlay[style*="display: flex"] .lock-screen-bottom-hint,
+  .lock-screen-overlay[style*="display: grid"] .lock-screen-bottom-hint {
+    grid-column: 1 / -1;
+  }
+}
