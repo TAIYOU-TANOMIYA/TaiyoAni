@@ -6447,3 +6447,49 @@ body.device-mode-auto .app-layout {
     grid-column: 1 / -1;
   }
 }
+
+/* ================= CHAT VIEW BOTTOM MENU AREA BLUR & FADE ================= */
+#viewChat.active {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0 !important;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  z-index: 5;
+}
+
+.discord-chat-layout {
+  width: 100%;
+  max-width: 1020px;
+  height: calc(100% - 85px) !important;
+  margin: 0 auto;
+  align-self: flex-start;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+/* 🌟 เลเยอร์เบลอและเฟดไล่ระดับบริเวณพื้นที่ว่างด้านหลังเมนูด้านล่าง 🌟 */
+#viewChat.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 110px;
+  background: linear-gradient(
+    to top,
+    rgba(10, 15, 26, 0.96) 25%,
+    rgba(10, 15, 26, 0.65) 70%,
+    transparent 100%
+  );
+  backdrop-filter: blur(1px) saturate(150%);
+  -webkit-backdrop-filter: blur(1px) saturate(150%);
+  pointer-events: none;
+  z-index: 900; /* อยู่ใต้แถบ Dock Menu (1000) แต่คลุมพื้นที่ว่างด้านล่างทั้งหมด */
+}
