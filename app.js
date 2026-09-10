@@ -3430,9 +3430,15 @@ window.setDeviceMode = function(mode) {
 
   localStorage.setItem('taiyoani_device_mode', mode);
 
-  document.querySelectorAll('.btn-device-opt').forEach(btn => btn.classList.remove('active'));
-  const targetBtn = document.getElementById(`devOpt${mode.charAt(0).toUpperCase() + mode.slice(1)}`);
-  if (targetBtn) targetBtn.classList.add('active');
+  // อัปเดตสถานะ Active ให้กับปุ่มเลย์เอ้าท์ที่หน้าโฮม
+  document.querySelectorAll('.home-device-switcher-bar .btn-device-opt').forEach(btn => {
+    const btnMode = btn.getAttribute('data-mode') || btn.id.replace('devOpt', '').toLowerCase();
+    if (btnMode === mode) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
 
   isMobileSidebarOpen = false;
   const sidebar = document.getElementById('appSidebar');
@@ -4363,7 +4369,7 @@ window.handleLogout = function() {
   }
 };
 
-// ================= MEMBERS PRESENCE =================
+// ================= MEMBERS PRESENCE (แก้บัคการกดดูสมาชิก) =================
 function renderMembersPresenceList() {
   const container = document.getElementById('membersPresenceList');
   const homeOnlinePill = document.getElementById('homeOnlineIndicator');
@@ -4447,6 +4453,154 @@ window.startDirectChat = function(targetUserId) {
 
   window.switchAppView('chat');
   window.switchChatChannel('dm', targetUser.id);
+};
+
+// ================= USER PROFILE VIEW & ADMIN ROLE MODAL =================
+window.openCurrentUserProfile = function() {
+  const currentUser = getCurrentUser();
+  if (!currentUser) return;
+  window.openUserProfile(currentUser.id);
+};
+
+window.openUserProfile = function(userId) {
+  AudioFX.click();
+  const user = teamUsers.find(u => u && u.id === userId);
+  if (!user) return;
+
+  const modal = document.getElementById('viewProfileModal');
+  const bannerEl = document.getElementById('viewProfileBannerDisplay');
+  const avatarEl = document.getElementById('viewProfileAvatarDisplay');
+  const nameEl = document.getElementById('viewProfileNameDisplay');
+  const roleEl = document.getElementById('viewProfileRoleDisplay');
+  const statusEl = document.getElementById('viewProfileStatusDisplay');
+  const emailEl = document.getElementById('viewProfileEmailDisplay');
+  const bioEl = document.getElementById('viewProfileBioDisplay');
+  const actionsEl = document.getElementById('viewProfileActionsContainer');
+
+  const currentUser = getCurrentUser();
+  const isSelf = currentUser && currentUser.id === user.id;
+  const userIsAdmin = isAdmin(user);
+  const userIsStaff = isStaff(user);
+
+  // 1. ภาพหน้าปก Cover Banner
+  if (bannerEl) {
+    if (user.banner && user.banner.trim() !== '') {
+      bannerEl.innerHTML = `<img src="${escapeHtml(user.banner)}" alt="Cover Banner">`;
+    } else {
+      bannerEl.innerHTML = '';
+    }
+  }
+
+  // 2. อวาตาร์โปรไฟล์
+  if (avatarEl) {
+    avatarEl.innerHTML = renderAvatarHtml(user.avatar);
+  }
+
+  // 3. ชื่อและยศ/ตำแหน่ง
+  if (nameEl) {
+    nameEl.innerText = `${user.name}${userIsAdmin ? ' 👑' : ''}`;
+  }
+
+  if (roleEl) {
+    let roleText = '👤 สมาชิกทั่วไป';
+    if (userIsAdmin) roleText = '👑 แอดมิน (Admin)';
+    else if (userIsStaff) roleText = `🛡️ ทีมงาน (${user.role || 'Staff'})`;
+    else if (user.role) roleText = user.role;
+    roleEl.innerText = roleText;
+  }
+
+  // 4. สถานะออนไลน์
+  if (statusEl) {
+    const presence = getPresenceStatus(user.lastActive);
+    statusEl.innerText = `${presence.text}`;
+    statusEl.style.color = presence.isOnline ? '#6ee7b7' : 'var(--text-muted)';
+  }
+
+  // 5. อีเมลและ Bio
+  if (emailEl) {
+    emailEl.innerText = user.email || 'ไม่ได้ระบุอีเมล';
+  }
+
+  if (bioEl) {
+    bioEl.innerText = (user.bio && user.bio.trim() !== '') ? user.bio : 'ยังไม่มีคำแนะนำตัว';
+  }
+
+  // 6. ปุ่มการทำงานใต้การ์ดโปรไฟล์
+  if (actionsEl) {
+    actionsEl.innerHTML = '';
+    if (isSelf) {
+      actionsEl.innerHTML = `
+        <button type="button" class="btn-create-task" onclick="closeModal('viewProfileModal'); openEditProfileModal();" style="width: 100%; justify-content: center;">
+          ✏️ แก้ไขข้อมูลโปรไฟล์
+        </button>
+      `;
+    } else {
+      actionsEl.innerHTML = `
+        <button type="button" class="btn-dm-start" onclick="startDirectChat('${user.id}')" style="padding: 8px 16px; font-size: 0.88rem; width: 100%; justify-content: center; display: inline-flex; align-items: center; gap: 6px;">
+          💬 ส่งข้อความส่วนตัว (Direct Message)
+        </button>
+      `;
+    }
+  }
+
+  if (modal) modal.style.display = 'flex';
+};
+
+// จัดการการปรับยศของแอดมิน
+window.openAdminRoleModal = function(userId) {
+  if (!isAdmin()) {
+    AudioFX.delete();
+    alert('เฉพาะแอดมินเท่านั้นที่มีสิทธิ์ปรับยศ');
+    return;
+  }
+  AudioFX.click();
+  const user = teamUsers.find(u => u && u.id === userId);
+  if (!user) return;
+
+  document.getElementById('adminTargetUserId').value = user.id;
+  document.getElementById('adminTargetUserAvatar').innerHTML = renderAvatarHtml(user.avatar);
+  document.getElementById('adminTargetUserName').innerText = user.name;
+  document.getElementById('adminTargetUserCurrentRole').innerText = `ยศปัจจุบัน: ${user.rankType || 'สมาชิกทั่วไป'} (${user.role || '-'})`;
+
+  const selectEl = document.getElementById('adminRoleSelect');
+  if (selectEl) {
+    selectEl.value = user.rankType === 'ทีมงาน' ? 'ทีมงาน' : 'สมาชิกทั่วไป';
+  }
+
+  const customInput = document.getElementById('adminRoleCustomInput');
+  if (customInput) {
+    customInput.value = user.role || '';
+  }
+
+  document.getElementById('adminRoleModal').style.display = 'flex';
+};
+
+window.handleAdminRoleSelectChange = function() {
+  const selectEl = document.getElementById('adminRoleSelect');
+  const customInput = document.getElementById('adminRoleCustomInput');
+  if (selectEl && customInput && !customInput.value) {
+    customInput.value = selectEl.value;
+  }
+};
+
+window.handleSaveUserRoleSubmit = async function(e) {
+  e.preventDefault();
+  if (!isAdmin()) return;
+
+  const targetId = document.getElementById('adminTargetUserId').value;
+  const rankType = document.getElementById('adminRoleSelect').value;
+  const roleCustom = document.getElementById('adminRoleCustomInput').value.trim();
+
+  if (!targetId) return;
+
+  AudioFX.success();
+  await updateDoc(doc(db, "users", targetId), {
+    rankType: rankType,
+    role: roleCustom || rankType
+  });
+
+  closeModal('adminRoleModal');
+  alert('ปรับยศและตำแหน่งสมาชิกเรียบร้อยแล้ว!');
 };
 
 // ================= PROJECT NOTES & EDIT PROFILE =================
