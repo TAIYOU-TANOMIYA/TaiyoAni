@@ -210,7 +210,6 @@
   <div class="app-layout" id="mainAppLayout" style="display: none;">
 
     <!-- 1. หน้าโฮม (HOME VIEW) -->
-    <!-- 1. หน้าโฮม (HOME VIEW) -->
     <section class="app-view-section active" id="viewHome">
       <div class="home-top-left-profile clickable-profile" onclick="openCurrentUserProfile()" title="คลิกเพื่อดูโปรไฟล์ของคุณ">
         <div class="home-profile-avatar" id="homeUserAvatarDisplay"></div>
@@ -256,6 +255,19 @@
             <button type="button" class="banner-nav-btn next" onclick="nextBannerSlide()" title="แบนเนอร์ถัดไป">❯</button>
             <div class="banner-dots-container" id="bannerDotsContainer"></div>
           </div>
+
+          <!-- 🌟 แถบปรับโหมดเลย์เอ้าท์ที่ย้ายมาไว้หน้าโฮม (วางตรงนี้) 🌟 -->
+          <div class="home-device-switcher-bar">
+            <span class="home-device-label">📐 โหมดเลย์เอ้าท์:</span>
+            <div class="device-switcher-buttons">
+              <button type="button" class="btn-device-opt active" id="devOptAuto" data-mode="auto" onclick="setDeviceMode('auto')">🔄 Auto</button>
+              <button type="button" class="btn-device-opt" id="devOptDesktop" data-mode="desktop" onclick="setDeviceMode('desktop')">🖥️ PC</button>
+              <button type="button" class="btn-device-opt" id="devOptTablet" data-mode="tablet" onclick="setDeviceMode('tablet')">📱 iPad</button>
+              <button type="button" class="btn-device-opt" id="devOptMobile" data-mode="mobile" onclick="setDeviceMode('mobile')">📲 มือถือ</button>
+            </div>
+          </div>
+          <!-- 🌟 จบแถบปรับโหมดเลย์เอ้าท์ 🌟 -->
+
         </div>
       </div>
     </section>
@@ -339,16 +351,6 @@
             <div class="brand-title">TaiyoAni UI</div>
           </div>
           <button type="button" class="btn-close-sidebar-mobile" onclick="toggleMobileSidebar()" title="ปิดเมนู">✕</button>
-        </div>
-
-        <div class="device-switcher-box">
-          <div class="device-switcher-title">โหมดการแสดงผล (Device View)</div>
-          <div class="device-switcher-buttons">
-            <button type="button" class="btn-device-opt active" id="devOptAuto" onclick="setDeviceMode('auto')">🔄 Auto</button>
-            <button type="button" class="btn-device-opt" id="devOptDesktop" onclick="setDeviceMode('desktop')">🖥️ PC</button>
-            <button type="button" class="btn-device-opt" id="devOptTablet" onclick="setDeviceMode('tablet')">📱 iPad</button>
-            <button type="button" class="btn-device-opt" id="devOptMobile" onclick="setDeviceMode('mobile')">📲 มือถือ</button>
-          </div>
         </div>
 
         <div class="sidebar-section-title">หัวข้อโปรเจกต์ (Projects)</div>
