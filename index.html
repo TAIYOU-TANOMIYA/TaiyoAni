@@ -209,35 +209,78 @@
 
     <!-- 1. หน้าโฮม (HOME VIEW) -->
     <section class="app-view-section active" id="viewHome">
-      <div class="home-top-left-profile clickable-profile" onclick="openCurrentUserProfile()" title="คลิกเพื่อดูโปรไฟล์ของคุณ">
-        <div class="home-profile-avatar" id="homeUserAvatarDisplay"></div>
-        <div class="home-profile-info">
-          <div class="home-profile-name" id="homeUserNameDisplay">กำลังโหลด...</div>
-          <div class="home-profile-role" id="homeUserRoleDisplay">สมาชิกทั่วไป</div>
+      
+      <!-- 🌟 ปุ่มเมนูสามขีดด้านบนซ้าย 🌟 -->
+      <button type="button" class="btn-home-drawer-toggle" onclick="toggleHomeDrawer()" title="เปิดเมนูหลัก">
+        <span>☰</span>
+      </button>
+
+      <!-- 🌟 แถบเมนูด้านข้างพร้อมภาพปกและโปรไฟล์ (Slide-out Drawer) 🌟 -->
+      <div class="home-drawer-backdrop" id="homeDrawerBackdrop" onclick="closeHomeDrawer()"></div>
+      <aside class="home-drawer-menu" id="homeDrawerMenu">
+        
+        <!-- ส่วนบนสุด: ภาพหน้าปก Cover Banner + ข้อมูลโปรไฟล์ผู้ใช้ -->
+        <div class="home-drawer-header">
+          <div class="home-drawer-cover" id="drawerCoverBannerDisplay"></div>
+          <button type="button" class="btn-close-drawer" onclick="closeHomeDrawer()" title="ปิดเมนู">✕</button>
+          
+          <div class="home-drawer-profile-card clickable-profile" onclick="closeHomeDrawer(); openCurrentUserProfile();" title="ดูโปรไฟล์ของคุณ">
+            <div class="home-drawer-avatar" id="drawerUserAvatarDisplay"></div>
+            <div class="home-drawer-user-info">
+              <div class="home-drawer-name" id="drawerUserNameDisplay">กำลังโหลด...</div>
+              <div class="home-drawer-role" id="drawerUserRoleDisplay">สมาชิกทั่วไป</div>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div class="home-top-right-actions">
-        <!-- ปุ่มล็อกหน้าจอ -->
-        <button type="button" class="btn-glass-icon-circle" onclick="lockAppScreen()" title="ล็อกหน้าจอ">
-          <span>🔒</span>
-        </button>
+        <!-- รายการเมนูทั้ง 5 ปุ่มที่ย้ายเข้ามา -->
+        <div class="home-drawer-body">
+          <div class="home-drawer-section-label">ฟังก์ชันหลัก</div>
+          
+          <div class="home-drawer-nav-list">
+            <!-- 1. ล็อกหน้าจอ -->
+            <button type="button" class="home-drawer-item" onclick="closeHomeDrawer(); lockAppScreen();">
+              <span class="drawer-item-icon bg-lock">🔒</span>
+              <span class="drawer-item-text">ล็อกหน้าจอ (PIN Screen)</span>
+              <span class="drawer-item-arrow">›</span>
+            </button>
 
-        <button type="button" class="btn-glass-icon-circle" onclick="openNotificationsModal()" title="ศูนย์แจ้งเตือนกิจกรรมทีม">
-          <span>🔔</span>
-          <span class="home-members-badge notif-bell-badge" id="notifBadgeCounter" style="display: none;">0</span>
-        </button>
-        <button type="button" class="btn-glass-icon-circle" onclick="openTeamMembersModal()" title="รายชื่อสมาชิกในทีม">
-          <span>👥</span>
-          <span class="home-members-badge" id="homeOnlineIndicator">0</span>
-        </button>
-        <button type="button" class="btn-glass-icon-circle" onclick="openSettingsModal()" title="ตั้งค่าระบบและอุปกรณ์เสียง">
-          <span>⚙️</span>
-        </button>
-        <button type="button" class="btn-glass-icon-circle btn-logout-circle" onclick="handleLogout()" title="ออกจากระบบ / สลับบัญชี">
-          <span>🚪</span>
-        </button>
-      </div>
+            <!-- 2. ศูนย์แจ้งเตือน -->
+            <button type="button" class="home-drawer-item" onclick="closeHomeDrawer(); openNotificationsModal();">
+              <span class="drawer-item-icon bg-bell">🔔</span>
+              <span class="drawer-item-text">ศูนย์แจ้งเตือนกิจกรรม</span>
+              <span class="home-members-badge notif-bell-badge" id="drawerNotifBadge" style="display: none;">0</span>
+              <span class="drawer-item-arrow">›</span>
+            </button>
+
+            <!-- 3. รายชื่อสมาชิกในทีม -->
+            <button type="button" class="home-drawer-item" onclick="closeHomeDrawer(); openTeamMembersModal();">
+              <span class="drawer-item-icon bg-members">👥</span>
+              <span class="drawer-item-text">สมาชิกในทีม</span>
+              <span class="home-members-badge" id="drawerOnlineBadge">0</span>
+              <span class="drawer-item-arrow">›</span>
+            </button>
+
+            <!-- 4. การตั้งค่าระบบ -->
+            <button type="button" class="home-drawer-item" onclick="closeHomeDrawer(); openSettingsModal();">
+              <span class="drawer-item-icon bg-settings">⚙️</span>
+              <span class="drawer-item-text">การตั้งค่าระบบ</span>
+              <span class="drawer-item-arrow">›</span>
+            </button>
+
+            <div class="drawer-list-divider"></div>
+
+            <!-- 5. ออกจากระบบ / สลับบัญชี -->
+            <button type="button" class="home-drawer-item item-logout" onclick="closeHomeDrawer(); handleLogout();">
+              <span class="drawer-item-icon bg-logout">🚪</span>
+              <span class="drawer-item-text">ออกจากระบบ / สลับบัญชี</span>
+              <span class="drawer-item-arrow">›</span>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <div class="home-center-stage">
 
       <div class="home-center-stage">
         <div class="home-banner-wrapper">
@@ -1490,115 +1533,179 @@
     </div>
   </div>
 
-  <!-- SETTINGS & AUDIO HARDWARE MODAL (หมวดหมู่แท็บใหม่) -->
+  <!-- ================= iOS STYLE SETTINGS MODAL ================= -->
   <div class="modal-overlay" id="settingsModal" style="z-index: 1280;">
-    <div class="modal settings-modal-categorized">
-      <div class="modal-header">
-        <h3 style="display: flex; align-items: center; gap: 8px;">⚙️ การตั้งค่าระบบ (System Settings)</h3>
-        <button type="button" class="close-btn" onclick="closeSettingsModal()">✕</button>
+    <div class="modal ios-settings-modal">
+      <div class="ios-settings-header">
+        <h3 class="ios-settings-title">การตั้งค่า</h3>
+        <button type="button" class="ios-done-btn" onclick="closeSettingsModal()">เสร็จสิ้น</button>
       </div>
 
-      <!-- แถบเลือกหมวดหมู่การตั้งค่า -->
-      <div class="settings-category-tabs">
-        <button type="button" class="settings-tab-btn active" id="tabBtnSettingAudio" onclick="switchSettingsTab('audio')">
+      <!-- แถบเลือกหมวดหมู่สไตล์ iOS Segmented Control -->
+      <div class="ios-segmented-control">
+        <button type="button" class="ios-segment-btn active" id="tabBtnSettingAppearance" onclick="switchSettingsTab('appearance')">
+          🎨 รูปลักษณ์
+        </button>
+        <button type="button" class="ios-segment-btn" id="tabBtnSettingAudio" onclick="switchSettingsTab('audio')">
           🎙️ อุปกรณ์เสียง
         </button>
-        <button type="button" class="settings-tab-btn" id="tabBtnSettingSecurity" onclick="switchSettingsTab('security')">
-          🔐 ล็อกหน้าจอ & PIN
+        <button type="button" class="ios-segment-btn" id="tabBtnSettingSecurity" onclick="switchSettingsTab('security')">
+          🔐 ล็อกหน้าจอ
         </button>
-        <button type="button" class="settings-tab-btn" id="tabBtnSettingGeneral" onclick="switchSettingsTab('general')">
-          🔔 การแจ้งเตือน & เครื่อง
+        <button type="button" class="ios-segment-btn" id="tabBtnSettingGeneral" onclick="switchSettingsTab('general')">
+          🔔 ระบบ
         </button>
       </div>
-      
-      <!-- เนื้อหาแต่ละหมวดหมู่ -->
-      <div class="settings-categorized-body">
+
+      <div class="ios-settings-content">
         
-        <!-- หมวดที่ 1: อุปกรณ์เสียง -->
-        <div class="settings-tab-pane active" id="paneSettingAudio">
-          <p class="settings-pane-desc">จัดการไมโครโฟนและลำโพงที่เชื่อมต่อกับอุปกรณ์ของคุณสำหรับการสนทนาเสียง</p>
-
-          <div class="form-group">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <label style="margin-bottom: 0;">🎙️ อุปกรณ์รับเสียง (Microphone Input):</label>
-              <button type="button" class="btn-sm" style="padding: 2px 8px; font-size: 0.72rem;" onclick="refreshAudioDevices()">🔄 ค้นหาใหม่</button>
-            </div>
-            <select id="settingAudioInputSelect" class="form-control" onchange="handleAudioDeviceChange()"></select>
-          </div>
-
-          <div class="audio-test-box">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <span style="font-size: 0.8rem; font-weight: 600; color: #f8fafc;">ระดับเสียงไมโครโฟนสด (Live Mic Meter):</span>
-              <button type="button" id="btnToggleMicTest" class="btn-sm" onclick="toggleMicTest()">🎙️ เริ่มทดสอบไมค์</button>
-            </div>
-            <div class="audio-meter-track">
-              <div class="audio-meter-fill" id="audioMeterFill"></div>
-            </div>
-            <div id="micTestStatusText" style="font-size: 0.72rem; color: var(--text-muted); margin-top: 6px;">กดเริ่มทดสอบ แล้วลองพูดเพื่อดูการตอบสนองของไมค์</div>
-          </div>
-
-          <div class="form-group" style="margin-top: 14px;">
-            <label>🔊 อุปกรณ์ส่งออกเสียง (Speaker / Output):</label>
-            <select id="settingAudioOutputSelect" class="form-control" onchange="handleAudioDeviceChange()"></select>
-          </div>
-
-          <div class="audio-test-box">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <div>
-                <div style="font-size: 0.8rem; font-weight: 600; color: #f8fafc;">ทดสอบเสียงลำโพง (Speaker Test):</div>
-                <div style="font-size: 0.72rem; color: var(--text-muted);">ส่งสัญญาณเสียงทดสอบเพื่อตรวจเช็กความชัดเจน</div>
+        <!-- หมวดที่ 1: รูปลักษณ์ ความโปร่งใส และเอฟเฟกต์กระจก (ใหม่) -->
+        <div class="settings-tab-pane active" id="paneSettingAppearance">
+          
+          <!-- กรอบแสดงตัวอย่างสด (Live Glass Effect Preview) -->
+          <div class="ios-preview-stage">
+            <div class="ios-preview-label">ตัวอย่างการแสดงผลกระจกสด (Live Preview):</div>
+            <div class="glass-live-sample-card" id="glassLivePreviewBox">
+              <div class="sample-card-glow"></div>
+              <div class="sample-card-inner">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-size:1.3rem;">✨</span>
+                  <div>
+                    <div style="font-size:0.88rem; font-weight:700; color:#fff;">TaiyoAni UI Glass</div>
+                    <div style="font-size:0.7rem; color:rgba(255,255,255,0.75);">เอฟเฟกต์กระจกโปร่งใส & แสงสะท้อน</div>
+                  </div>
+                </div>
+                <button type="button" class="sample-mini-btn">ตัวอย่างปุ่มกด</button>
               </div>
-              <button type="button" class="btn-sm" onclick="testSpeakerSound()">🔔 เล่นเสียงทดสอบ</button>
+            </div>
+          </div>
+
+          <!-- กลุ่มการตั้งค่าความโปร่งใสและมิติกระจก -->
+          <div class="ios-grouped-card">
+            <div class="ios-row-item">
+              <div class="ios-row-left">
+                <div class="ios-icon-box bg-accent">💧</div>
+                <div class="ios-row-text">
+                  <span class="ios-main-text">ความโปร่งใสของกระจก</span>
+                  <span class="ios-sub-text" id="labelGlassOpacityVal">35%</span>
+                </div>
+              </div>
+              <div class="ios-slider-wrapper">
+                <input type="range" id="settingGlassOpacityInput" min="10" max="85" value="38" class="ios-range-slider" oninput="handleGlassSettingsChange()">
+              </div>
+            </div>
+
+            <div class="ios-row-divider"></div>
+
+            <div class="ios-row-item">
+              <div class="ios-row-left">
+                <div class="ios-icon-box bg-purple">🪞</div>
+                <div class="ios-row-text">
+                  <span class="ios-main-text">มิติแสงสะท้อนขอบแก้ว (Specular)</span>
+                  <span class="ios-sub-text" id="labelGlassReflectionVal">60%</span>
+                </div>
+              </div>
+              <div class="ios-slider-wrapper">
+                <input type="range" id="settingGlassReflectionInput" min="10" max="100" value="65" class="ios-range-slider" oninput="handleGlassSettingsChange()">
+              </div>
+            </div>
+
+            <div class="ios-row-divider"></div>
+
+            <div class="ios-row-item">
+              <div class="ios-row-left">
+                <div class="ios-icon-box bg-emerald">🌫️</div>
+                <div class="ios-row-text">
+                  <span class="ios-main-text">ความเบลอของฉากหลัง (Frosted Blur)</span>
+                  <span class="ios-sub-text" id="labelGlassBlurVal">30px</span>
+                </div>
+              </div>
+              <div class="ios-slider-wrapper">
+                <input type="range" id="settingGlassBlurInput" min="10" max="50" value="30" class="ios-range-slider" oninput="handleGlassSettingsChange()">
+              </div>
+            </div>
+          </div>
+
+          <div style="text-align: right; margin-top: 8px;">
+            <button type="button" class="btn-sm" onclick="resetGlassSettingsDefault()" style="font-size:0.75rem;">🔄 คืนค่าเริ่มต้นของกระจก</button>
+          </div>
+        </div>
+
+        <!-- หมวดที่ 2: อุปกรณ์เสียง -->
+        <div class="settings-tab-pane" id="paneSettingAudio">
+          <div class="ios-grouped-card">
+            <div class="ios-row-item" style="flex-direction: column; align-items: stretch; gap: 8px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="ios-main-text">🎙️ ไมโครโฟน (Input)</span>
+                <button type="button" class="btn-sm" style="font-size:0.72rem; padding: 2px 8px;" onclick="refreshAudioDevices()">🔄 ค้นหาใหม่</button>
+              </div>
+              <select id="settingAudioInputSelect" class="form-control" onchange="handleAudioDeviceChange()"></select>
+            </div>
+
+            <div class="ios-row-divider"></div>
+
+            <div class="ios-row-item" style="flex-direction: column; align-items: stretch; gap: 6px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 0.8rem; font-weight: 600; color: #fff;">ระดับเสียงไมค์สด (Live Mic Meter):</span>
+                <button type="button" id="btnToggleMicTest" class="btn-sm" onclick="toggleMicTest()">🎙️ ทดสอบไมค์</button>
+              </div>
+              <div class="audio-meter-track">
+                <div class="audio-meter-fill" id="audioMeterFill"></div>
+              </div>
+              <div id="micTestStatusText" style="font-size: 0.7rem; color: var(--text-muted);">กดเริ่มทดสอบ แล้วลองพูดเพื่อดูสัญญาณไมค์</div>
+            </div>
+
+            <div class="ios-row-divider"></div>
+
+            <div class="ios-row-item" style="flex-direction: column; align-items: stretch; gap: 8px;">
+              <span class="ios-main-text">🔊 ลำโพง / หูฟัง (Output)</span>
+              <select id="settingAudioOutputSelect" class="form-control" onchange="handleAudioDeviceChange()"></select>
+              <div style="text-align: right; margin-top: 4px;">
+                <button type="button" class="btn-sm" onclick="testSpeakerSound()">🔔 เล่นเสียงทดสอบ</button>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- หมวดที่ 2: ความปลอดภัย & ล็อกหน้าจอ -->
+        <!-- หมวดที่ 3: ล็อกหน้าจอ -->
         <div class="settings-tab-pane" id="paneSettingSecurity">
-          <p class="settings-pane-desc">ตั้งรหัสผ่านล็อกหน้าจอ (PIN 4 หลัก) เพื่อป้องกันไม่ให้ผู้อื่นเข้าถึง Workspace ตอนคุณไม่อยู่</p>
-
-          <div class="settings-card-box">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <span style="font-size: 0.85rem; font-weight: 700; color: #fff;">สถานะระบบล็อกหน้าจอ:</span>
-              <span id="currentLockStatusText" style="font-size: 0.78rem; font-weight: 600;">⚪ ปิดใช้งาน</span>
+          <div class="ios-grouped-card">
+            <div class="ios-row-item" style="justify-content: space-between;">
+              <span class="ios-main-text">สถานะระบบล็อกหน้าจอ</span>
+              <span id="currentLockStatusText" style="font-size: 0.8rem; font-weight: 600;">⚪ ปิดใช้งาน</span>
             </div>
-            <div class="form-group" style="margin-bottom: 10px;">
-              <label>ตั้งรหัสผ่าน PIN ใหม่ (ตัวเลข 4 หลัก):</label>
-              <input type="password" id="settingLockPinInput" class="form-control" placeholder="กรอกเลข 4 หลัก (เว้นว่าง = ยกเลิกรหัส)" maxlength="4" pattern="[0-9]*" inputmode="numeric">
+            <div class="ios-row-divider"></div>
+            <div class="ios-row-item" style="flex-direction: column; align-items: stretch; gap: 6px;">
+              <span class="ios-main-text">ตั้งรหัสผ่าน PIN ใหม่ (ตัวเลข 4 หลัก):</span>
+              <input type="password" id="settingLockPinInput" class="form-control" placeholder="กรอกเลข 4 หลัก (เว้นว่าง = ยกเลิก)" maxlength="4" pattern="[0-9]*" inputmode="numeric">
+              <button type="button" class="btn-create-task" onclick="saveLockScreenPin()" style="width: 100%; justify-content: center; margin-top: 6px;">
+                💾 บันทึกรหัส PIN ล็อกหน้าจอ
+              </button>
             </div>
-            <button type="button" class="btn-create-task" onclick="saveLockScreenPin()" style="width: 100%; justify-content: center;">
-              💾 บันทึกรหัส PIN ล็อกหน้าจอ
-            </button>
           </div>
         </div>
 
-        <!-- หมวดที่ 3: การแจ้งเตือน & อุปกรณ์ -->
+        <!-- หมวดที่ 4: การแจ้งเตือนและระบบ -->
         <div class="settings-tab-pane" id="paneSettingGeneral">
-          <p class="settings-pane-desc">จัดการการอนุญาตแจ้งเตือนระดับฮาร์ดแวร์และการจดจำอุปกรณ์</p>
-
-          <div class="settings-card-box">
-            <div style="font-size: 0.85rem; font-weight: 700; color: #fff; margin-bottom: 6px;">🔔 การแจ้งเตือนระดับฮาร์ดแวร์ (OS Push Alerts)</div>
-            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 10px;">รับแจ้งเตือนเมื่อมีสายโทรเข้า แชทส่วนตัว หรืออัปเดตโปรเจกต์</p>
-            <button type="button" class="btn-sm" onclick="requestNotificationPermission()">
-              📢 ขอสิทธิ์ส่งการแจ้งเตือนใหม่
-            </button>
-          </div>
-
-          <div class="settings-card-box" style="margin-top: 10px;">
-            <div style="font-size: 0.85rem; font-weight: 700; color: #f87171; margin-bottom: 6px;">🧹 ล้างประวัติบัญชีบนอุปกรณ์</div>
-            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 10px;">ลบรายชื่อล็อกอินที่บันทึกไว้ในเบราว์เซอร์เครื่องนี้</p>
-            <button type="button" class="btn-sm delete" onclick="handleClearDeviceSavedAccounts()">
-              ล้างประวัติการจำชื่อ
-            </button>
+          <div class="ios-grouped-card">
+            <div class="ios-row-item" style="justify-content: space-between;">
+              <div>
+                <div class="ios-main-text">🔔 การแจ้งเตือน OS Push</div>
+                <div class="ios-sub-text">รับการแจ้งเตือนเมื่อมีสายเข้าหรือข้อความ</div>
+              </div>
+              <button type="button" class="btn-sm" onclick="requestNotificationPermission()">ขอสิทธิ์</button>
+            </div>
+            <div class="ios-row-divider"></div>
+            <div class="ios-row-item" style="justify-content: space-between;">
+              <div>
+                <div class="ios-main-text" style="color:#f87171;">🧹 ล้างประวัติบัญชีบนอุปกรณ์</div>
+                <div class="ios-sub-text">ลบรายชื่อที่จำไว้ในเครื่องนี้</div>
+              </div>
+              <button type="button" class="btn-sm delete" onclick="handleClearDeviceSavedAccounts()">ล้าง</button>
+            </div>
           </div>
         </div>
 
-      </div>
-
-      <div class="modal-footer" style="margin-top: 16px;">
-        <button type="button" class="btn-create-task" onclick="closeSettingsModal()" style="width: 100%; justify-content: center;">
-          เสร็จสิ้น
-        </button>
       </div>
     </div>
   </div>
