@@ -4250,150 +4250,222 @@ body.device-mode-tablet .tasks-grid { grid-template-columns: repeat(2, 1fr) !imp
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* ================= ULTRA-TRANSLUCENT iOS GLASS DOCK ================= */
+/* ================= MINIMALIST LIQUID GLASS DOCK ================= */
 .bottom-dock-nav {
   position: fixed;
-  bottom: 22px;
+  bottom: 16px;
   left: 50%;
   transform: translateX(-50%) translateZ(0);
   z-index: 1000;
   
-  /* ทรงแคปซูลเรียวโค้งมน */
-  padding: 6px 14px;
-  gap: 6px;
-  min-width: 380px;
-  max-width: 90vw;
-  justify-content: space-evenly;
+  /* ปรับขนาดให้เล็ก กะทัดรัด สไตล์มินิมอล */
+  padding: 4px 8px;
+  gap: 4px;
+  width: auto;
+  min-width: auto;
   border-radius: 9999px;
   
-  /* ✨ ปรับความโปร่งใสสูง: ลดสีทึบลง เหลือเฉพาะประกายสะท้อนแสง */
+  /* กระจกแก้วใส Ultra-frosted สบายตา */
   background: linear-gradient(
     135deg, 
-    rgba(255, 255, 255, 0.16) 0%, 
+    rgba(255, 255, 255, 0.14) 0%, 
     rgba(255, 255, 255, 0.03) 60%, 
-    rgba(15, 23, 42, 0.28) 100%
+    rgba(15, 23, 42, 0.38) 100%
   );
-  
-  /* เอฟเฟกต์เบลอฉากหลังทะลุกระจก (Frosted Blur) */
-  backdrop-filter: blur(2px) saturate(20%);
-  -webkit-backdrop-filter: blur(2px) saturate(20%);
-  
-  /* เส้นขอบแก้วบางใสและมิติการสะท้อนแสง */
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.45), 
-              0 0 24px rgba(56, 189, 248, 0.12), 
-              inset 0 1.5px 2px rgba(255, 255, 255, 0.65), 
-              inset 0 -1px 2px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.5), 
+              0 0 18px rgba(56, 189, 248, 0.1), 
+              inset 0 1px 1.5px rgba(255, 255, 255, 0.5);
   
   display: flex;
   align-items: center;
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
-  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease, border-color 0.3s ease, background 0.3s ease;
+  transition: transform 0.35s cubic-bezier(0.25, 1, 0.3, 1), 
+              box-shadow 0.35s cubic-bezier(0.25, 1, 0.3, 1), 
+              border-color 0.3s ease;
 }
 
-/* เมื่อลากสครับนิ้ว/เมาส์: ปรับประกายแก้วเรืองแสงแบบโปร่งใส */
+/* ขณะคลิกค้าง/ลากนิ้ว: แถบจะเรืองแสงประกายน้ำและขยายตัวอย่างนุ่มนวล */
 .bottom-dock-nav.is-scrubbing {
   background: linear-gradient(
     135deg, 
-    rgba(255, 255, 255, 0.22) 0%, 
-    rgba(56, 189, 248, 0.08) 60%, 
-    rgba(15, 23, 42, 0.35) 100%
+    rgba(255, 255, 255, 0.2) 0%, 
+    rgba(56, 189, 248, 0.08) 50%, 
+    rgba(15, 23, 42, 0.45) 100%
   );
-  box-shadow: 0 20px 50px -5px rgba(0, 0, 0, 0.55), 
-              0 0 35px rgba(56, 189, 248, 0.3), 
-              inset 0 1.8px 2.5px rgba(255, 255, 255, 0.85);
-  border-color: rgba(56, 189, 248, 0.6);
-  transform: translateX(-50%) scale(1.025) translateZ(0);
+  box-shadow: 0 16px 40px -4px rgba(0, 0, 0, 0.6), 
+              0 0 30px rgba(56, 189, 248, 0.35), 
+              inset 0 1.5px 2px rgba(255, 255, 255, 0.7);
+  border-color: rgba(56, 189, 248, 0.55);
+  transform: translateX(-50%) scale(1.02) translateZ(0);
 }
 
-/* ================= LIQUID CRYSTAL ACTIVE DOCK ITEM ================= */
-
-/* ปุ่มเมนูแต่ละช่อง */
+/* ปุ่มเมนูแต่ละตัว: ทรงแคปซูลเล็กมินิมอล */
 .bottom-nav-item {
   background: transparent;
   border: 1px solid transparent;
   color: #94a3b8;
-  padding: 8px 16px;
-  min-width: 66px;
-  border-radius: 9999px; /* โค้งมนทรงแคปซูลสมบูรณ์แบบ */
+  padding: 5px 12px;
+  min-width: 50px;
+  border-radius: 9999px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 1px;
   position: relative;
-  transition: transform 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.275), 
+  overflow: visible;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), 
               background 0.25s ease, 
               color 0.2s ease,
-              box-shadow 0.25s ease,
               border-color 0.25s ease;
 }
 
-/* ✨ สถานะปุ่มของหน้าปัจจุบัน (Liquid Glass Lens Reflection) */
+.bottom-nav-icon {
+  font-size: 1.18rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s ease;
+}
+
+.bottom-nav-text {
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.bottom-nav-item:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
+}
+
+/* สถานะ Active ของแท็บปัจจุบัน: หยดน้ำคริสตัลใสประกายฟ้า */
 .bottom-nav-item.active {
-  /* ไล่ระดับแสงสะท้อนเลนส์แก้วใส (ขาวประกายคริสตัล + เหลือบแสงโปร่งแสง) */
   background: linear-gradient(
     145deg, 
-    rgba(255, 255, 255, 0.42) 0%, 
-    rgba(255, 255, 255, 0.14) 40%, 
-    rgba(255, 255, 255, 0.03) 70%, 
-    rgba(255, 255, 255, 0.18) 100%
-  ), 
-  rgba(255, 255, 255, 0.06);
-
-  /* เอฟเฟกต์หักเหแสงผ่านกระจกมน */
-  backdrop-filter: blur(50px) saturate(220%);
-  -webkit-backdrop-filter: blur(50px) saturate(220%);
-  
-  /* เส้นขอบแก้วคริสตัลคมชัด (Rim Light) */
-  border: 1px solid rgba(255, 255, 255, 0.65);
-  
-  /* มิติการตกกระทบของแสง: แสงสะท้อนขอบบน, แสงเงาด้านล่าง และแสงวาวนวลรอบตัว */
-  box-shadow: 
-    inset 0 2px 2.5px 0 rgba(255, 255, 255, 0.95), /* แสงตกกระทบขอบบนสุด */
-    inset 0 -1.5px 2px 0 rgba(0, 0, 0, 0.25),      /* เงาลึกมิติด้านล่าง */
-    inset 0 0 14px 1px rgba(255, 255, 255, 0.2),   /* มิติแก้วโปร่งแสงตรงกลาง */
-    0 10px 25px -4px rgba(0, 0, 0, 0.45),          /* เงาทอดลงด้านล่าง */
-    0 0 20px 2px rgba(255, 255, 255, 0.22);        /* แสงออร่าประกายแก้วสีขาวนวล */
-  
+    rgba(56, 189, 248, 0.32) 0%, 
+    rgba(14, 165, 233, 0.16) 60%, 
+    rgba(255, 255, 255, 0.1) 100%
+  );
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(56, 189, 248, 0.65);
+  box-shadow: 0 4px 14px rgba(56, 189, 248, 0.3), 
+              inset 0 1px 1.5px rgba(255, 255, 255, 0.8),
+              inset 0 -1px 1.5px rgba(0, 0, 0, 0.2);
   color: #ffffff;
-  transform: translateY(-3px) scale(1.06);
+  transform: translateY(-2px) scale(1.04);
 }
 
-/* ไอคอนของหน้าที่เลือก: เปล่งประกายแสงสีขาวคมชัด */
 .bottom-nav-item.active .bottom-nav-icon {
-  transform: scale(1.18);
-  filter: drop-shadow(0 3px 8px rgba(255, 255, 255, 0.75)) 
-          drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6));
+  transform: scale(1.14);
+  filter: drop-shadow(0 2px 8px rgba(56, 189, 248, 0.7));
 }
 
-/* ตัวหนังสือของหน้าที่เลือก: คมชัดมีมิติ */
 .bottom-nav-item.active .bottom-nav-text {
   font-weight: 700;
   color: #ffffff;
-  opacity: 1;
-  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.7), 0 0 8px rgba(255, 255, 255, 0.4);
+  text-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
 }
 
-/* เอฟเฟกต์ตอนกดลากสครับผ่านเมนู (Drag-to-select Hover) */
+/* 🌊 แอนิเมชั่นคลื่นน้ำ (Water Ripple Wave) สร้างแบบไดนามิก */
+.water-ripple-wave {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.45) 0%, rgba(255, 255, 255, 0.2) 50%, transparent 75%);
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0);
+  animation: liquidWaveExpand 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  z-index: 1;
+}
+
+@keyframes liquidWaveExpand {
+  0% {
+    transform: translate(-50%, -50%) scale(0.4);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(3.5);
+    opacity: 0;
+  }
+}
+
+/* 💧 แอนิเมชั่นแรงตึงผิวน้ำ ยืด-หด นุ่มนวลตอนลากผ่าน (Fluid Wobble) */
+@keyframes liquidBounce {
+  0% {
+    transform: translateY(-2px) scale(0.9, 1.15);
+    border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
+  }
+  45% {
+    transform: translateY(-7px) scale(1.18, 0.88);
+    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+  }
+  75% {
+    transform: translateY(-4px) scale(0.96, 1.05);
+    border-radius: 45% 55% 55% 45% / 45% 55% 45% 55%;
+  }
+  100% {
+    transform: translateY(-5px) scale(1.08, 0.98);
+    border-radius: 9999px;
+  }
+}
+
+/* ปุ่มที่นิ้วหรือเมาส์กำลังลากผ่าน (Scrub Hovered Item) */
 .bottom-nav-item.is-scrub-hovered {
   background: linear-gradient(
     145deg, 
-    rgba(255, 255, 255, 0.55) 0%, 
-    rgba(255, 255, 255, 0.2) 50%, 
-    rgba(255, 255, 255, 0.08) 100%
+    rgba(255, 255, 255, 0.45) 0%, 
+    rgba(56, 189, 248, 0.28) 55%, 
+    rgba(255, 255, 255, 0.12) 100%
   ) !important;
-  border-color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.9) !important;
   color: #ffffff !important;
-  transform: translateY(-8px) scale(1.22) !important;
-  box-shadow: 
-    inset 0 2px 3px rgba(255, 255, 255, 1), 
-    0 12px 28px rgba(0, 0, 0, 0.5), 
-    0 0 25px rgba(255, 255, 255, 0.45) !important;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.4), 
+              0 0 20px rgba(56, 189, 248, 0.55), 
+              inset 0 2px 2px rgba(255, 255, 255, 0.95) !important;
+  animation: liquidBounce 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   z-index: 10;
+}
+
+.bottom-nav-item.is-scrub-hovered .bottom-nav-icon {
+  transform: scale(1.22);
+  filter: drop-shadow(0 4px 10px rgba(56, 189, 248, 0.8));
+}
+
+.bottom-nav-item.is-scrub-hovered .bottom-nav-text {
+  color: #ffffff;
+  font-weight: 700;
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
+}
+
+/* Badge แจ้งเตือนข้อความแชท */
+.chat-badge-counter {
+  position: absolute;
+  top: -3px;
+  right: -6px;
+  background: var(--rose);
+  color: #ffffff;
+  font-size: 0.58rem;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 9999px;
+  line-height: 1.1;
+  border: 1.5px solid #0f172a;
 }
 
 /* ================= INSTAGRAM-GRADE COMMUNITY & STORY SYSTEM ================= */
@@ -6492,4 +6564,648 @@ body.device-mode-auto .app-layout {
   -webkit-backdrop-filter: blur(1px) saturate(150%);
   pointer-events: none;
   z-index: 900; /* อยู่ใต้แถบ Dock Menu (1000) แต่คลุมพื้นที่ว่างด้านล่างทั้งหมด */
+}
+
+/* ================= HOME HAMBURGER TOGGLE BUTTON ================= */
+.btn-home-drawer-toggle {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--glass-bg);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid var(--glass-border-light);
+  color: #ffffff;
+  font-size: 1.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 20;
+  box-shadow: var(--glass-specular), 0 6px 18px rgba(0, 0, 0, 0.4);
+  transition: all 0.25s var(--anim-spring);
+}
+
+.btn-home-drawer-toggle:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--accent);
+  transform: translateY(-2px) scale(1.06);
+  box-shadow: 0 0 20px var(--accent-glow), var(--glass-specular);
+}
+
+/* ================= SLIDE-OUT HOME DRAWER MENU ================= */
+.home-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 1040;
+  display: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.home-drawer-backdrop.active {
+  display: block;
+  opacity: 1;
+}
+
+.home-drawer-menu {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 320px;
+  max-width: 85vw;
+  background: linear-gradient(145deg, rgba(20, 28, 48, 0.95) 0%, rgba(10, 15, 26, 0.98) 100%);
+  backdrop-filter: blur(36px) saturate(200%);
+  -webkit-backdrop-filter: blur(36px) saturate(200%);
+  border-right: 1px solid var(--glass-border-light);
+  box-shadow: 20px 0 50px rgba(0, 0, 0, 0.8), var(--glass-specular);
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(-100%);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow-y: auto;
+}
+
+.home-drawer-menu.open {
+  transform: translateX(0);
+}
+
+/* Header: Cover Banner & User Profile */
+.home-drawer-header {
+  position: relative;
+  width: 100%;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.home-drawer-cover {
+  width: 100%;
+  height: 110px;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.4) 0%, rgba(192, 132, 252, 0.4) 100%), #0f172a;
+  overflow: hidden;
+  position: relative;
+}
+
+.home-drawer-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.btn-close-drawer {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #fff;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 5;
+}
+
+.home-drawer-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  margin-top: -30px;
+  position: relative;
+  z-index: 2;
+}
+
+.home-drawer-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #0f172a;
+  border: 3px solid var(--glass-border-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-size: 1.8rem;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+  flex-shrink: 0;
+}
+
+.home-drawer-avatar img,
+.home-drawer-avatar .avatar-chip img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.home-drawer-user-info {
+  display: flex;
+  flex-direction: column;
+  margin-top: 26px;
+  min-width: 0;
+}
+
+.home-drawer-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.home-drawer-role {
+  font-size: 0.74rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Drawer Menu Items */
+.home-drawer-body {
+  padding: 16px 14px;
+  flex: 1;
+}
+
+.home-drawer-section-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  padding-left: 6px;
+}
+
+.home-drawer-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.home-drawer-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--glass-border);
+  color: #f8fafc;
+  cursor: pointer;
+  transition: all 0.2s var(--anim-spring);
+  text-align: left;
+}
+
+.home-drawer-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--accent);
+  transform: translateX(4px);
+}
+
+.drawer-item-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  flex-shrink: 0;
+  box-shadow: var(--glass-specular);
+}
+
+.drawer-item-icon.bg-lock { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.drawer-item-icon.bg-bell { background: linear-gradient(135deg, #ef4444, #dc2626); }
+.drawer-item-icon.bg-members { background: linear-gradient(135deg, #10b981, #059669); }
+.drawer-item-icon.bg-settings { background: linear-gradient(135deg, #64748b, #475569); }
+.drawer-item-icon.bg-logout { background: linear-gradient(135deg, #f43f5e, #be123c); }
+
+.drawer-item-text {
+  flex: 1;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.drawer-item-arrow {
+  font-size: 1.2rem;
+  color: #64748b;
+  font-weight: 300;
+}
+
+.drawer-list-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 10px 0;
+}
+
+.home-drawer-item.item-logout {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.home-drawer-item.item-logout:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: #ef4444;
+}
+
+/* ================= iOS INSET GROUPED SETTINGS STYLES ================= */
+.ios-settings-modal {
+  max-width: 500px !important;
+  border-radius: 24px !important;
+  padding: 0 !important;
+  background: #000000 !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85) !important;
+  overflow: hidden;
+}
+
+.ios-settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ios-settings-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.ios-done-btn {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* iOS Segmented Control Bar */
+.ios-segmented-control {
+  display: flex;
+  margin: 14px 16px 8px 16px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 3px;
+  border-radius: 10px;
+  gap: 2px;
+}
+
+.ios-segment-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 6px 4px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.ios-segment-btn.active {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.ios-settings-content {
+  padding: 10px 16px 20px 16px;
+}
+
+/* iOS Inset Grouped Card */
+.ios-grouped-card {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ios-row-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 14px;
+  gap: 12px;
+}
+
+.ios-row-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin-left: 50px;
+}
+
+.ios-row-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.ios-icon-box {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+.ios-icon-box.bg-accent { background: #0284c7; }
+.ios-icon-box.bg-purple { background: #9333ea; }
+.ios-icon-box.bg-emerald { background: #059669; }
+
+.ios-row-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.ios-main-text {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.ios-sub-text {
+  font-size: 0.72rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.ios-slider-wrapper {
+  width: 140px;
+}
+
+/* iOS Style Range Slider */
+.ios-range-slider {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+  outline: none;
+}
+
+.ios-range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.ios-range-slider::-webkit-slider-thumb:active {
+  transform: scale(1.2);
+}
+
+/* ================= LIVE GLASS EFFECT PREVIEW CARD ================= */
+.ios-preview-stage {
+  margin-bottom: 14px;
+}
+
+.ios-preview-label {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.glass-live-sample-card {
+  position: relative;
+  width: 100%;
+  height: 105px;
+  border-radius: 16px;
+  background-image: radial-gradient(circle at 15% 50%, rgba(56, 189, 248, 0.35), transparent 45%),
+                    radial-gradient(circle at 85% 50%, rgba(192, 132, 252, 0.35), transparent 45%),
+                    linear-gradient(135deg, #1e293b, #0f172a);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.sample-card-inner {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.15s ease-out;
+  
+  /* ตัวแปรที่เปลี่ยนตามสไลเดอร์แบบสดๆ */
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur, 30px)) saturate(190%);
+  -webkit-backdrop-filter: blur(var(--glass-blur, 30px)) saturate(190%);
+  border: 1px solid var(--glass-border-light);
+  box-shadow: var(--glass-specular), 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.sample-mini-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--glass-border-light);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 8px;
+  cursor: default;
+  box-shadow: var(--glass-specular);
+}
+
+/* ================= MINIMALIST LIQUID GLASS DOCK (ผูกกับตัวแปรตั้งค่ากระจก) ================= */
+.bottom-dock-nav {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%) translateZ(0);
+  z-index: 1000;
+  
+  /* ปรับขนาดทรงแคปซูลเล็กมินิมอล */
+  padding: 5px 12px;
+  gap: 5px;
+  width: auto;
+  min-width: auto;
+  border-radius: 9999px;
+  
+  /* 🌟 เชื่อมต่อกับค่าการตั้งค่าใน Settings โดยตรง 🌟 */
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(var(--glass-blur, 28px)) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur, 28px)) saturate(190%) !important;
+  border: 1px solid var(--glass-border-light) !important;
+  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.55), 
+              0 0 18px rgba(56, 189, 248, 0.12), 
+              var(--glass-specular) !important;
+  
+  display: flex;
+  align-items: center;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  transition: transform 0.35s cubic-bezier(0.25, 1, 0.3, 1), 
+              box-shadow 0.35s cubic-bezier(0.25, 1, 0.3, 1), 
+              border-color 0.3s ease,
+              background 0.15s ease,
+              backdrop-filter 0.15s ease;
+}
+
+/* ขณะคลิกค้าง/ลากนิ้ว: ยังคงขยายตัวนุ่มนวลและคงแสงสะท้อนตามที่ตั้งค่าไว้ */
+.bottom-dock-nav.is-scrubbing {
+  box-shadow: 0 16px 40px -4px rgba(0, 0, 0, 0.65), 
+              0 0 30px rgba(56, 189, 248, 0.35), 
+              var(--glass-specular) !important;
+  border-color: rgba(56, 189, 248, 0.65) !important;
+  transform: translateX(-50%) scale(1.025) translateZ(0);
+}
+
+/* ปุ่มเมนูแต่ละแท็บ */
+.bottom-nav-item {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #94a3b8;
+  padding: 5px 12px;
+  min-width: 50px;
+  border-radius: 9999px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  position: relative;
+  overflow: visible;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), 
+              background 0.25s ease, 
+              color 0.2s ease,
+              border-color 0.25s ease;
+}
+
+.bottom-nav-icon {
+  font-size: 1.18rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s ease;
+}
+
+.bottom-nav-text {
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.bottom-nav-item:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
+}
+
+/* สถานะ Active ของแท็บปัจจุบัน: ใช้มิติแสงสะท้อนและเบลอร่วมด้วย */
+.bottom-nav-item.active {
+  background: linear-gradient(
+    145deg, 
+    rgba(56, 189, 248, 0.32) 0%, 
+    rgba(14, 165, 233, 0.16) 60%, 
+    rgba(255, 255, 255, 0.1) 100%
+  );
+  backdrop-filter: blur(var(--glass-blur, 20px));
+  -webkit-backdrop-filter: blur(var(--glass-blur, 20px));
+  border: 1px solid rgba(56, 189, 248, 0.7);
+  box-shadow: 0 4px 14px rgba(56, 189, 248, 0.3), 
+              var(--glass-specular);
+  color: #ffffff;
+  transform: translateY(-2px) scale(1.04);
+}
+
+.bottom-nav-item.active .bottom-nav-icon {
+  transform: scale(1.14);
+  filter: drop-shadow(0 2px 8px rgba(56, 189, 248, 0.7));
+}
+
+.bottom-nav-item.active .bottom-nav-text {
+  font-weight: 700;
+  color: #ffffff;
+  text-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+}
+
+/* คลื่นระลอกน้ำตอนลากผ่าน (Water Ripple) */
+.water-ripple-wave {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.45) 0%, rgba(255, 255, 255, 0.2) 50%, transparent 75%);
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0);
+  animation: liquidWaveExpand 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  z-index: 1;
+}
+
+@keyframes liquidWaveExpand {
+  0% { transform: translate(-50%, -50%) scale(0.4); opacity: 0.9; }
+  100% { transform: translate(-50%, -50%) scale(3.5); opacity: 0; }
+}
+
+@keyframes liquidBounce {
+  0% { transform: translateY(-2px) scale(0.9, 1.15); }
+  45% { transform: translateY(-7px) scale(1.18, 0.88); }
+  75% { transform: translateY(-4px) scale(0.96, 1.05); }
+  100% { transform: translateY(-5px) scale(1.08, 0.98); }
+}
+
+.bottom-nav-item.is-scrub-hovered {
+  background: linear-gradient(
+    145deg, 
+    rgba(255, 255, 255, 0.45) 0%, 
+    rgba(56, 189, 248, 0.28) 55%, 
+    rgba(255, 255, 255, 0.12) 100%
+  ) !important;
+  border-color: rgba(255, 255, 255, 0.9) !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.4), 
+              0 0 20px rgba(56, 189, 248, 0.55), 
+              var(--glass-specular) !important;
+  animation: liquidBounce 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  z-index: 10;
+}
+
+.bottom-nav-item.is-scrub-hovered .bottom-nav-icon {
+  transform: scale(1.22);
+  filter: drop-shadow(0 4px 10px rgba(56, 189, 248, 0.8));
+}
+
+.bottom-nav-item.is-scrub-hovered .bottom-nav-text {
+  color: #ffffff;
+  font-weight: 700;
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
 }
