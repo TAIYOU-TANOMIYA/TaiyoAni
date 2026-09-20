@@ -165,7 +165,7 @@ const AudioFX = {
 };
 
 document.addEventListener('click', (e) => {
-  if (e.target.closest('button') || e.target.closest('.avatar-opt') || e.target.closest('.project-item') || e.target.closest('.word-tool-btn') || e.target.closest('.emoji-btn-opt') || e.target.closest('.category-select-pill') || e.target.closest('.fb-action-btn') || e.target.closest('.fb-tool-icon-btn')) {
+  if (e.target.closest('button') || e.target.closest('.avatar-opt') || e.target.closest('.project-item') || e.target.closest('.word-tool-btn') || e.target.closest('.emoji-btn-opt') || e.target.closest('.category-select-pill') || e.target.closest('.fb-action-btn') || e.target.closest('.fb-tool-icon-btn') || e.target.closest('.home-drawer-item')) {
     AudioFX.click();
   }
 });
@@ -460,18 +460,23 @@ window.markAllNotificationsAsRead = function() {
 
 function updateNotificationBadge() {
   const badge = document.getElementById('notifBadgeCounter');
-  if (!badge) return;
+  const drawerBadge = document.getElementById('drawerNotifBadge');
 
   const unreadCount = systemNotifications.filter(n => {
     const time = n.createdAt || 0;
     return time > lastKnownNotifTimestamp;
   }).length;
 
-  if (unreadCount > 0) {
-    badge.innerText = unreadCount > 99 ? '99+' : unreadCount;
-    badge.style.display = 'flex';
-  } else {
-    badge.style.display = 'none';
+  const countDisplay = unreadCount > 99 ? '99+' : unreadCount;
+  const isShow = unreadCount > 0 ? 'flex' : 'none';
+
+  if (badge) {
+    badge.innerText = countDisplay;
+    badge.style.display = isShow;
+  }
+  if (drawerBadge) {
+    drawerBadge.innerText = countDisplay;
+    drawerBadge.style.display = isShow;
   }
 }
 
@@ -735,7 +740,7 @@ function renderLockBanners() {
 // ================= CATEGORIZED SETTINGS MODAL =================
 window.switchSettingsTab = function(tabName) {
   AudioFX.click();
-  document.querySelectorAll('.settings-tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.ios-segment-btn, .settings-tab-btn').forEach(btn => btn.classList.remove('active'));
   document.querySelectorAll('.settings-tab-pane').forEach(pane => pane.classList.remove('active'));
 
   const activeBtn = document.getElementById(`tabBtnSetting${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`);
@@ -3430,7 +3435,6 @@ window.setDeviceMode = function(mode) {
 
   localStorage.setItem('taiyoani_device_mode', mode);
 
-  // อัปเดตสถานะ Active ให้กับปุ่มเลย์เอ้าท์ที่หน้าโฮม
   document.querySelectorAll('.home-device-switcher-bar .btn-device-opt').forEach(btn => {
     const btnMode = btn.getAttribute('data-mode') || btn.id.replace('devOpt', '').toLowerCase();
     if (btnMode === mode) {
@@ -3937,6 +3941,7 @@ window.handleSaveTaskScript = async function() {
 function initAuth() {
   initDeviceMode();
   initAppView();
+  initGlassSettings();
   startLiveClock();
   renderChatEmojiPicker();
   startRealtimeSync();
@@ -4369,11 +4374,12 @@ window.handleLogout = function() {
   }
 };
 
-// ================= MEMBERS PRESENCE (แก้บัคการกดดูสมาชิก) =================
+// ================= MEMBERS PRESENCE =================
 function renderMembersPresenceList() {
   const container = document.getElementById('membersPresenceList');
   const homeOnlinePill = document.getElementById('homeOnlineIndicator');
   const dockOnlineCount = document.getElementById('modalOnlineCountText');
+  const drawerOnlineBadge = document.getElementById('drawerOnlineBadge');
   if (!container) return;
   container.innerHTML = '';
 
@@ -4442,6 +4448,7 @@ function renderMembersPresenceList() {
 
   if (homeOnlinePill) homeOnlinePill.innerText = `${onlineCount}`;
   if (dockOnlineCount) dockOnlineCount.innerText = `${onlineCount} ออนไลน์`;
+  if (drawerOnlineBadge) drawerOnlineBadge.innerText = `${onlineCount}`;
 }
 
 window.startDirectChat = function(targetUserId) {
@@ -4482,7 +4489,6 @@ window.openUserProfile = function(userId) {
   const userIsAdmin = isAdmin(user);
   const userIsStaff = isStaff(user);
 
-  // 1. ภาพหน้าปก Cover Banner
   if (bannerEl) {
     if (user.banner && user.banner.trim() !== '') {
       bannerEl.innerHTML = `<img src="${escapeHtml(user.banner)}" alt="Cover Banner">`;
@@ -4491,12 +4497,10 @@ window.openUserProfile = function(userId) {
     }
   }
 
-  // 2. อวาตาร์โปรไฟล์
   if (avatarEl) {
     avatarEl.innerHTML = renderAvatarHtml(user.avatar);
   }
 
-  // 3. ชื่อและยศ/ตำแหน่ง
   if (nameEl) {
     nameEl.innerText = `${user.name}${userIsAdmin ? ' 👑' : ''}`;
   }
@@ -4509,14 +4513,12 @@ window.openUserProfile = function(userId) {
     roleEl.innerText = roleText;
   }
 
-  // 4. สถานะออนไลน์
   if (statusEl) {
     const presence = getPresenceStatus(user.lastActive);
     statusEl.innerText = `${presence.text}`;
     statusEl.style.color = presence.isOnline ? '#6ee7b7' : 'var(--text-muted)';
   }
 
-  // 5. อีเมลและ Bio
   if (emailEl) {
     emailEl.innerText = user.email || 'ไม่ได้ระบุอีเมล';
   }
@@ -4525,7 +4527,6 @@ window.openUserProfile = function(userId) {
     bioEl.innerText = (user.bio && user.bio.trim() !== '') ? user.bio : 'ยังไม่มีคำแนะนำตัว';
   }
 
-  // 6. ปุ่มการทำงานใต้การ์ดโปรไฟล์
   if (actionsEl) {
     actionsEl.innerHTML = '';
     if (isSelf) {
@@ -4546,7 +4547,6 @@ window.openUserProfile = function(userId) {
   if (modal) modal.style.display = 'flex';
 };
 
-// จัดการการปรับยศของแอดมิน
 window.openAdminRoleModal = function(userId) {
   if (!isAdmin()) {
     AudioFX.delete();
@@ -5172,6 +5172,23 @@ function updateCurrentUserDisplay() {
     if (homeName) homeName.innerText = `${user.name}${adminTag}`;
     if (homeRole) homeRole.innerText = displayRole;
 
+    // อัปเดตข้อมูลผู้ใช้และปกบนแถบเมนูด้านข้าง (Drawer)
+    const drawerAvatar = document.getElementById('drawerUserAvatarDisplay');
+    const drawerName = document.getElementById('drawerUserNameDisplay');
+    const drawerRole = document.getElementById('drawerUserRoleDisplay');
+    const drawerCover = document.getElementById('drawerCoverBannerDisplay');
+
+    if (drawerAvatar) drawerAvatar.innerHTML = renderAvatarHtml(user.avatar);
+    if (drawerName) drawerName.innerText = `${user.name}${adminTag}`;
+    if (drawerRole) drawerRole.innerText = displayRole;
+    if (drawerCover) {
+      if (user.banner && user.banner.trim() !== '') {
+        drawerCover.innerHTML = `<img src="${user.banner}" alt="Cover">`;
+      } else {
+        drawerCover.innerHTML = '';
+      }
+    }
+
     const editRevenueBtn = document.getElementById('btnAdminEditRevenue');
     if (editRevenueBtn) editRevenueBtn.style.display = userIsAdmin ? 'inline-flex' : 'none';
 
@@ -5566,7 +5583,7 @@ window.handleConfirmDeleteAccount = async function(e) {
   }
 };
 
-// ================= iOS DOCK DRAG & SCRUB GESTURE ENGINE =================
+// ================= iOS DOCK DRAG & SCRUB GESTURE ENGINE (LIQUID WATER EFFECT) =================
 function initDockGestureScrubber() {
   const dock = document.querySelector('.bottom-dock-nav');
   if (!dock) return;
@@ -5578,6 +5595,14 @@ function initDockGestureScrubber() {
     const el = document.elementFromPoint(x, y);
     if (!el) return null;
     return el.closest('.bottom-nav-item');
+  }
+
+  function triggerWaterRipple(buttonEl) {
+    if (!buttonEl) return;
+    const wave = document.createElement('span');
+    wave.className = 'water-ripple-wave';
+    buttonEl.appendChild(wave);
+    setTimeout(() => wave.remove(), 550);
   }
 
   function handleStart(e) {
@@ -5601,8 +5626,9 @@ function initDockGestureScrubber() {
       currentTargetBtn = hoveredItem;
       currentTargetBtn.classList.add('is-scrub-hovered');
 
+      triggerWaterRipple(currentTargetBtn);
       AudioFX.click();
-      if ('vibrate' in navigator) navigator.vibrate(8);
+      if ('vibrate' in navigator) navigator.vibrate(10);
     }
   }
 
@@ -5642,6 +5668,94 @@ function initDockGestureScrubber() {
   window.addEventListener('mousemove', handleMove);
   window.addEventListener('mouseup', handleEnd);
 }
+
+// ================= SLIDE-OUT HOME DRAWER CONTROLLERS =================
+window.toggleHomeDrawer = function() {
+  AudioFX.click();
+  const drawer = document.getElementById('homeDrawerMenu');
+  const backdrop = document.getElementById('homeDrawerBackdrop');
+  if (drawer && backdrop) {
+    drawer.classList.toggle('open');
+    backdrop.classList.toggle('active');
+  }
+};
+
+window.closeHomeDrawer = function() {
+  const drawer = document.getElementById('homeDrawerMenu');
+  const backdrop = document.getElementById('homeDrawerBackdrop');
+  if (drawer && backdrop) {
+    drawer.classList.remove('open');
+    backdrop.classList.remove('active');
+  }
+};
+
+// ================= DYNAMIC GLASS OPACITY & SPECULAR ENGINE =================
+function initGlassSettings() {
+  const savedOpacity = localStorage.getItem('taiyoani_glass_opacity') || '38';
+  const savedReflection = localStorage.getItem('taiyoani_glass_reflection') || '65';
+  const savedBlur = localStorage.getItem('taiyoani_glass_blur') || '30';
+
+  const opSlider = document.getElementById('settingGlassOpacityInput');
+  const refSlider = document.getElementById('settingGlassReflectionInput');
+  const blurSlider = document.getElementById('settingGlassBlurInput');
+
+  if (opSlider) opSlider.value = savedOpacity;
+  if (refSlider) refSlider.value = savedReflection;
+  if (blurSlider) blurSlider.value = savedBlur;
+
+  applyGlassSettings(savedOpacity, savedReflection, savedBlur, false);
+}
+
+window.handleGlassSettingsChange = function() {
+  const opVal = document.getElementById('settingGlassOpacityInput')?.value || '38';
+  const refVal = document.getElementById('settingGlassReflectionInput')?.value || '65';
+  const blurVal = document.getElementById('settingGlassBlurInput')?.value || '30';
+
+  applyGlassSettings(opVal, refVal, blurVal, true);
+};
+
+function applyGlassSettings(opacity, reflection, blur, save = true) {
+  const root = document.documentElement;
+  
+  const opFraction = (parseInt(opacity, 10) / 100).toFixed(2);
+  const refFraction = (parseInt(reflection, 10) / 100).toFixed(2);
+
+  const newGlassBg = `linear-gradient(135deg, rgba(255, 255, 255, ${(0.14 * refFraction).toFixed(2)}) 0%, rgba(255, 255, 255, 0.02) 100%), rgba(15, 23, 42, ${opFraction})`;
+  const newGlassSpecular = `inset 0 1px 1.5px 0 rgba(255, 255, 255, ${refFraction}), inset 0 -1px 1px 0 rgba(0, 0, 0, 0.25)`;
+  const newGlassBorderLight = `rgba(255, 255, 255, ${(0.45 * refFraction).toFixed(2)})`;
+
+  root.style.setProperty('--glass-bg', newGlassBg);
+  root.style.setProperty('--glass-specular', newGlassSpecular);
+  root.style.setProperty('--glass-border-light', newGlassBorderLight);
+  root.style.setProperty('--glass-blur', `${blur}px`);
+
+  const lblOp = document.getElementById('labelGlassOpacityVal');
+  const lblRef = document.getElementById('labelGlassReflectionVal');
+  const lblBlur = document.getElementById('labelGlassBlurVal');
+
+  if (lblOp) lblOp.innerText = `${opacity}%`;
+  if (lblRef) lblRef.innerText = `${reflection}%`;
+  if (lblBlur) lblBlur.innerText = `${blur}px`;
+
+  if (save) {
+    localStorage.setItem('taiyoani_glass_opacity', opacity);
+    localStorage.setItem('taiyoani_glass_reflection', reflection);
+    localStorage.setItem('taiyoani_glass_blur', blur);
+  }
+}
+
+window.resetGlassSettingsDefault = function() {
+  AudioFX.click();
+  const opSlider = document.getElementById('settingGlassOpacityInput');
+  const refSlider = document.getElementById('settingGlassReflectionInput');
+  const blurSlider = document.getElementById('settingGlassBlurInput');
+
+  if (opSlider) opSlider.value = '38';
+  if (refSlider) refSlider.value = '65';
+  if (blurSlider) blurSlider.value = '30';
+
+  applyGlassSettings('38', '65', '30', true);
+};
 
 window.addEventListener('beforeunload', () => {
   if (isUserInVoiceRoom && activeVoiceRoomId) {
