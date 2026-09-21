@@ -461,6 +461,7 @@ window.markAllNotificationsAsRead = function() {
 function updateNotificationBadge() {
   const badge = document.getElementById('notifBadgeCounter');
   const drawerBadge = document.getElementById('drawerNotifBadge');
+  const toggleBadge = document.getElementById('homeToggleNotifBadge');
 
   const unreadCount = systemNotifications.filter(n => {
     const time = n.createdAt || 0;
@@ -477,6 +478,10 @@ function updateNotificationBadge() {
   if (drawerBadge) {
     drawerBadge.innerText = countDisplay;
     drawerBadge.style.display = isShow;
+  }
+  if (toggleBadge) {
+    toggleBadge.innerText = countDisplay;
+    toggleBadge.style.display = isShow;
   }
 }
 
