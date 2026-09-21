@@ -210,16 +210,16 @@
     <!-- 1. หน้าโฮม (HOME VIEW) -->
     <section class="app-view-section active" id="viewHome">
       
-      <!-- 🌟 ปุ่มเมนูสามขีดด้านบนซ้าย 🌟 -->
+      <!-- 🌟 ปุ่มเมนูสามขีดด้านบนซ้าย (พร้อมจุดแจ้งเตือนเตือนสีแดงด้านนอก) 🌟 -->
       <button type="button" class="btn-home-drawer-toggle" onclick="toggleHomeDrawer()" title="เปิดเมนูหลัก">
         <span>☰</span>
+        <span class="home-members-badge notif-bell-badge" id="homeToggleNotifBadge" style="display: none;">0</span>
       </button>
 
-      <!-- 🌟 แถบเมนูด้านข้างพร้อมภาพปกและโปรไฟล์ (Slide-out Drawer) 🌟 -->
+      <!-- 🌟 แถบเมนูด้านข้าง (Slide-out Drawer) 🌟 -->
       <div class="home-drawer-backdrop" id="homeDrawerBackdrop" onclick="closeHomeDrawer()"></div>
       <aside class="home-drawer-menu" id="homeDrawerMenu">
         
-        <!-- ส่วนบนสุด: ภาพหน้าปก Cover Banner + ข้อมูลโปรไฟล์ผู้ใช้ -->
         <div class="home-drawer-header">
           <div class="home-drawer-cover" id="drawerCoverBannerDisplay"></div>
           <button type="button" class="btn-close-drawer" onclick="closeHomeDrawer()" title="ปิดเมนู">✕</button>
@@ -233,7 +233,6 @@
           </div>
         </div>
 
-        <!-- รายการเมนูทั้ง 5 ปุ่มที่ย้ายเข้ามา -->
         <div class="home-drawer-body">
           <div class="home-drawer-section-label">ฟังก์ชันหลัก</div>
           
@@ -279,8 +278,6 @@
           </div>
         </div>
       </aside>
-
-      <div class="home-center-stage">
 
       <div class="home-center-stage">
         <div class="home-banner-wrapper">
